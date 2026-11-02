@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Button, NewModal } from '@modrinth/ui'
+import { Button, NewModal, injectNotificationManager } from '@modrinth/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { ref } from 'vue'
 import type { MinecraftCredential } from '@/models/astralrinth/authentication'
@@ -11,6 +11,8 @@ const password = ref('')
 const totp = ref('')
 const busy = ref(false)
 const error = ref('')
+const connectingSkins = ref(false)
+const { addNotification } = injectNotificationManager()
 
 async function login() {
 	if (busy.value) return
@@ -22,6 +24,26 @@ async function login() {
 			password: password.value,
 			totp: totp.value || null,
 		})
+		connectingSkins.value = true
+		try {
+			const connected = await invoke<boolean>('plugin:auth|ely_skins_connected', {
+				user: credentials.profile.id,
+			})
+			if (!connected) {
+				await invoke('plugin:auth|ely_skins_connect', {
+					user: credentials.profile.id,
+					login: username.value,
+					password: password.value,
+					totp: totp.value || null,
+				})
+			}
+		} catch (e) {
+			addNotification({
+				type: 'warning',
+				title: 'Вход выполнен, но управление скинами не подключилось',
+				text: `${typeof e === 'string' ? e : ((e as { message?: string }).message ?? 'Ely.by недоступен.')} Повторите подключение в разделе «Скины».`,
+			})
+		}
 		password.value = ''
 		totp.value = ''
 		emit('authenticated', credentials)
@@ -33,6 +55,8 @@ async function login() {
 				: ((e as { message?: string }).message ??
 					'Не удалось войти в Ely.by. Проверьте данные и подключение.')
 	} finally {
+		clearSecrets()
+		connectingSkins.value = false
 		busy.value = false
 	}
 }
@@ -55,10 +79,11 @@ defineExpose({ show })
 		ref="modal"
 		header="Вход в Ely.by"
 		max-width="480px"
+		:disable-close="busy"
 		@hide="clearSecrets"
 	>
 		<form class="flex flex-col gap-4 p-6" @submit.prevent="login">
-			<p class="m-0">Аккаунт и скин Ely.by будут доступны во всех ваших сборках.</p>
+			<p class="m-0">Один вход для игры и управления скинами Ely.by во всех ваших сборках.</p>
 			<label class="flex flex-col gap-2"
 				>Почта или никнейм
 				<input v-model="username" class="input" autocomplete="username" required :disabled="busy" />
@@ -94,7 +119,7 @@ defineExpose({ show })
 				:disabled="busy || !username.trim() || !password"
 				@click="login"
 			>
-				{{ busy ? 'Входим…' : 'Войти' }}
+				{{ connectingSkins ? 'Подключаем скины…' : busy ? 'Входим…' : 'Войти' }}
 			</Button>
 		</form>
 	</NewModal>

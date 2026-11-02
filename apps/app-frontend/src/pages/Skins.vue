@@ -9,7 +9,7 @@ import { users, get_default_user, set_default_user } from '@/helpers/auth'
 import type { MinecraftCredential } from '@/models/astralrinth/authentication'
 
 type Skin = { id: number; skin_url: string; is_slim: boolean; tags: string[] }
-type Catalog = { items: Skin[]; current: number; last: number }
+type Catalog = { items: Skin[]; current: number; last: number; total_items?: number; equipped_id?: number }
 type Preview = { skin: Skin; texture: string }
 const accountsCard = inject<
 	Ref<{
@@ -31,7 +31,7 @@ const previewVariant = computed(() =>
 const catalog = ref<Catalog>({ items: [], current: 1, last: 1 })
 const page = ref(1)
 const tab = ref('Мои скины')
-const collection = ref('Сохранённые')
+const collection = ref('Мои загрузки')
 const tag = ref('')
 const model = ref('Все модели')
 const loadingCatalog = ref(false)
@@ -160,6 +160,7 @@ async function applySkin() {
 		}
 		pending.value = null
 		await accountsCard?.value?.setElySkinHead?.(user, preview.texture)
+		catalog.value.equipped_id = preview.skin.id
 		notice.value =
 			'Скин применён в Ely.by. Перезапустите Minecraft; обновление игрового кэша может занять около минуты.'
 	} catch (e) {
@@ -185,10 +186,16 @@ async function uploadFile(event: Event) {
 			user: selected.value,
 			bytes: Array.from(new Uint8Array(await file.arrayBuffer())),
 		})
+		tab.value = 'Мои скины'
+		collection.value = 'Мои загрузки'
+		tag.value = ''
+		model.value = 'Все модели'
+		page.value = 1
+		await loadCatalog()
+		notice.value = 'Скин добавлен в «Мои загрузки». Текущий скин не изменён. Для смены нажмите «Применить скин».'
 		const preview = await invoke<Preview>('plugin:auth|ely_skins_preview', { skinId: skin.id })
 		previewRequest++
 		pending.value = preview
-		notice.value = 'PNG загружен в Ely.by. Проверьте предпросмотр и нажмите «Применить».'
 	} catch (e) {
 		error.value = message(e)
 	} finally {
@@ -365,13 +372,16 @@ onMounted(() => {
 							{{ name }}
 						</button>
 					</div>
-					<span class="text-sm text-secondary">{{ catalog.current }} / {{ catalog.last }}</span>
+					<div class="flex items-center gap-3">
+						<span class="text-sm text-secondary">Скинов: {{ catalog.total_items ?? catalog.items.length }}</span>
+						<Button size="sm" :disabled="busy || loadingCatalog" @click="loadCatalog">Обновить</Button>
+					</div>
 				</div>
 				<DropdownSelect
 					v-if="tab === 'Мои скины' && connected"
 					v-model="collection"
 					name="ely-my-collection"
-					:options="['Сохранённые', 'Мои загрузки']"
+					:options="['Мои загрузки', 'Сохранённые']"
 					class="mb-4"
 				/>
 				<form
@@ -398,7 +408,7 @@ onMounted(() => {
 				<div v-if="loadingCatalog" class="py-20 text-center text-secondary">Загружаем каталог…</div>
 				<div v-else class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
 					<button
-						v-if="tab === 'Мои скины' && equipped.texture"
+						v-if="tab === 'Мои скины' && equipped.texture && !connected"
 						class="cursor-pointer rounded-2xl border border-solid border-brand bg-brand-highlight p-3 text-primary"
 						@click="resetPreview"
 					>
@@ -417,7 +427,9 @@ onMounted(() => {
 						:class="
 							pending?.skin.id === skin.id
 								? 'border-brand bg-brand-highlight'
-								: 'border-transparent bg-surface-3'
+								: skin.id === catalog.equipped_id
+									? 'border-brand bg-surface-3'
+									: 'border-transparent bg-surface-3'
 						"
 						:aria-label="`Предпросмотр скина ${skin.id}`"
 						:aria-pressed="pending?.skin.id === skin.id"
@@ -427,6 +439,7 @@ onMounted(() => {
 							class="mt-2 block truncate text-sm font-semibold"
 							>{{ skin.tags[0] || `Скин #${skin.id}` }}</span
 						><span class="block text-xs text-secondary">{{ skin.is_slim ? 'Alex' : 'Steve' }}</span>
+						<span v-if="skin.id === catalog.equipped_id" class="mt-1 block text-xs font-semibold text-brand">Используется</span>
 					</button>
 				</div>
 				<p
