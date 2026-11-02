@@ -1,0 +1,44 @@
+title = "NyanRinth secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public Stripe publishable keys in inherited website configuration"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''apps/frontend/wrangler\.jsonc$''']
+regexTarget = "line"
+regexes = ['''"STRIPE_PUBLISHABLE_KEY":\s*"pk_(live|test)_''']
+
+[[allowlists]]
+description = "Public browser-side hCaptcha site identifier"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''apps/frontend/src/components/ui/auth/HCaptcha\.vue$''']
+regexTarget = "line"
+regexes = ['''data-sitekey="[0-9a-f-]+"''']
+
+[[allowlists]]
+description = "Local ClickHouse fixture example, default development credentials"
+targetRules = ["curl-auth-user"]
+condition = "AND"
+paths = ['''apps/labrinth/fixtures/analytics-changes-clickhouse\.sql$''']
+regexTarget = "line"
+regexes = ['''-- curl -u default:default 'http://localhost:''']
+
+[[allowlists]]
+description = "Synthetic Discord ID in API tests"
+targetRules = ["discord-client-id"]
+condition = "AND"
+paths = ['''apps/labrinth/tests/user\.rs$''']
+regexTarget = "line"
+regexes = ['''discord_id=123456789012345678''']
+
+[[allowlists]]
+description = "Keyboard shortcut, not an API key"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''packages/moderation/src/data/keybinds\.ts$''']
+regexTarget = "line"
+regexes = ['''keybind: 'Shift\+ArrowLeft',''']
