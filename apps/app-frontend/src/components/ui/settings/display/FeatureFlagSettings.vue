@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { nyanMessages } from '@/helpers/ui-messages'
+import { useVIntl } from '@modrinth/ui'
+
 import { Button, Toggle } from '@modrinth/ui'
 import { ref, watch } from 'vue'
 
@@ -26,6 +29,8 @@ watch(
 	},
 	{ deep: true },
 )
+
+const { formatMessage } = useVIntl()
 </script>
 <template>
 	<div class="flex flex-col gap-2.5">
@@ -41,7 +46,7 @@ watch(
 					:disabled="appSettings.getFeatureFlag(option) === DEFAULT_FEATURE_FLAGS[option]"
 					@click="setFeatureFlag(option, DEFAULT_FEATURE_FLAGS[option])"
 				>
-					Reset to default
+					{{ formatMessage(nyanMessages.reset) }}
 				</Button>
 				<Toggle
 					id="advanced-rendering"

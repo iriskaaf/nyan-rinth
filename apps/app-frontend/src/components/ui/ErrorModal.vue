@@ -10,6 +10,8 @@ import {
 	XIcon,
 } from '@modrinth/assets'
 import {
+	IntlFormatted,
+	useVIntl,
 	Button,
 	ButtonLink,
 	Collapsible,
@@ -17,6 +19,8 @@ import {
 	injectNotificationManager,
 } from '@modrinth/ui'
 import { computed, ref } from 'vue'
+
+import { nyanMessages } from '@/helpers/ui-messages'
 
 import { ChatIcon } from '@/assets/icons'
 import ModalWrapper from '@/components/ui/modal/ModalWrapper.vue'
@@ -27,13 +31,14 @@ import { install_existing_instance } from '@/helpers/install'
 import { cancel_directory_change } from '@/helpers/settings.ts'
 
 const { handleError } = injectNotificationManager()
+const { formatMessage } = useVIntl()
 
 const errorModal = ref()
 const error = ref()
 const closable = ref(true)
 const errorCollapsed = ref(false)
 
-const title = ref('An error occurred')
+const title = ref(formatMessage(nyanMessages.errorOccurred))
 const errorType = ref('unknown')
 const supportLink = ref('https://xorison.dev/product/astralrinth/support')
 const metadata = ref({})
@@ -44,7 +49,7 @@ defineExpose({
 		closable.value = canClose
 
 		if (errorVal.message && errorVal.message.includes('Minecraft authentication error:')) {
-			title.value = 'Unable to sign in to Minecraft'
+			title.value = formatMessage(nyanMessages.minecraftSignInError)
 			errorType.value = 'minecraft_auth'
 			supportLink.value =
 				'https://support.modrinth.com/en/articles/9038231-minecraft-sign-in-issues'
@@ -59,7 +64,7 @@ defineExpose({
 				metadata.value.hostsFile = true
 			}
 		} else if (errorVal.message && errorVal.message.includes('Move directory error:')) {
-			title.value = 'Could not change app directory'
+			title.value = formatMessage(nyanMessages.moveDirectoryError)
 			errorType.value = 'directory_move'
 			supportLink.value = 'https://support.modrinth.com'
 
@@ -71,21 +76,21 @@ defineExpose({
 				metadata.value.notEnoughSpace = true
 			}
 		} else if (errorVal.message && errorVal.message.includes('No loader version selected for')) {
-			title.value = 'No loader selected'
+			title.value = formatMessage(nyanMessages.noLoader)
 			errorType.value = 'no_loader_version'
 			supportLink.value = 'https://support.modrinth.com'
 			metadata.value.instanceId = context.instanceId
 		} else if (errorVal.code === 'external_auth_library_not_installed') {
-			title.value = 'Authentication library required'
+			title.value = formatMessage(nyanMessages.authLibraryRequired)
 			errorType.value = 'external_auth_library_not_installed'
 			supportLink.value = 'https://xorison.dev/product/astralrinth/support'
 			metadata.value = {}
 		} else if (source === 'state_init') {
-			title.value = 'Error initializing NyanRinth App'
+			title.value = formatMessage(nyanMessages.initializationError)
 			errorType.value = 'state_init'
 			supportLink.value = 'https://support.modrinth.com'
 		} else {
-			title.value = 'An error occurred'
+			title.value = formatMessage(nyanMessages.errorOccurred)
 			errorType.value = 'unknown'
 			supportLink.value = 'https://support.modrinth.com'
 			metadata.value = {}
@@ -168,115 +173,92 @@ async function copyToClipboard(text) {
 			<div class="markdown-body">
 				<template v-if="errorType === 'minecraft_auth'">
 					<template v-if="metadata.network">
-						<h3>Network issues</h3>
+						<h3>{{ formatMessage(nyanMessages.networkIssues) }}</h3>
 						<p>
-							It looks like there were issues with the NyanRinth App connecting to Microsoft's
-							servers. This is often the result of a poor connection, so we recommend trying again
-							to see if it works. If issues continue to persist, follow the steps in
-							<a
-								href="https://support.modrinth.com/en/articles/9038231-minecraft-sign-in-issues#h_e71a5f805f"
-							>
-								our support article
-							</a>
-							to troubleshoot.
+							<IntlFormatted :message-id="nyanMessages.networkBody"
+								><template #support="{ children }"
+									><a
+										href="https://support.modrinth.com/en/articles/9038231-minecraft-sign-in-issues#h_e71a5f805f"
+										><component :is="() => children" /></a></template
+							></IntlFormatted>
 						</p>
 					</template>
 					<template v-else-if="metadata.hostsFile">
-						<h3>Network issues</h3>
+						<h3>{{ formatMessage(nyanMessages.networkIssues) }}</h3>
 						<p>
-							The NyanRinth App tried to connect to Microsoft / Xbox / Minecraft services, but the
-							remote server rejected the connection. This may indicate that these services are
-							blocked by the hosts file. Please visit
-							<a
-								href="https://support.modrinth.com/en/articles/9038231-minecraft-sign-in-issues#h_d694a29256"
-							>
-								our support article
-							</a>
-							for steps on how to fix the issue.
+							<IntlFormatted :message-id="nyanMessages.hostsBody"
+								><template #support="{ children }"
+									><a
+										href="https://support.modrinth.com/en/articles/9038231-minecraft-sign-in-issues#h_d694a29256"
+										><component :is="() => children" /></a></template
+							></IntlFormatted>
 						</p>
 					</template>
 					<template v-else>
-						<h3>Try another Microsoft account</h3>
-						<p>
-							Double check you've signed in with the right account. You may own Minecraft on a
-							different Microsoft account.
-						</p>
+						<h3>{{ formatMessage(nyanMessages.tryOtherMicrosoft) }}</h3>
+						<p>{{ formatMessage(nyanMessages.checkMicrosoft) }}</p>
 						<div class="cta-button">
 							<button class="btn btn-primary" :disabled="loadingMinecraft" @click="loginMinecraft">
-								<LogInIcon /> Try another account
+								<LogInIcon /> {{ formatMessage(nyanMessages.tryOtherAccount) }}
 							</button>
 						</div>
-						<h3>Using PC Game Pass, coming from Bedrock, or just bought the game?</h3>
+						<h3>{{ formatMessage(nyanMessages.newGameAccount) }}</h3>
 						<p>
-							Try signing in with the
-							<a href="https://www.minecraft.net/en-us/download">official Minecraft Launcher</a>
-							first. Once you're done, come back here and sign in!
+							<IntlFormatted :message-id="nyanMessages.officialLauncherBody"
+								><template #launcher="{ children }"
+									><a href="https://www.minecraft.net/en-us/download"
+										><component :is="() => children" /></a></template
+							></IntlFormatted>
 						</p>
 					</template>
 					<div class="cta-button">
 						<button class="btn btn-primary" :disabled="loadingMinecraft" @click="loginMinecraft">
-							<LogInIcon /> Try signing in again
+							<LogInIcon /> {{ formatMessage(nyanMessages.trySigningInAgain) }}
 						</button>
 					</div>
 				</template>
 				<template v-if="errorType === 'directory_move'">
 					<template v-if="metadata.readOnly">
-						<h3>Change directory permissions</h3>
-						<p>
-							It looks like the NyanRinth App is unable to write to the directory you selected.
-							Please adjust the permissions of the directory and try again or cancel the directory
-							change.
-						</p>
+						<h3>{{ formatMessage(nyanMessages.changePermissions) }}</h3>
+						<p>{{ formatMessage(nyanMessages.permissionsBody) }}</p>
 					</template>
 					<template v-else-if="metadata.notEnoughSpace">
-						<h3>Not enough space</h3>
-						<p>
-							It looks like there is not enough space on the disk containing the directory you
-							selected. Please free up some space and try again or cancel the directory change.
-						</p>
+						<h3>{{ formatMessage(nyanMessages.notEnoughSpace) }}</h3>
+						<p>{{ formatMessage(nyanMessages.spaceBody) }}</p>
 					</template>
 					<template v-else>
-						<p>
-							The NyanRinth App is unable to migrate to the new directory you selected. Please
-							contact support for help or cancel the directory change.
-						</p>
+						<p>{{ formatMessage(nyanMessages.moveBody) }}</p>
 					</template>
 
 					<div class="cta-button">
 						<button class="btn" @click="retryDirectoryChange">
-							<UpdatedIcon /> Retry directory change
+							<UpdatedIcon /> {{ formatMessage(nyanMessages.retryMove) }}
 						</button>
 						<button class="btn btn-danger" @click="cancelDirectoryChange">
-							<XIcon /> Cancel directory change
+							<XIcon /> {{ formatMessage(nyanMessages.cancelMove) }}
 						</button>
 					</div>
 				</template>
 				<template v-else-if="errorType === 'state_init'">
-					<p>
-						NyanRinth App failed to load correctly. This may be because of a corrupted file, or
-						because the app is missing crucial files.
-					</p>
-					<p>You may be able to fix it through one of the following ways:</p>
+					<p>{{ formatMessage(nyanMessages.initBody) }}</p>
+					<p>{{ formatMessage(nyanMessages.initOptions) }}</p>
 					<ul>
-						<li>Ensuring you are connected to the internet, then try restarting the app.</li>
-						<li>Redownloading the app.</li>
+						<li>{{ formatMessage(nyanMessages.restartApp) }}</li>
+						<li>{{ formatMessage(nyanMessages.redownloadApp) }}</li>
 					</ul>
 				</template>
 				<template v-else-if="errorType === 'no_loader_version'">
-					<p>The NyanRinth App failed to find the loader version for this instance.</p>
-					<p>To resolve this, you need to repair the instance. Click the button below to do so.</p>
+					<p>{{ formatMessage(nyanMessages.loaderBody) }}</p>
+					<p>{{ formatMessage(nyanMessages.repairBody) }}</p>
 					<div class="cta-button">
 						<button class="btn btn-primary" :disabled="loadingRepair" @click="repairInstance">
-							<HammerIcon /> Repair instance
+							<HammerIcon /> {{ formatMessage(nyanMessages.repairInstance) }}
 						</button>
 					</div>
 				</template>
 				<template v-else-if="errorType === 'external_auth_library_not_installed'">
 					<p>{{ debugInfo }}</p>
-					<p>
-						Choose and install a version under Settings → NyanRinth → Authentication libraries,
-						then launch the instance again.
-					</p>
+					<p>{{ formatMessage(nyanMessages.authLibraryBody) }}</p>
 				</template>
 				<template v-else>
 					{{ debugInfo }}
@@ -284,18 +266,20 @@ async function copyToClipboard(text) {
 				<template v-if="hasDebugInfo">
 					<div class="w-full h-[1px] bg-surface-5 mb-3"></div>
 					<p>
-						If nothing is working and you need help, visit
-						<a :href="supportLink">our support page</a>
-						and start a chat using the widget in the bottom right and we will be more than happy to
-						assist! Make sure to provide the following debug information to the agent:
+						<IntlFormatted :message-id="nyanMessages.supportBody"
+							><template #support="{ children }"
+								><a :href="supportLink"><component :is="() => children" /></a></template
+						></IntlFormatted>
 					</p>
 				</template>
 			</div>
 			<div class="flex items-center gap-2">
 				<ButtonLink :href="supportLink" @click="errorModal.hide()"
-					><ChatIcon /> Get support</ButtonLink
-				>
-				<Button v-if="closable" @click="errorModal.hide()"><XIcon /> Close</Button>
+					><ChatIcon /> {{ formatMessage(nyanMessages.getSupport) }}
+				</ButtonLink>
+				<Button v-if="closable" @click="errorModal.hide()"
+					><XIcon /> {{ formatMessage(nyanMessages.close) }}
+				</Button>
 			</div>
 			<template v-if="hasDebugInfo">
 				<div class="flex flex-col gap-2">
@@ -307,8 +291,7 @@ async function copyToClipboard(text) {
 							@click="errorCollapsed = !errorCollapsed"
 						>
 							<span class="flex items-center gap-2 text-contrast font-extrabold m-0">
-								<WrenchIcon class="h-4 w-4" />
-								Debug information
+								<WrenchIcon class="h-4 w-4" /> {{ formatMessage(nyanMessages.debugInfo) }}
 							</span>
 							<DropdownIcon
 								class="h-5 w-5 text-secondary transition-transform"
@@ -325,8 +308,8 @@ async function copyToClipboard(text) {
 									{{ debugInfo }}
 								</div>
 								<IconButton
-									v-tooltip="'Copy debug info'"
-									:label="'Copy debug info'"
+									v-tooltip="formatMessage(nyanMessages.copyDebug)"
+									:label="formatMessage(nyanMessages.copyDebug)"
 									:disabled="copied"
 									@click="copyToClipboard(debugInfo)"
 								>

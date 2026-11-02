@@ -5,7 +5,7 @@
 				<StyledInput
 					v-model="search"
 					:icon="SearchIcon"
-					:placeholder="`Search ${rows.length} users...`"
+					:placeholder="formatMessage(nyanMessages.searchUsers, { count: rows.length })"
 					wrapper-class="min-w-0 flex-1"
 					input-class="!h-10"
 					clearable
@@ -32,7 +32,7 @@
 					>
 						<SpinnerIcon v-if="invitePending" class="animate-spin" aria-hidden="true" />
 						<UserPlusIcon v-else aria-hidden="true" />
-						Invite friends
+						{{ formatMessage(nyanMessages.inviteFriends) }}
 					</Button>
 				</template>
 			</div>
@@ -43,7 +43,7 @@
 					:aria-pressed="methodFilter === 'all'"
 					@click="methodFilter = 'all'"
 				>
-					All
+					{{ formatMessage(nyanMessages.all) }}
 				</button>
 				<button
 					v-for="option in methodFilterOptions"
@@ -82,7 +82,7 @@
 					>
 						<Avatar
 							:src="row.avatarUrl"
-							:alt="`${row.username}'s avatar`"
+							:alt="formatMessage(nyanMessages.userAvatar, { name: row.username })"
 							:tint-by="row.username"
 							size="24px"
 							circle
@@ -137,6 +137,8 @@
 </template>
 
 <script setup lang="ts">
+import { nyanMessages } from '@/helpers/ui-messages'
+
 import {
 	FilterIcon,
 	LinkIcon,

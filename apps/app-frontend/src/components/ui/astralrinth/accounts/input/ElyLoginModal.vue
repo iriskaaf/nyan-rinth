@@ -116,10 +116,10 @@ defineExpose({ show })
 			<p v-if="error" role="alert" class="m-0 text-red">{{ error }}</p>
 			<p class="m-0 text-sm">Пароль отправляется только в Ely.by по HTTPS и не сохраняется.</p>
 			<Button
+				native-type="submit"
 				type="colored"
 				color="brand"
 				:disabled="busy || !username.trim() || !password"
-				@click="login"
 			>
 				{{ connectingSkins ? 'Подключаем скины…' : busy ? 'Входим…' : 'Войти' }}
 			</Button>

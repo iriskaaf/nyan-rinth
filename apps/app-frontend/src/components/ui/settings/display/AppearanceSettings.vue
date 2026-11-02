@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import {
 	AppearanceSettingsLayout,
+	defineMessages,
 	injectAuth,
 	injectUserPreferences,
 	provideAppearanceSettings,
 	useSavable,
+	useVIntl,
 } from '@modrinth/ui'
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
@@ -13,7 +15,19 @@ import { type AppSettings, get, set } from '@/helpers/settings.ts'
 import { getOS } from '@/helpers/utils'
 import { appSettingsModalContextKey } from '@/providers/app-settings-modal'
 
-import { accent, DEFAULT_ACCENT } from '@/composables/use-accent'
+import { accent, ACCENT_PRESETS } from '@/composables/use-accent'
+
+const { formatMessage } = useVIntl()
+const messages = defineMessages({
+	accent: { id: 'nyanrinth.appearance.accent', defaultMessage: 'Accent color' },
+	description: {
+		id: 'nyanrinth.appearance.accent-description',
+		defaultMessage: 'Choose a color. Changes are saved automatically.',
+	},
+	pink: { id: 'nyanrinth.appearance.pink', defaultMessage: 'Pink' },
+	sky: { id: 'nyanrinth.appearance.sky', defaultMessage: 'Sky blue' },
+	green: { id: 'nyanrinth.appearance.green', defaultMessage: 'Green' },
+})
 
 const theme = useTheme()
 const auth = injectAuth()
@@ -153,19 +167,32 @@ provideAppearanceSettings({
 
 <template>
 	<div class="flex flex-col gap-6">
-		<div class="flex items-center justify-between gap-4 rounded-xl bg-bg-raised p-4">
+		<div class="flex flex-col gap-4 rounded-xl bg-surface-2 p-4">
 			<div>
-				<h3 class="m-0 text-lg text-contrast">Акцентный цвет</h3>
-				<p class="mb-0">Любой цвет на ваш вкус. Сохраняется автоматически.</p>
+				<h3 class="m-0 text-lg text-contrast">{{ formatMessage(messages.accent) }}</h3>
+				<p class="mb-0">{{ formatMessage(messages.description) }}</p>
 			</div>
-			<div class="flex items-center gap-3">
-				<input
-					v-model="accent"
-					aria-label="Акцентный цвет"
-					type="color"
-					class="h-10 w-14 cursor-pointer rounded"
-				/>
-				<button @click="accent = DEFAULT_ACCENT">Сбросить</button>
+			<div class="grid grid-cols-3 gap-3" role="group" :aria-label="formatMessage(messages.accent)">
+				<button
+					v-for="preset in ACCENT_PRESETS"
+					:key="preset.id"
+					type="button"
+					:aria-pressed="accent === preset.color"
+					class="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-solid px-3 py-3 font-semibold"
+					:class="
+						accent === preset.color
+							? 'border-brand bg-brand-highlight text-contrast'
+							: 'border-surface-5 bg-surface-3 text-primary'
+					"
+					@click="accent = preset.color"
+				>
+					<span
+						class="h-5 w-5 shrink-0 rounded-full"
+						:style="{ background: preset.color }"
+						aria-hidden="true"
+					/>
+					{{ formatMessage(messages[preset.id]) }}
+				</button>
 			</div>
 		</div>
 		<AppearanceSettingsLayout />

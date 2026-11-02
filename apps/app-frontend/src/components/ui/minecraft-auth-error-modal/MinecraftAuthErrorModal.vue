@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { nyanMessages } from '@/helpers/ui-messages'
+import { useVIntl } from '@modrinth/ui'
+
 import {
 	CheckIcon,
 	CopyIcon,
@@ -7,7 +10,15 @@ import {
 	MessagesSquareIcon,
 	WrenchIcon,
 } from '@modrinth/assets'
-import { Admonition, Button, ButtonLink, Collapsible, IconButton, NewModal } from '@modrinth/ui'
+import {
+	Admonition,
+	Button,
+	ButtonLink,
+	Collapsible,
+	IconButton,
+	IntlFormatted,
+	NewModal,
+} from '@modrinth/ui'
 import { computed, ref } from 'vue'
 
 import { handleSevereError } from '@/composables/use-error.js'
@@ -55,7 +66,7 @@ async function signInAgain() {
 	}
 }
 
-const debugInfo = computed(() => rawError.value || 'No error message.')
+const debugInfo = computed(() => rawError.value || formatMessage(nyanMessages.noErrorMessage))
 
 async function copyToClipboard(text: string) {
 	await navigator.clipboard.writeText(text)
@@ -64,30 +75,27 @@ async function copyToClipboard(text: string) {
 		copied.value = false
 	}, 3000)
 }
+
+const { formatMessage } = useVIntl()
 </script>
 
 <template>
-	<NewModal ref="modal" header="Sign in Failed" :max-width="'548px'">
+	<NewModal ref="modal" :header="formatMessage(nyanMessages.signInFailed)" :max-width="'548px'">
 		<div class="flex flex-col gap-6">
-			<Admonition
-				type="warning"
-				body="	We couldn't sign you into your Microsoft account. This may be due to account restrictions or
-				regional limitations."
-			>
-			</Admonition>
+			<Admonition type="warning" :body="formatMessage(nyanMessages.microsoftWarning)"> </Admonition>
 
 			<!-- Matched error details -->
 			<div class="bg-surface-2 rounded-2xl p-4 px-5 flex flex-col gap-3">
 				<template v-if="matchedError">
 					<div class="flex flex-col gap-1.5">
-						<h3 class="text-base font-bold m-0">What we think happened</h3>
+						<h3 class="text-base font-bold m-0">{{ formatMessage(nyanMessages.whatHappened) }}</h3>
 						<p class="text-sm text-secondary m-0">
 							{{ matchedError.whatHappened }}
 						</p>
 					</div>
 
 					<div class="flex flex-col gap-1.5">
-						<h3 class="text-base font-bold m-0">How to fix it</h3>
+						<h3 class="text-base font-bold m-0">{{ formatMessage(nyanMessages.howToFix) }}</h3>
 						<ol class="list-none flex flex-col gap-2 m-0 pl-0">
 							<li
 								v-for="(step, index) in matchedError.stepsToFix"
@@ -110,19 +118,20 @@ async function copyToClipboard(text: string) {
 				</template>
 				<template v-else>
 					<div class="flex flex-col gap-1.5">
-						<h3 class="text-base font-bold m-0">Unknown error</h3>
+						<h3 class="text-base font-bold m-0">{{ formatMessage(nyanMessages.unknownError) }}</h3>
 						<p class="text-sm text-secondary m-0">
-							We don’t recognize this error and can’t recommend specific steps to resolve it.
+							{{ formatMessage(nyanMessages.unknownErrorBody) }}
 						</p>
 						<p class="text-sm text-secondary m-0">
-							Try visiting
-							<a
-								class="text-info font-medium underline hover:underline"
-								href="https://www.minecraft.net/en-us/login"
-								>Minecraft Login</a
-							>
-							and signing in, as it may prompt you with the necessary steps. You can also contact
-							support and we can look into it further.
+							<IntlFormatted :message-id="nyanMessages.microsoftHelp">
+								<template #login="{ children }">
+									<a
+										class="text-info font-medium underline"
+										href="https://www.minecraft.net/en-us/login"
+										><component :is="() => children"
+									/></a>
+								</template>
+							</IntlFormatted>
 						</p>
 					</div>
 				</template>
@@ -131,7 +140,7 @@ async function copyToClipboard(text: string) {
 			<!-- Action buttons -->
 			<div class="flex items-center gap-2">
 				<ButtonLink href="https://support.modrinth.com" class="!w-full" @click="modal?.hide()">
-					<MessagesSquareIcon /> Contact support
+					<MessagesSquareIcon /> {{ formatMessage(nyanMessages.contactSupport) }}
 				</ButtonLink>
 				<Button
 					type="colored"
@@ -140,7 +149,7 @@ async function copyToClipboard(text: string) {
 					class="!w-full"
 					@click="signInAgain"
 				>
-					<LogInIcon /> Sign in again
+					<LogInIcon /> {{ formatMessage(nyanMessages.signInAgain) }}
 				</Button>
 			</div>
 
@@ -154,8 +163,7 @@ async function copyToClipboard(text: string) {
 						@click="debugCollapsed = !debugCollapsed"
 					>
 						<span class="flex items-center gap-2 text-contrast font-extrabold m-0">
-							<WrenchIcon class="h-4 w-4" />
-							Debug information
+							<WrenchIcon class="h-4 w-4" /> {{ formatMessage(nyanMessages.debugInfo) }}
 						</span>
 						<DropdownIcon
 							class="h-5 w-5 text-secondary transition-transform"
@@ -172,8 +180,8 @@ async function copyToClipboard(text: string) {
 								{{ debugInfo }}
 							</div>
 							<IconButton
-								v-tooltip="'Copy debug info'"
-								:label="'Copy debug info'"
+								v-tooltip="formatMessage(nyanMessages.copyDebug)"
+								:label="formatMessage(nyanMessages.copyDebug)"
 								:disabled="copied"
 								@click="copyToClipboard(debugInfo)"
 							>

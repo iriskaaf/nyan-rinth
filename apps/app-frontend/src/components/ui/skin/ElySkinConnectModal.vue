@@ -97,10 +97,10 @@ defineExpose({ show })
 				зашифрованной средствами Windows и привязана к этому аккаунту.
 			</p>
 			<Button
+				native-type="submit"
 				type="colored"
 				color="brand"
 				:disabled="busy || !login.trim() || !password"
-				@click="connect"
 				>{{ busy ? 'Подключаем…' : 'Подключить управление скинами' }}</Button
 			>
 		</form>

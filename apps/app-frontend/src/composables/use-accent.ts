@@ -1,8 +1,15 @@
 import { ref, watch } from 'vue'
 
 export const DEFAULT_ACCENT = '#f472b6'
+export const ACCENT_PRESETS = [
+	{ id: 'pink', color: DEFAULT_ACCENT },
+	{ id: 'sky', color: '#38bdf8' },
+	{ id: 'green', color: '#4ade80' },
+] as const
 const stored = localStorage.getItem('nyanrinth.accent') ?? DEFAULT_ACCENT
-export const accent = ref(/^#[\da-f]{6}$/i.test(stored) ? stored : DEFAULT_ACCENT)
+export const accent = ref<string>(
+	ACCENT_PRESETS.some((preset) => preset.color === stored) ? stored : DEFAULT_ACCENT,
+)
 
 watch(
 	accent,
@@ -28,6 +35,7 @@ watch(
 			'--brand-gradient-strong-bg': `linear-gradient(270deg, #18131c, rgba(${r},${g},${b},0.2))`,
 			'--brand-gradient-border': `rgba(${r},${g},${b},0.16)`,
 			'--loading-bar-gradient': `linear-gradient(to right, ${color}, ${color})`,
+			'--modal-overlay-background': `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 0.10), rgba(10, 10, 14, 0.92))`,
 		}
 		for (const [key, value] of Object.entries(vars))
 			document.documentElement.style.setProperty(key, value)

@@ -1,15 +1,33 @@
 <script setup lang="ts">
-import { Button, DropdownSelect, SkinPreviewRenderer } from '@modrinth/ui'
+import { Button, DropdownSelect, SkinPreviewRenderer, useVIntl } from '@modrinth/ui'
+import { ShirtIcon } from '@modrinth/assets'
 import { invoke } from '@tauri-apps/api/core'
 import { computed, inject, onMounted, ref, watch, type Ref } from 'vue'
-import ElyLoginModal from '@/components/ui/astralrinth/accounts/input/ElyLoginModal.vue'
+import AccountsCard from '@/components/ui/AccountsCard.vue'
 import ElySkinConnectModal from '@/components/ui/skin/ElySkinConnectModal.vue'
 import ElySkinThumbnail from '@/components/ui/skin/ElySkinThumbnail.vue'
-import { users, get_default_user, set_default_user } from '@/helpers/auth'
+import { users, get_default_user } from '@/helpers/auth'
 import type { MinecraftCredential } from '@/models/astralrinth/authentication'
+import { useRootBreadcrumb } from '@/providers/breadcrumbs'
+import { appMessages } from '@/utils/app-messages'
+
+const { formatMessage } = useVIntl()
+useRootBreadcrumb({
+	slot: 'skins',
+	id: 'skins',
+	label: () => formatMessage(appMessages.skinSelectorLabel),
+	to: '/skins',
+	visual: { type: 'icon', component: ShirtIcon },
+})
 
 type Skin = { id: number; skin_url: string; is_slim: boolean; tags: string[] }
-type Catalog = { items: Skin[]; current: number; last: number; total_items?: number; equipped_id?: number }
+type Catalog = {
+	items: Skin[]
+	current: number
+	last: number
+	total_items?: number
+	equipped_id?: number
+}
 type Preview = { skin: Skin; texture: string }
 const accountsCard = inject<
 	Ref<{
@@ -18,6 +36,7 @@ const accountsCard = inject<
 	} | null>
 >('accountsCard')
 const accounts = ref<MinecraftCredential[]>([])
+const headerAccountsCard = ref<InstanceType<typeof AccountsCard> | null>(null)
 const selected = ref('')
 const account = computed(() => accounts.value.find((a) => a.profile.id === selected.value))
 const equipped = ref({ texture: '', variant: 'classic' })
@@ -42,7 +61,6 @@ const busy = ref(false)
 const error = ref('')
 const catalogError = ref('')
 const notice = ref('')
-const loginModal = ref<InstanceType<typeof ElyLoginModal> | null>(null)
 const connectModal = ref<InstanceType<typeof ElySkinConnectModal> | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 let previewRequest = 0
@@ -92,6 +110,9 @@ async function refreshAccount() {
 	error.value = ''
 	notice.value = ''
 	connected.value = false
+	checkingSession.value = false
+	loadingCatalog.value = false
+	loadingSkin.value = false
 	equipped.value = { texture: '', variant: 'classic' }
 	if (!user || !account.value) return
 	checkingSession.value = true
@@ -114,16 +135,15 @@ async function loadAccounts(preferred?: string) {
 	accounts.value = all.filter((a) => a.account_type === 'elyby')
 	const active = preferred ?? (await get_default_user())
 	const next =
-		accounts.value.find((a) => a.profile.id === active)?.profile.id ??
-		accounts.value[0]?.profile.id ??
-		''
+		(active
+			? accounts.value.find((a) => a.profile.id === active)?.profile.id
+			: accounts.value[0]?.profile.id) ?? ''
 	if (next === selected.value) await refreshAccount()
 	else selected.value = next
 }
-async function authenticated(credentials: MinecraftCredential) {
-	await set_default_user(credentials.profile.id)
+async function accountChanged() {
 	await accountsCard?.value?.refreshValues()
-	await loadAccounts(credentials.profile.id)
+	await loadAccounts()
 }
 async function choose(skin: Skin) {
 	if (busy.value) return
@@ -160,6 +180,7 @@ async function applySkin() {
 		}
 		pending.value = null
 		await accountsCard?.value?.setElySkinHead?.(user, preview.texture)
+		await headerAccountsCard.value?.setElySkinHead(user, preview.texture)
 		catalog.value.equipped_id = preview.skin.id
 		notice.value =
 			'Скин применён в Ely.by. Перезапустите Minecraft; обновление игрового кэша может занять около минуты.'
@@ -192,7 +213,8 @@ async function uploadFile(event: Event) {
 		model.value = 'Все модели'
 		page.value = 1
 		await loadCatalog()
-		notice.value = 'Скин добавлен в «Мои загрузки». Текущий скин не изменён. Для смены нажмите «Применить скин».'
+		notice.value =
+			'Скин добавлен в «Мои загрузки». Текущий скин не изменён. Для смены нажмите «Применить скин».'
 		const preview = await invoke<Preview>('plugin:auth|ely_skins_preview', { skinId: skin.id })
 		previewRequest++
 		pending.value = preview
@@ -247,7 +269,17 @@ onMounted(() => {
 				<div class="mb-2 text-sm font-semibold text-brand">NYANRINTH / ELY.BY</div>
 				<h1 class="m-0 text-3xl font-bold">Ваш скин. Во всех сборках.</h1>
 			</div>
-			<Button @click="loginModal?.show()">Добавить Ely.by</Button>
+			<div
+				class="skin-account-picker relative h-14 w-[280px] shrink-0"
+				:inert="busy"
+				:class="{ 'opacity-60': busy }"
+			>
+				<div class="absolute inset-x-0 top-0 z-30">
+					<Suspense>
+						<AccountsCard ref="headerAccountsCard" compact @change="accountChanged" />
+					</Suspense>
+				</div>
+			</div>
 		</div>
 		<div
 			class="skins-layout grid items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]"
@@ -289,23 +321,6 @@ onMounted(() => {
 						>Загружаем…</span
 					>
 				</div>
-				<div v-if="accounts.length" class="shrink-0 rounded-2xl bg-surface-2 p-3">
-					<div class="mb-2 text-sm text-secondary">Аккаунт Ely.by</div>
-					<DropdownSelect
-						v-if="accounts.length > 1"
-						v-model="selected"
-						name="ely-skin-account"
-						:disabled="busy"
-						:options="accounts.map((a) => a.profile.id)"
-						:display-name="
-							(id: string) => accounts.find((a) => a.profile.id === id)?.profile.name ?? id
-						"
-					/>
-					<div v-else class="flex items-center justify-between">
-						<strong class="text-contrast">{{ account?.profile.name }}</strong
-						><span class="rounded-full bg-surface-3 px-3 py-1 text-xs">Ely.by</span>
-					</div>
-				</div>
 				<div v-if="account" class="shrink-0 rounded-2xl border border-solid border-surface-5 p-3">
 					<template v-if="!connected"
 						><p class="mt-0">
@@ -338,8 +353,7 @@ onMounted(() => {
 							class="hidden"
 							accept="image/png,.png"
 							@change="uploadFile"
-						/></template
-					>
+					/></template>
 				</div>
 				<div v-if="pending" class="flex shrink-0 items-center gap-3">
 					<Button
@@ -367,8 +381,12 @@ onMounted(() => {
 						</button>
 					</div>
 					<div class="flex items-center gap-3">
-						<span class="text-sm text-secondary">Скинов: {{ catalog.total_items ?? catalog.items.length }}</span>
-						<Button size="sm" :disabled="busy || loadingCatalog" @click="loadCatalog">Обновить</Button>
+						<span class="text-sm text-secondary"
+							>Скинов: {{ catalog.total_items ?? catalog.items.length }}</span
+						>
+						<Button size="sm" :disabled="busy || loadingCatalog" @click="loadCatalog"
+							>Обновить</Button
+						>
 					</div>
 				</div>
 				<div v-if="error || notice" class="sticky top-0 z-10 bg-surface-2">
@@ -393,7 +411,7 @@ onMounted(() => {
 						placeholder="Поиск по тегу, например cat"
 						aria-label="Тег скина"
 						maxlength="100"
-					/><Button :disabled="loadingCatalog" @click="search">Найти</Button
+					/><Button native-type="submit" :disabled="loadingCatalog">Найти</Button
 					><DropdownSelect
 						v-model="model"
 						name="ely-skin-model"
@@ -437,7 +455,11 @@ onMounted(() => {
 							class="mt-2 block truncate text-sm font-semibold"
 							>{{ skin.tags[0] || `Скин #${skin.id}` }}</span
 						><span class="block text-xs text-secondary">{{ skin.is_slim ? 'Alex' : 'Steve' }}</span>
-						<span v-if="skin.id === catalog.equipped_id" class="mt-1 block text-xs font-semibold text-brand">Используется</span>
+						<span
+							v-if="skin.id === catalog.equipped_id"
+							class="mt-1 block text-xs font-semibold text-brand"
+							>Используется</span
+						>
 					</button>
 				</div>
 				<p
@@ -463,7 +485,6 @@ onMounted(() => {
 				</div>
 			</section>
 		</div>
-		<ElyLoginModal ref="loginModal" @authenticated="authenticated" />
 		<ElySkinConnectModal
 			v-if="account"
 			:key="account.profile.id"
