@@ -14,11 +14,9 @@ import {
 	CompassIcon,
 	LogInIcon,
 	LogOutIcon,
-	NewspaperIcon,
 	PlayIcon,
 	PlusIcon,
 	RightArrowIcon,
-	ServerStackIcon,
 	SettingsIcon,
 	ShirtIcon,
 	UserIcon,
@@ -36,7 +34,6 @@ import {
 	IconButton,
 	IntlFormatted,
 	LoadingBar,
-	NewsArticleCard,
 	NotificationPanel,
 	PopupNotificationPanel,
 	provideModalBehavior,
@@ -79,7 +76,6 @@ import UpdateToPlayModal from '@/components/ui/modal/UpdateToPlayModal.vue'
 import NavButton from '@/components/ui/NavButton.vue'
 import NewIconEditorNotification from '@/components/ui/new-icon-editor-notification/index.vue'
 import { shouldShowNewIconEditorNotification } from '@/components/ui/new-icon-editor-notification/show-notification'
-import OnboardingChecklist from '@/components/ui/onboarding-checklist/index.vue'
 import QuickInstanceSwitcher from '@/components/ui/QuickInstanceSwitcher.vue'
 import SharedInstanceInviteHandler from '@/components/ui/shared-instances/shared-instance-invite-handler/index.vue'
 import SplashScreen from '@/components/ui/SplashScreen.vue'
@@ -103,10 +99,7 @@ import { mergeUrlQuery, parseModrinthLink } from '@/helpers/project-links.ts'
 import { get as getSettings, set as setSettings } from '@/helpers/settings.ts'
 import { get_opening_command, initialize_state } from '@/helpers/state'
 import { parse_modrinth_user_link } from '@/helpers/users'
-import {
-	getOS,
-	isDev,
-} from '@/helpers/utils.js'
+import { getOS, isDev } from '@/helpers/utils.js'
 import { start_join_server, start_join_singleplayer_world } from '@/helpers/worlds.ts'
 import i18n from '@/i18n.config'
 import { instanceKeys } from '@/pages/instance/query-options'
@@ -182,7 +175,9 @@ const forceSidebar = computed(
 		route.path.startsWith('/project') ||
 		route.path.startsWith('/user'),
 )
-const sidebarVisible = computed(() => sidebarToggled.value || forceSidebar.value)
+const sidebarVisible = computed(
+	() => forceSidebar.value || (route.path === '/' && sidebarToggled.value),
+)
 const hostingRouteActive = computed(() => route.path.startsWith('/hosting'))
 const hostingIntercomIdentityKey = computed(() => {
 	const rawServerId = route.params.id
@@ -261,10 +256,7 @@ useQuery({
 	refetchOnWindowFocus: false,
 	refetchOnReconnect: false,
 })
-const hasPlus = computed(
-	() =>
-		!!credentials.value?.user,
-)
+const hasPlus = computed(() => !!credentials.value?.user)
 providePageContext({
 	hierarchicalSidebarAvailable: ref(true),
 	floatingActionBarOffsets: {
@@ -500,12 +492,7 @@ const messages = defineMessages({
 
 // This code line modified by AstralRinth
 function shouldHideNewsArticle(article) {
-	const haystack = [
-		article?.title,
-		article?.summary,
-		article?.description,
-		article?.excerpt,
-	]
+	const haystack = [article?.title, article?.summary, article?.description, article?.excerpt]
 		.filter(Boolean)
 		.join(' ')
 		.toLowerCase()
@@ -608,23 +595,6 @@ async function setupApp() {
 			console.log(
 				`No critical announcement found at https://api.modrinth.com/appCriticalAnnouncement.json?version=${upstreamVersion}`,
 			)
-		})
-
-	fetch(`https://modrinth.com/news/feed/articles.json`)
-		.then((response) => response.json())
-		.then((res) => {
-			if (res && res.articles) {
-				news.value = res.articles
-					.filter((article) => !shouldHideNewsArticle(article))
-					.map((article) => ({
-						...article,
-						path: article.link,
-					}))
-					.slice(0, 4)
-			}
-		})
-		.catch((error) => {
-			console.error('Failed to fetch news articles', error)
 		})
 
 	get_opening_command().then(handleCommand)
@@ -1360,18 +1330,6 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			<NavButton v-tooltip.right="formatMessage(appMessages.skinSelectorLabel)" to="/skins">
 				<ShirtIcon />
 			</NavButton>
-			<NavButton
-				v-tooltip.right="formatMessage(messages.modrinthHosting)"
-				to="/hosting/manage"
-				:is-primary="(r) => r.path === '/hosting/manage' || r.path === '/hosting/manage/'"
-				:is-subpage="
-					(r) =>
-						(r.path.startsWith('/hosting/manage/') && r.path !== '/hosting/manage/') ||
-						((r.path.startsWith('/browse') || r.path.startsWith('/project')) && r.query.sid)
-				"
-			>
-				<ServerStackIcon />
-			</NavButton>
 			<suspense>
 				<QuickInstanceSwitcher />
 			</suspense>
@@ -1488,7 +1446,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			</div>
 			<section data-tauri-drag-region class="flex shrink-0 ml-auto items-center">
 				<IconButton
-					v-if="!forceSidebar && appSettings.toggleSidebar"
+					v-if="route.path === '/' && !forceSidebar && appSettings.toggleSidebar"
 					:type="sidebarToggled ? 'base' : 'quiet'"
 					:label="formatMessage(messages.nextImage)"
 					class="mr-3 transition-transform"
@@ -1569,6 +1527,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			</RouterView>
 		</div>
 		<div
+			v-show="sidebarVisible"
 			class="app-sidebar mt-px shrink-0 flex flex-col border-0 border-l-[1px] border-[--brand-gradient-border] border-solid"
 			:class="{ 'has-plus': hasPlus }"
 		>
@@ -1578,24 +1537,12 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 				:class="{ 'pb-12': !hasPlus }"
 				data-overlayscrollbars-initialize
 			>
-				<OnboardingChecklist
-					@create-instance="installationModal?.show()"
-					@login-minecraft="accounts?.login()"
-					@login-modrinth="signIn"
-				/>
+				<div class="border-0 border-b border-solid border-surface-5 p-4">
+					<h3 class="m-0 mb-3 text-base font-semibold text-contrast">Аккаунт Minecraft</h3>
+					<Suspense><AccountsCard ref="accounts" /></Suspense>
+				</div>
 				<div id="sidebar-teleport-target" class="sidebar-teleport-content"></div>
 				<div class="sidebar-default-content" :class="{ 'sidebar-enabled': sidebarVisible }">
-					<div
-						v-show="hasLoggedIntoMinecraft"
-						class="p-4 border-0 border-b-[1px] border-[--brand-gradient-border] border-solid"
-					>
-						<h3 class="text-base text-primary font-medium m-0">
-							{{ formatMessage(messages.playingAs) }}
-						</h3>
-						<suspense>
-							<AccountsCard ref="accounts" />
-						</suspense>
-					</div>
 					<div
 						v-show="showFriendsList"
 						class="p-4 border-0 border-b-[1px] border-[--brand-gradient-border] border-solid"
@@ -1603,29 +1550,6 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 						<suspense>
 							<FriendsList :credentials="credentials" :sign-in="() => requestSignIn()" />
 						</suspense>
-					</div>
-					<div v-if="news && news.length > 0" class="p-4 flex flex-col items-center">
-						<h3 class="text-base mb-4 text-primary font-medium m-0 text-left w-full">
-							{{ formatMessage(messages.news) }}
-						</h3>
-						<div class="space-y-4 flex flex-col items-center w-full">
-							<NewsArticleCard
-								v-for="(item, index) in news"
-								:key="`news-${index}`"
-								:article="item"
-							/>
-							<ButtonLink
-								type="colored"
-								color="brand"
-								size="xl"
-								href="https://modrinth.com/news"
-								target="_blank"
-								class="my-4"
-							>
-								<NewspaperIcon />
-								{{ formatMessage(messages.viewAllNews) }}
-							</ButtonLink>
-						</div>
 					</div>
 				</div>
 			</div>

@@ -64,14 +64,19 @@ pub async fn open_ely_skins<R: Runtime>(
 	upload: bool,
 ) -> Result<()> {
 	if let Some(window) = app.get_webview_window("ely-skins") {
-		window.close()?;
+		if upload {
+			window.navigate("https://ely.by/skins/add".parse().unwrap())?;
+		}
+		window.show()?;
+		window.set_focus()?;
+		return Ok(());
 	}
 	let url = if upload {
 		"https://ely.by/skins/add"
 	} else {
 		"https://ely.by/skins"
 	};
-	tauri::WebviewWindowBuilder::new(
+	let window = tauri::WebviewWindowBuilder::new(
 		&app,
 		"ely-skins",
 		tauri::WebviewUrl::External(url.parse().unwrap()),
@@ -80,6 +85,21 @@ pub async fn open_ely_skins<R: Runtime>(
 	.inner_size(1100.0, 800.0)
 	.center()
 	.build()?;
+	if let Some(main) = app.get_webview_window("main") {
+		let catalog = window.clone();
+		main.on_window_event(move |event| {
+			if matches!(event, tauri::WindowEvent::Destroyed) {
+				let _ = catalog.destroy();
+			}
+		});
+	}
+	let retained_window = window.clone();
+	window.on_window_event(move |event| {
+		if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+			api.prevent_close();
+			let _ = retained_window.hide();
+		}
+	});
 	Ok(())
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Button, SkinPreviewRenderer } from '@modrinth/ui'
+import { Button, DropdownSelect, SkinPreviewRenderer } from '@modrinth/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { computed, inject, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
 import ElyLoginModal from '@/components/ui/astralrinth/accounts/input/ElyLoginModal.vue'
@@ -90,7 +90,8 @@ onUnmounted(() => {
 				<SkinPreviewRenderer
 					v-if="texture"
 					:texture-src="texture"
-					:variant="variant"
+					:variant="variant === 'slim' ? 'SLIM' : 'CLASSIC'"
+					:key="`${selected}-${variant}`"
 					:nametag="account?.profile.name ?? ''"
 					:initial-rotation="Math.PI / 8"
 				/>
@@ -116,14 +117,29 @@ onUnmounted(() => {
 						<Button @click="openCatalog(true)">Загрузить PNG</Button>
 					</div>
 				</div>
-				<label v-if="accounts.length" class="flex flex-col gap-2"
-					>Аккаунт для предпросмотра
-					<select v-model="selected" class="input">
-						<option v-for="a in accounts" :key="a.profile.id" :value="a.profile.id">
-							{{ a.profile.name }}
-						</option>
-					</select>
-				</label>
+				<div v-if="accounts.length" class="flex flex-col gap-2">
+					<span class="text-sm font-semibold text-secondary">Аккаунт Ely.by</span>
+					<DropdownSelect
+						v-if="accounts.length > 1"
+						v-model="selected"
+						name="ely-preview-account"
+						:options="accounts.map((a) => a.profile.id)"
+						:display-name="
+							(id: string) => accounts.find((a) => a.profile.id === id)?.profile.name ?? id
+						"
+						class="w-full"
+					/>
+					<div v-else class="flex items-center gap-3 rounded-xl bg-surface-3 px-4 py-3">
+						<span
+							class="flex size-9 items-center justify-center rounded-lg bg-brand-highlight font-bold text-brand"
+							>{{ account?.profile.name.slice(0, 1).toUpperCase() }}</span
+						>
+						<span class="font-semibold text-contrast">{{ account?.profile.name }}</span>
+						<span class="ml-auto rounded-full bg-surface-4 px-2.5 py-1 text-xs text-secondary"
+							>Ely.by</span
+						>
+					</div>
+				</div>
 				<div v-if="account" class="flex items-center gap-3">
 					<Button :disabled="loading" @click="refresh">{{
 						loading ? 'Обновляем…' : 'Обновить скин'
