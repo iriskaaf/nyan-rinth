@@ -11,7 +11,7 @@
 .soft-input {
 	width: 100%;
 	box-sizing: border-box;
-	border-radius: 0.9rem;
+	border-radius: var(--radius-md);
 	background:
 		linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
 		var(--color-button-bg);
@@ -43,7 +43,7 @@
 .soft-input:focus {
 	border-color: color-mix(in srgb, var(--color-brand) 70%, white);
 	box-shadow:
-		0 0 0 4px rgba(62, 140, 222, 0.16),
+		0 0 0 4px var(--color-brand-highlight),
 		0 10px 24px rgba(0, 0, 0, 0.14);
 	transform: translateY(-1px);
 }

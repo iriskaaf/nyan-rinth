@@ -145,6 +145,8 @@ impl State {
             tracing::error!("Error recovering interrupted install jobs: {e}");
         }
 
+        crate::api::instance::game_settings_sync::start_worker();
+
         tokio::task::spawn(async move {
             instances::watcher::watch_instances_init(
                 &state.file_watcher,

@@ -40,6 +40,10 @@ pub struct CatalogPage {
 	pub items: Vec<CatalogSkin>,
 	pub current: u32,
 	pub last: u32,
+	#[serde(default)]
+	pub total_items: u32,
+	#[serde(default)]
+	pub equipped_id: Option<u64>,
 }
 
 fn error(message: &str) -> crate::Error {
@@ -53,7 +57,7 @@ fn new_session() -> Result<SiteSession> {
 		.https_only(true)
 		.redirect(reqwest::redirect::Policy::none())
 		.timeout(Duration::from_secs(25))
-		.user_agent("NyanRinth/1.0.2")
+		.user_agent("NyanRinth/1.0.5")
 		.build()?;
 	Ok(SiteSession { client, jar })
 }
@@ -406,7 +410,7 @@ pub async fn personal(
 		error("Подключите скины, чтобы открыть личную коллекцию Ely.by.")
 	})?;
 	let mut url = Url::parse(if uploaded {
-		"https://ely.by/api/legacy/skins"
+		"https://ely.by/skins"
 	} else {
 		"https://ely.by/skins/stored"
 	})
@@ -430,14 +434,12 @@ pub async fn personal(
 			"Ely.by не открыл личную коллекцию. Переподключите управление скинами.",
 		));
 	}
-	if uploaded {
-		return Ok(response.json().await?);
-	}
 	personal_page(&response.text().await?, &username)
 }
 
 fn personal_page(html: &str, username: &str) -> Result<CatalogPage> {
-	if !matches_user(&current_user(html)?, &username) {
+	let user = current_user(html)?;
+	if !matches_user(&user, username) {
 		return Err(error(
 			"Сессия личной коллекции истекла. Подключите скины заново.",
 		));
@@ -446,11 +448,12 @@ fn personal_page(html: &str, username: &str) -> Result<CatalogPage> {
 		.split("alight.service.skins = ")
 		.nth(1)
 		.ok_or_else(|| error("Изменился формат личной коллекции Ely.by."))?;
-	serde_json::Deserializer::from_str(value)
+	let mut page = serde_json::Deserializer::from_str(value)
 		.into_iter::<CatalogPage>()
 		.next()
-		.ok_or_else(|| error("Не удалось прочитать личную коллекцию Ely.by."))?
-		.map_err(Into::into)
+		.ok_or_else(|| error("Не удалось прочитать личную коллекцию Ely.by."))??;
+	page.equipped_id = user.pointer("/skin/id").and_then(Value::as_u64);
+	Ok(page)
 }
 
 /// Changes only the skin of the explicitly selected, verified Ely.by account.
@@ -648,6 +651,14 @@ fn protect(_bytes: &[u8], _decrypt: bool) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	#[test]
+	fn personal_collection_preserves_all_uploads_and_equipped_identity() {
+		let html = r#"alight.service.currentUser = {"id":42,"nickname":"Player","skin":{"id":101}}; alight.service.skins = {"items":[{"id":100,"skin_url":"https://ely.by/storage/skins/a.png","is_slim":true},{"id":101,"skin_url":"https://ely.by/storage/skins/b.png","is_slim":false},{"id":102,"skin_url":"https://ely.by/storage/skins/c.png","is_slim":true}],"total_items":3,"current":1,"last":1};"#;
+		let page = personal_page(html, "Player").unwrap();
+		assert_eq!(page.total_items, 3);
+		assert_eq!(page.items.iter().map(|skin| skin.id).collect::<Vec<_>>(), [100, 101, 102]);
+		assert_eq!(page.equipped_id, Some(101));
+	}
 	#[test]
 	fn personal_collection_rejects_anonymous_global_fallback() {
 		let html = r#"alight.service.currentUser = {"id":0,"nickname":"Guest"}; alight.service.skins = {"items":[],"current":1,"last":1};"#;

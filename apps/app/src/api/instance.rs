@@ -21,6 +21,8 @@ use theseus::server_address::ServerAddress;
 pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("instance")
         .invoke_handler(tauri::generate_handler![
+            game_settings_sync_get,
+            game_settings_sync_update,
             instance_remove,
             instance_get,
             instance_get_many,
@@ -1015,4 +1017,14 @@ pub async fn instance_share_unlink(instance_id: &str) -> Result<()> {
 pub async fn instance_share_unpublish(instance_id: &str) -> Result<()> {
     theseus::instance::unpublish_shared_instance(instance_id).await?;
     Ok(())
+}
+
+#[tauri::command]
+async fn game_settings_sync_get() -> Result<theseus::instance::game_settings_sync::SyncView> {
+	Ok(theseus::instance::game_settings_sync::get_config().await?)
+}
+
+#[tauri::command]
+async fn game_settings_sync_update(update: theseus::instance::game_settings_sync::SyncUpdate) -> Result<theseus::instance::game_settings_sync::SyncView> {
+	Ok(theseus::instance::game_settings_sync::update_config(update).await?)
 }

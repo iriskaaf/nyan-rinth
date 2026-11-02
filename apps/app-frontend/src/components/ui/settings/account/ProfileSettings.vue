@@ -1,5 +1,14 @@
 <template>
+	<div v-if="!auth.user.value" class="flex flex-col items-start gap-4">
+		<h2 class="m-0">Аккаунт Modrinth</h2>
+		<p>
+			Нужен для друзей, совместных сборок и синхронизации настроек лаунчера. Для установки модов и
+			входа в Minecraft он не требуется.
+		</p>
+		<Button @click="auth.requestSignIn('/')">Войти в Modrinth</Button>
+	</div>
 	<AccountProfileSettings
+		v-else
 		ref="profileSettings"
 		:patch-user="patchUser"
 		:change-avatar="changeAvatar"
@@ -11,7 +20,7 @@
 
 <script setup lang="ts">
 import type { Labrinth } from '@modrinth/api-client'
-import { AccountProfileSettings, injectAuth } from '@modrinth/ui'
+import { AccountProfileSettings, Button, injectAuth } from '@modrinth/ui'
 import { inject, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import {

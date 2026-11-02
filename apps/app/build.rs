@@ -216,6 +216,8 @@ fn main() {
 				"instance",
 				InlinedPlugin::new()
 					.commands(&[
+						"game_settings_sync_get",
+						"game_settings_sync_update",
 						"instance_remove",
 						"instance_get",
 						"instance_get_many",

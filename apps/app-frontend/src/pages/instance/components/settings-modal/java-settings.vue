@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { nyanMessages } from '@/helpers/ui-messages'
+
 import {
 	CheckCircleIcon,
 	CoffeeIcon,
@@ -263,12 +265,10 @@ const messages = defineMessages({
 					</div>
 					<div v-if="overrideJavaInstall" class="flex gap-2">
 						<Button @click="handleDetectJava">
-							<SearchIcon />
-							Detect
+							<SearchIcon /> {{ formatMessage(nyanMessages.detect) }}
 						</Button>
 						<Button @click="handleBrowseJava">
-							<FolderSearchIcon />
-							Browse
+							<FolderSearchIcon /> {{ formatMessage(nyanMessages.browse) }}
 						</Button>
 					</div>
 				</div>

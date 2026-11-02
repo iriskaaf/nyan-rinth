@@ -2,7 +2,6 @@
 /// This file is modified by AstralRinth
 ///
 use crate::api::astralrinth::update;
-use crate::event::emit::emit_info;
 use crate::models::astralrinth::authentication::ExternalAuthLibrary;
 use crate::{Result, State};
 
@@ -197,7 +196,6 @@ async fn install_authlib_injector_asset(
 		asset = %asset.name,
 		"[AR] Auth library download started"
 	);
-	let _ = emit_info("[AR] Installing auth library...").await;
 	let bytes = fetch_bytes_from_url(&asset.browser_download_url).await?;
 	use sha2::{Digest, Sha256};
 	let expected = asset

@@ -820,6 +820,18 @@ function deserialize_IMPORT_LAUNCHER_TYPE(d) {
         };
     case 5:
         return {
+            tag: "PineconeMC"
+        };
+    case 6:
+        return {
+            tag: "Modrinth"
+        };
+    case 7:
+        return {
+            tag: "AstralRinth"
+        };
+    case 8:
+        return {
             tag: "Unknown"
         };
     default:

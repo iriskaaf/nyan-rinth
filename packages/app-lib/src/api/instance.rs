@@ -5,6 +5,7 @@ mod content_set_diff;
 mod export_mrpack;
 mod get;
 mod groups;
+pub mod game_settings_sync;
 mod icon;
 mod install;
 mod lifecycle;

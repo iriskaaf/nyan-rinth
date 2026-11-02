@@ -21,6 +21,7 @@ import {
 	commonSettingsMessages,
 	defineMessage,
 	defineMessages,
+	NewModal,
 	ProgressBar,
 	TabbedModal,
 	UnsavedChangesPopup,
@@ -45,12 +46,12 @@ import AppearanceSettings from '@/components/ui/settings/display/AppearanceSetti
 import BehaviorSettings from '@/components/ui/settings/display/BehaviorSettings.vue'
 import FeatureFlagSettings from '@/components/ui/settings/display/FeatureFlagSettings.vue'
 import LanguageSettings from '@/components/ui/settings/display/LanguageSettings.vue'
+import GameSyncSettings from '@/components/ui/settings/instances/GameSyncSettings.vue'
 import MemorySettings from '@/components/ui/settings/instances/MemorySettings.vue'
 import DefaultInstanceSettings from '@/components/ui/settings/instances/DefaultInstanceSettings.vue'
 import JavaSettings from '@/components/ui/settings/instances/JavaSettings.vue'
 import ResourceManagementSettings from '@/components/ui/settings/instances/ResourceManagementSettings.vue'
 import { useAppSettings } from '@/composables/use-app-settings.ts'
-import { get, set } from '@/helpers/settings.ts'
 import {
 	appSettingsModalContextKey,
 	type UnsavedChangesController,
@@ -62,13 +63,8 @@ const appSettings = useAppSettings()
 
 const { formatMessage } = useVIntl()
 
-const devModeCounter = ref(0)
+const aboutModal = ref<InstanceType<typeof NewModal> | null>(null)
 const launcherUpdateModal = ref<InstanceType<typeof LauncherUpdateModal> | null>(null)
-
-const developerModeEnabled = defineMessage({
-	id: 'app.settings.developer-mode-enabled',
-	defaultMessage: 'Developer mode enabled.',
-})
 
 const tabCategories = defineMessages({
 	display: {
@@ -151,6 +147,12 @@ const tabs = [
 		category: tabCategories.account,
 		icon: ShieldIcon,
 		content: PrivacySettings,
+	},
+	{
+		name: defineMessage({ id: 'nyanrinth.sync.title', defaultMessage: 'Game settings sync' }),
+		category: tabCategories.instances,
+		icon: RefreshCwIcon,
+		content: GameSyncSettings,
 	},
 	{
 		name: defineMessage({
@@ -277,31 +279,6 @@ const { progress, version: downloadingVersion } = injectAppUpdateDownloadProgres
 const version = await getVersion()
 const osPlatform = getOsPlatform()
 const osVersion = getOsVersion()
-const settings = ref(await get())
-
-watch(
-	settings,
-	async () => {
-		await set(settings.value)
-	},
-	{ deep: true },
-)
-
-function devModeCount() {
-	devModeCounter.value++
-	if (devModeCounter.value > 5) {
-		const selectedTab = modal.value ? availableTabs.value[modal.value.selectedTab] : undefined
-
-		appSettings.devMode = !appSettings.devMode
-		settings.value.developer_mode = !!appSettings.devMode
-		devModeCounter.value = 0
-
-		if (modal.value) {
-			const selectedTabIndex = selectedTab ? availableTabs.value.indexOf(selectedTab) : -1
-			modal.value.setTab(selectedTabIndex >= 0 ? selectedTabIndex : 0)
-		}
-	}
-}
 
 const messages = defineMessages({
 	downloading: {
@@ -329,8 +306,8 @@ const messages = defineMessages({
 		defaultMessage: 'macOS',
 	},
 	developerModeButtonLabel: {
-		id: 'app.settings.developer-mode-button.label',
-		defaultMessage: 'Toggle developer mode',
+		id: 'nyanrinth.about.title',
+		defaultMessage: 'About launcher',
 	},
 })
 </script>
@@ -347,6 +324,7 @@ const messages = defineMessages({
 		<template #title>
 			<span class="text-2xl font-semibold text-contrast">
 				{{ formatMessage(commonMessages.settingsLabel) }}
+				<span class="ml-2 rounded-full bg-brand-highlight px-2 py-1 text-xs text-brand">Alpha</span>
 			</span>
 		</template>
 		<template #floating-action-bar>
@@ -370,18 +348,11 @@ const messages = defineMessages({
 						<ProgressBar :progress="progress" />
 					</template>
 				</div>
-				<p v-if="appSettings.devMode" class="text-brand font-semibold m-0 mb-2">
-					{{ formatMessage(developerModeEnabled) }}
-				</p>
 				<div class="flex items-center gap-3">
 					<button
 						:aria-label="formatMessage(messages.developerModeButtonLabel)"
 						class="p-0 m-0 bg-transparent border-none cursor-pointer button-animation"
-						:class="{
-							'text-brand': appSettings.devMode,
-							'text-secondary': !appSettings.devMode,
-						}"
-						@click="devModeCount"
+						@click="aboutModal?.show()"
 					>
 						<AstralRinthLogo aria-hidden="true" class="w-6 h-6" />
 					</button>
@@ -424,6 +395,32 @@ const messages = defineMessages({
 	</TabbedModal>
 
 	<LauncherUpdateModal ref="launcherUpdateModal" :version="version" />
+	<NewModal ref="aboutModal" :header="formatMessage(messages.developerModeButtonLabel)">
+		<div class="flex max-w-lg flex-col gap-5">
+			<div class="flex items-center gap-4">
+				<AstralRinthLogo class="size-14" aria-hidden="true" />
+				<div>
+					<h2 class="m-0 text-2xl font-semibold text-contrast">NyanRinth</h2>
+					<span class="text-brand">Alpha · {{ version }}</span>
+				</div>
+			</div>
+			<dl class="m-0 grid grid-cols-[auto_1fr] gap-x-6 gap-y-3">
+				<dt>Разработчик</dt>
+				<dd class="m-0 text-contrast">iriska</dd>
+				<dt>Версия исходного пакета</dt>
+				<dd class="m-0 text-contrast">0.18.201 (AstralRinth)</dd>
+				<dt>Основа</dt>
+				<dd class="m-0">AstralRinth · beta · 69e9ef4</dd>
+				<dt>Лицензия</dt>
+				<dd class="m-0">GPL-3.0</dd>
+				<dt>Система</dt>
+				<dd class="m-0">{{ osPlatform }} {{ osVersion }}</dd>
+			</dl>
+			<p class="m-0 text-sm text-secondary">
+				Ранняя тестовая версия. Возможны ошибки и изменения интерфейса.
+			</p>
+		</div>
+	</NewModal>
 </template>
 
 <style lang="scss" scoped>

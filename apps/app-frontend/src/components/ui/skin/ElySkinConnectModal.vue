@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button, NewModal } from '@modrinth/ui'
 import { invoke } from '@tauri-apps/api/core'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 
 const props = defineProps<{ user: string; username: string }>()
 const emit = defineEmits<{ connected: [] }>()
@@ -34,9 +34,10 @@ async function connect() {
 			totp: totp.value || null,
 		})
 		clearSecrets()
-		emit('connected')
 		busy.value = false
+		await nextTick()
 		modal.value?.hide()
+		emit('connected')
 	} catch (e) {
 		error.value =
 			typeof e === 'string'
@@ -96,10 +97,10 @@ defineExpose({ show })
 				зашифрованной средствами Windows и привязана к этому аккаунту.
 			</p>
 			<Button
+				native-type="submit"
 				type="colored"
 				color="brand"
 				:disabled="busy || !login.trim() || !password"
-				@click="connect"
 				>{{ busy ? 'Подключаем…' : 'Подключить управление скинами' }}</Button
 			>
 		</form>

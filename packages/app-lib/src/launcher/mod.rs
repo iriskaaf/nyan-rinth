@@ -1067,6 +1067,8 @@ pub async fn launch_minecraft(
 
     command.envs(env_args.iter().cloned());
 
+    let _game_sync_guard = crate::api::instance::game_settings_sync::launch_guard().await;
+
     // Overwrites the minecraft options.txt file with the settings from the profile
     // Uses 'a:b' syntax which is not quite yaml
     if !mc_set_options.is_empty() {
