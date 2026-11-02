@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button, NewModal, injectNotificationManager } from '@modrinth/ui'
 import { invoke } from '@tauri-apps/api/core'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import type { MinecraftCredential } from '@/models/astralrinth/authentication'
 
 const emit = defineEmits<{ authenticated: [credentials: MinecraftCredential] }>()
@@ -46,8 +46,10 @@ async function login() {
 		}
 		password.value = ''
 		totp.value = ''
-		emit('authenticated', credentials)
+		busy.value = false
+		await nextTick()
 		modal.value?.hide()
+		emit('authenticated', credentials)
 	} catch (e) {
 		error.value =
 			typeof e === 'string'

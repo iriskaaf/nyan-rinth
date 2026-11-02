@@ -1,10 +1,10 @@
 <p align="center"><img src="apps/app/icons/128x128.png" width="96" alt="NyanRinth"></p>
 
-# NyanRinth 1.0.5
+# NyanRinth 1.0.6
 
 Minecraft launcher for Windows with Ely.by accounts and skins, based on AstralRinth.
 
-This is an archived release. See the [project homepage](https://github.com/iriskaaf/nyan-rinth) for the current version and [Releases](https://github.com/iriskaaf/nyan-rinth/tree/v1.0.5) for this preserved source snapshot.
+This is an archived release. See the [project homepage](https://github.com/iriskaaf/nyan-rinth) for the current version and [Releases](https://github.com/iriskaaf/nyan-rinth/tree/v1.0.6) for this preserved source snapshot.
 
 ## Build
 

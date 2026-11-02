@@ -241,8 +241,8 @@ onMounted(() => {
 </script>
 
 <template>
-	<div class="mx-auto w-full max-w-[1440px] p-6 xl:p-8">
-		<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+	<div class="skins-page mx-auto w-full max-w-[1440px] p-6 xl:p-8">
+		<div class="mb-6 flex shrink-0 flex-wrap items-center justify-between gap-4">
 			<div>
 				<div class="mb-2 text-sm font-semibold text-brand">NYANRINTH / ELY.BY</div>
 				<h1 class="m-0 text-3xl font-bold">Ваш скин. Во всех сборках.</h1>
@@ -250,10 +250,10 @@ onMounted(() => {
 			<Button @click="loginModal?.show()">Добавить Ely.by</Button>
 		</div>
 		<div
-			class="grid items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]"
+			class="skins-layout grid items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]"
 		>
 			<div class="skin-preview-panel flex min-h-0 flex-col gap-3">
-				<div class="skin-model relative shrink-0 rounded-3xl bg-surface-2 p-3">
+				<div class="skin-model relative rounded-3xl bg-surface-2 p-3">
 					<SkinPreviewRenderer
 						v-if="previewTexture"
 						:key="`${selected}-${previewVariant}`"
@@ -281,7 +281,7 @@ onMounted(() => {
 					<span
 						v-if="pending"
 						class="absolute left-4 top-4 rounded-full bg-brand-highlight px-3 py-1 text-sm font-semibold text-brand"
-						>Предпросмотр · ещё не применён</span
+						>Предпросмотр · {{ pending.skin.is_slim ? 'Alex' : 'Steve' }}</span
 					>
 					<span
 						v-if="loadingSkin"
@@ -324,40 +324,34 @@ onMounted(() => {
 						></template
 					>
 					<template v-else
-						><div class="mb-3 flex items-center justify-between gap-2">
+						><div class="mb-2 flex items-center justify-between gap-2">
 							<span class="text-sm font-semibold text-brand">Управление подключено</span
 							><Button size="sm" :disabled="busy" @click="disconnect">Отключить</Button>
 						</div>
-						<Button :disabled="busy" @click="fileInput?.click()">Загрузить PNG</Button
-						><input
+						<div class="flex flex-wrap items-center gap-2">
+							<Button :disabled="busy" @click="fileInput?.click()">Загрузить PNG</Button
+							><span class="text-xs text-secondary">64×64 / 64×32 · до 192 КиБ</span>
+						</div>
+						<input
 							ref="fileInput"
 							type="file"
 							class="hidden"
 							accept="image/png,.png"
 							@change="uploadFile"
-						/>
-						<p class="mb-0 text-xs text-secondary">
-							64×64 или 64×32 · до 192 КиБ. Файл загрузится в Ely.by; применение — отдельной
-							кнопкой.
-						</p></template
+						/></template
 					>
 				</div>
-				<div v-if="pending" class="flex flex-wrap items-center gap-3">
+				<div v-if="pending" class="flex shrink-0 items-center gap-3">
 					<Button
 						type="colored"
 						color="brand"
 						:disabled="busy || !connected || loadingSkin"
 						@click="applySkin"
 						>{{ busy ? 'Подождите…' : 'Применить скин' }}</Button
-					><Button :disabled="busy" @click="resetPreview">Отмена</Button
-					><span class="text-sm text-secondary">{{
-						pending.skin.is_slim ? 'Alex · тонкие руки' : 'Steve · обычные руки'
-					}}</span>
+					><Button :disabled="busy" @click="resetPreview">Отмена</Button>
 				</div>
-				<p v-if="error" role="alert" class="m-0 text-red">{{ error }}</p>
-				<p v-if="notice" role="status" class="m-0 text-sm text-brand">{{ notice }}</p>
 			</div>
-			<section class="min-w-0 rounded-3xl bg-surface-2 p-5">
+			<section class="skin-catalog min-w-0 rounded-3xl bg-surface-2 p-5">
 				<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
 					<div class="flex flex-wrap gap-2" role="tablist" aria-label="Коллекция скинов">
 						<button
@@ -376,6 +370,10 @@ onMounted(() => {
 						<span class="text-sm text-secondary">Скинов: {{ catalog.total_items ?? catalog.items.length }}</span>
 						<Button size="sm" :disabled="busy || loadingCatalog" @click="loadCatalog">Обновить</Button>
 					</div>
+				</div>
+				<div v-if="error || notice" class="sticky top-0 z-10 bg-surface-2">
+					<p v-if="error" role="alert" class="mb-3 mt-0 text-red">{{ error }}</p>
+					<p v-if="notice" role="status" class="mb-3 mt-0 text-sm text-brand">{{ notice }}</p>
 				</div>
 				<DropdownSelect
 					v-if="tab === 'Мои скины' && connected"
@@ -484,13 +482,29 @@ onMounted(() => {
 .skin-model {
 	height: clamp(200px, calc(100dvh - 500px), 380px);
 }
-@media (min-width: 1024px) {
+@media (min-width: 1024px) and (min-height: 600px) {
+	.skins-page {
+		display: flex;
+		height: 100%;
+		min-height: 0;
+		flex-direction: column;
+	}
+	.skins-layout {
+		flex: 1;
+		min-height: 0;
+		align-items: stretch;
+	}
 	.skin-preview-panel {
-		position: sticky;
-		top: 16px;
-		max-height: calc(100dvh - 205px);
+		min-height: 0;
+	}
+	.skin-model {
+		flex: 1;
+		height: auto;
+		min-height: 140px;
+	}
+	.skin-catalog {
+		min-height: 0;
 		overflow-y: auto;
-		padding-right: 4px;
 		scrollbar-width: thin;
 	}
 }
