@@ -18,6 +18,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 			ely_skins_connected,
 			ely_skins_disconnect,
 			ely_skins_catalog,
+			ely_skins_personal,
 			ely_skins_preview,
 			ely_skins_apply,
 			ely_skins_upload,
@@ -67,6 +68,19 @@ pub async fn ely_skins_catalog(
 		theseus::models::astralrinth::ely_skins::catalog(page, model, tags)
 			.await?,
 	)
+}
+#[tauri::command]
+pub async fn ely_skins_personal(
+	user: uuid::Uuid,
+	page: u32,
+	model: &str,
+	tags: &str,
+	uploaded: bool,
+) -> Result<theseus::models::astralrinth::ely_skins::CatalogPage> {
+	Ok(theseus::models::astralrinth::ely_skins::personal(
+		user, page, model, tags, uploaded,
+	)
+	.await?)
 }
 #[tauri::command]
 pub async fn ely_skins_preview(

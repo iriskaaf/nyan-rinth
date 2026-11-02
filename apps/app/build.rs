@@ -18,6 +18,7 @@ fn main() {
 						"ely_skins_connected",
 						"ely_skins_disconnect",
 						"ely_skins_catalog",
+						"ely_skins_personal",
 						"ely_skins_preview",
 						"ely_skins_apply",
 						"ely_skins_upload",

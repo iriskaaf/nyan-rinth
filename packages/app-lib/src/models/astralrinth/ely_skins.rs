@@ -393,6 +393,66 @@ async fn skin_response(response: Response) -> Result<Value> {
 	Ok(value)
 }
 
+/// Reads the selected account's saved collection or uploads, never the anonymous global catalog.
+pub async fn personal(
+	user: Uuid,
+	page: u32,
+	model: &str,
+	tags: &str,
+	uploaded: bool,
+) -> Result<CatalogPage> {
+	let username = expected_username(user).await?;
+	let session = verified_session(user).await?.ok_or_else(|| {
+		error("Подключите скины, чтобы открыть личную коллекцию Ely.by.")
+	})?;
+	let mut url = Url::parse(if uploaded {
+		"https://ely.by/api/legacy/skins"
+	} else {
+		"https://ely.by/skins/stored"
+	})
+	.unwrap();
+	url.query_pairs_mut()
+		.append_pair("page", &page.clamp(1, 250).to_string())
+		.append_pair("sort", "time");
+	if model == "slim" {
+		url.query_pairs_mut().append_pair("type", "slim");
+	}
+	if !tags.trim().is_empty() {
+		url.query_pairs_mut()
+			.append_pair("tags[]", &tags.chars().take(100).collect::<String>());
+	}
+	if uploaded {
+		url.query_pairs_mut().append_pair("uploader", &username);
+	}
+	let response = session.client.get(url).send().await?;
+	if !response.status().is_success() {
+		return Err(error(
+			"Ely.by не открыл личную коллекцию. Переподключите управление скинами.",
+		));
+	}
+	if uploaded {
+		return Ok(response.json().await?);
+	}
+	personal_page(&response.text().await?, &username)
+}
+
+fn personal_page(html: &str, username: &str) -> Result<CatalogPage> {
+	if !matches_user(&current_user(html)?, &username) {
+		return Err(error(
+			"Сессия личной коллекции истекла. Подключите скины заново.",
+		));
+	}
+	let value = html
+		.split("alight.service.skins = ")
+		.nth(1)
+		.ok_or_else(|| error("Изменился формат личной коллекции Ely.by."))?;
+	serde_json::Deserializer::from_str(value)
+		.into_iter::<CatalogPage>()
+		.next()
+		.ok_or_else(|| error("Не удалось прочитать личную коллекцию Ely.by."))?
+		.map_err(Into::into)
+}
+
 /// Changes only the skin of the explicitly selected, verified Ely.by account.
 pub async fn apply(user: Uuid, skin_id: u64) -> Result<()> {
 	if skin_id == 0 {
@@ -588,6 +648,17 @@ fn protect(_bytes: &[u8], _decrypt: bool) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	#[test]
+	fn personal_collection_rejects_anonymous_global_fallback() {
+		let html = r#"alight.service.currentUser = {"id":0,"nickname":"Guest"}; alight.service.skins = {"items":[],"current":1,"last":1};"#;
+		assert!(personal_page(html, "Player").is_err());
+	}
+	#[test]
+	fn personal_collection_accepts_only_matching_owner() {
+		let html = r#"alight.service.currentUser = {"id":42,"nickname":"Player"}; alight.service.skins = {"items":[],"current":1,"last":1};"#;
+		assert_eq!(personal_page(html, "Player").unwrap().items.len(), 0);
+		assert!(personal_page(html, "AnotherPlayer").is_err());
+	}
 	#[test]
 	fn account_token_subject_follows_ely_tokens_factory() {
 		let token = format!(

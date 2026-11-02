@@ -1406,13 +1406,6 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 					{{ formatMessage(commonMessages.signOutButton) }}
 				</template>
 			</TeleportOverflowMenu>
-			<NavButton
-				v-else
-				v-tooltip.right="formatMessage(messages.signInToModrinthAccount)"
-				:to="() => requestSignIn()"
-			>
-				<LogInIcon class="text-brand" />
-			</NavButton>
 		</div>
 		<div data-tauri-drag-region class="app-grid-statusbar bg-bg-raised h-[--top-bar-height] flex">
 			<div data-tauri-drag-region class="flex min-w-0 flex-1 items-center overflow-hidden p-2">
