@@ -13,8 +13,15 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 	tauri::plugin::Builder::<R>::new("auth")
 		.invoke_handler(tauri::generate_handler![
 			ely_login,
-			open_ely_skins,
 			ely_skin_texture,
+			ely_skins_connect,
+			ely_skins_connected,
+			ely_skins_disconnect,
+			ely_skins_catalog,
+			ely_skins_personal,
+			ely_skins_preview,
+			ely_skins_apply,
+			ely_skins_upload,
 			offline_login,
 			get_external_auth_providers,
 			get_external_auth_library_states,
@@ -29,6 +36,68 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 			get_users,
 		])
 		.build()
+}
+
+#[tauri::command]
+pub async fn ely_skins_connect(
+	user: uuid::Uuid,
+	login: &str,
+	password: &str,
+	totp: Option<&str>,
+) -> Result<()> {
+	Ok(theseus::models::astralrinth::ely_skins::connect(
+		user, login, password, totp,
+	)
+	.await?)
+}
+#[tauri::command]
+pub async fn ely_skins_connected(user: uuid::Uuid) -> Result<bool> {
+	Ok(theseus::models::astralrinth::ely_skins::connected(user).await?)
+}
+#[tauri::command]
+pub async fn ely_skins_disconnect(user: uuid::Uuid) -> Result<()> {
+	Ok(theseus::models::astralrinth::ely_skins::disconnect(user).await?)
+}
+#[tauri::command]
+pub async fn ely_skins_catalog(
+	page: u32,
+	model: &str,
+	tags: &str,
+) -> Result<theseus::models::astralrinth::ely_skins::CatalogPage> {
+	Ok(
+		theseus::models::astralrinth::ely_skins::catalog(page, model, tags)
+			.await?,
+	)
+}
+#[tauri::command]
+pub async fn ely_skins_personal(
+	user: uuid::Uuid,
+	page: u32,
+	model: &str,
+	tags: &str,
+	uploaded: bool,
+) -> Result<theseus::models::astralrinth::ely_skins::CatalogPage> {
+	Ok(theseus::models::astralrinth::ely_skins::personal(
+		user, page, model, tags, uploaded,
+	)
+	.await?)
+}
+#[tauri::command]
+pub async fn ely_skins_preview(
+	skin_id: u64,
+) -> Result<theseus::models::astralrinth::ely_skins::SkinPreview> {
+	Ok(theseus::models::astralrinth::ely_skins::preview(skin_id).await?)
+}
+#[tauri::command]
+pub async fn ely_skins_apply(user: uuid::Uuid, skin_id: u64) -> Result<()> {
+	Ok(theseus::models::astralrinth::ely_skins::apply(user, skin_id).await?)
+}
+#[tauri::command]
+pub async fn ely_skins_upload(
+	user: uuid::Uuid,
+	bytes: Vec<u8>,
+) -> Result<theseus::models::astralrinth::ely_skins::CatalogSkin> {
+	Ok(theseus::models::astralrinth::ely_skins::upload(user, bytes).await?)
 }
 
 #[tauri::command]
@@ -56,31 +125,6 @@ pub async fn ely_skin_texture(
 		)
 		.await?,
 	)
-}
-
-#[tauri::command]
-pub async fn open_ely_skins<R: Runtime>(
-	app: tauri::AppHandle<R>,
-	upload: bool,
-) -> Result<()> {
-	if let Some(window) = app.get_webview_window("ely-skins") {
-		window.close()?;
-	}
-	let url = if upload {
-		"https://ely.by/skins/add"
-	} else {
-		"https://ely.by/skins"
-	};
-	tauri::WebviewWindowBuilder::new(
-		&app,
-		"ely-skins",
-		tauri::WebviewUrl::External(url.parse().unwrap()),
-	)
-	.title("NyanRinth — скины Ely.by")
-	.inner_size(1100.0, 800.0)
-	.center()
-	.build()?;
-	Ok(())
 }
 
 /// This code is modified by AstralRinth
@@ -160,6 +204,7 @@ pub async fn login<R: Runtime>(
 
 #[tauri::command]
 pub async fn remove_user(user: uuid::Uuid) -> Result<()> {
+	theseus::models::astralrinth::ely_skins::disconnect(user).await?;
 	Ok(minecraft_auth::remove_user(user).await?)
 }
 

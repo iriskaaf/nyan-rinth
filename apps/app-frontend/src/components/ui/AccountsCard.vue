@@ -164,6 +164,7 @@ import {
 	set_default_user,
 	users,
 } from '@/helpers/auth'
+import { loadElyHead, skinTextureHead, rememberElyHead } from '@/helpers/ely-heads'
 import { getPlayerHeadUrl } from '@/helpers/rendering/batch-skin-renderer.ts'
 import type { Skin } from '@/helpers/skins'
 import { get_available_skins } from '@/helpers/skins'
@@ -207,6 +208,7 @@ const offlineLoginDisabled = ref(false)
 const defaultUser = ref<string | undefined>()
 const equippedSkin = ref<Skin | null>(null)
 const headUrlCache = ref(new Map<string, string>())
+const elyHeads = ref(new Map<string, string>())
 
 const accountsInputModals = ref<AccountsInputModalsHandle | null>(null)
 const accountsErrorModals = ref<AccountsErrorModalsHandle | null>(null)
@@ -314,6 +316,18 @@ async function refreshValues() {
 	accounts.value = Array.isArray(userList) ? [...userList] : []
 	accounts.value.sort((a, b) => (a.profile?.name ?? '').localeCompare(b.profile?.name ?? ''))
 
+	void Promise.allSettled(
+		accounts.value
+			.filter((a) => a.account_type === 'elyby')
+			.map(async (a) => {
+				const head = await loadElyHead(a.profile.name)
+				if (head) elyHeads.value = new Map(elyHeads.value).set(a.profile.id, head)
+			}),
+	)
+	if (accounts.value.find((a) => a.profile.id === defaultUser.value)?.account_type === 'elyby') {
+		equippedSkin.value = null
+		return
+	}
 	try {
 		const skins = await get_available_skins()
 		equippedSkin.value = skins.find((skin) => skin.is_equipped) ?? null
@@ -334,6 +348,13 @@ async function refreshValues() {
 	}
 }
 
+async function setElySkinHead(user: string, texture: string) {
+	const head = await skinTextureHead(texture)
+	elyHeads.value = new Map(elyHeads.value).set(user, head)
+	const account = accounts.value.find((a) => a.profile.id === user)
+	if (account) rememberElyHead(account.profile.name, head)
+}
+
 async function setEquippedSkin(skin: Skin) {
 	equippedSkin.value = skin
 
@@ -351,6 +372,7 @@ function setLoginDisabled(value: boolean) {
 
 defineExpose({
 	refreshValues,
+	setElySkinHead,
 	setEquippedSkin,
 	setLoginDisabled,
 	showAccountLoginModal,
@@ -365,6 +387,8 @@ const selectedAccount = computed(() =>
 )
 
 const avatarUrl = computed(() => {
+	if (selectedAccount.value?.account_type === 'elyby')
+		return elyHeads.value.get(selectedAccount.value.profile.id) ?? ''
 	if (equippedSkin.value?.texture_key) {
 		const cachedUrl = headUrlCache.value.get(equippedSkin.value.texture_key)
 		if (cachedUrl) {
@@ -382,6 +406,7 @@ const avatarUrl = computed(() => {
 })
 
 function getAccountAvatarUrl(account: MinecraftCredential) {
+	if (account.account_type === 'elyby') return elyHeads.value.get(account.profile.id) ?? ''
 	if (
 		account.profile.id === selectedAccount.value?.profile?.id &&
 		equippedSkin.value?.texture_key

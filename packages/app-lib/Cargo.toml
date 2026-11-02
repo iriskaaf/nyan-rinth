@@ -67,6 +67,7 @@ quick-xml = { workspace = true, features = ["async-tokio"] }
 rand = { workspace = true }
 regex = { workspace = true }
 reqwest = { workspace = true, features = [
+  "cookies",
   "brotli",
   "charset",
   "deflate",
@@ -133,7 +134,7 @@ dunce = { workspace = true }
 cidre = { workspace = true, features = ["blocks", "nw"] }
 
 [target."cfg(windows)".dependencies]
-windows = { workspace = true, features = ["Networking_Connectivity"] }
+windows = { workspace = true, features = ["Networking_Connectivity", "Win32_Security_Cryptography", "Win32_Foundation"] }
 windows-core = { workspace = true }
 winreg = { workspace = true }
 
