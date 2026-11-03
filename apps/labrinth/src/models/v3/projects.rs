@@ -6,7 +6,8 @@ use crate::database::models::project_item::{LinkUrl, ProjectQueryResult};
 use crate::database::models::version_item::VersionQueryResult;
 use crate::models::exp;
 use crate::models::ids::{
-    FileId, OrganizationId, ProjectId, TeamId, ThreadId, VersionId,
+    FileId, GalleryImageId, OrganizationId, ProjectId, TeamId, ThreadId,
+    VersionId,
 };
 use crate::routes::{FileHash, HashAlgorithm};
 use ariadne::ids::UserId;
@@ -199,12 +200,13 @@ impl From<ProjectQueryResult> for Project {
             link_urls: data
                 .urls
                 .into_iter()
-                .map(|d| (d.platform_name.clone(), Link::from(d)))
+                .map(|d| (d.platform.to_string(), Link::from(d)))
                 .collect(),
             gallery: data
                 .gallery_items
                 .into_iter()
                 .map(|x| GalleryItem {
+                    id: x.id.map(|id| GalleryImageId(id as u32)),
                     url: x.image_url,
                     raw_url: x.raw_image_url,
                     featured: x.featured,
@@ -305,7 +307,7 @@ impl Project {
     //     let link_urls = m
     //         .links
     //         .into_iter()
-    //         .map(|d| (d.platform_name.clone(), Link::from(d)))
+    //         .map(|d| (d.platform.to_string(), Link::from(d)))
     //         .collect();
     //
     //     let gallery = m
@@ -381,6 +383,8 @@ impl Project {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, utoipa::ToSchema)]
 pub struct GalleryItem {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<GalleryImageId>,
     pub url: String,
     pub raw_url: String,
     pub featured: bool,
@@ -427,8 +431,8 @@ pub struct Link {
 impl From<LinkUrl> for Link {
     fn from(data: LinkUrl) -> Self {
         Self {
-            platform: data.platform_name,
-            donation: data.donation,
+            platform: data.platform.to_string(),
+            donation: data.platform.is_donation(),
             url: data.url,
         }
     }
@@ -444,7 +448,15 @@ impl From<LinkUrl> for Link {
 /// Scheduled - Project is scheduled to be released in the future
 /// Private - Project is approved, but is not viewable to the public
 #[derive(
-    Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Debug, utoipa::ToSchema,
+    Serialize,
+    Deserialize,
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Hash,
+    Debug,
+    utoipa::ToSchema,
 )]
 #[serde(rename_all = "lowercase")]
 pub enum ProjectStatus {
@@ -572,8 +584,9 @@ impl ProjectStatus {
             ProjectStatus::Approved => true,
             ProjectStatus::Unlisted => true,
             ProjectStatus::Private => true,
-            ProjectStatus::Draft => true,
 
+            // `draft` used to be requestable for some reason, now considered a bug.
+            ProjectStatus::Draft => false,
             // `archived` is represented by a disclosure, not a status, so it
             // can no longer be requested or set as a status.
             ProjectStatus::Archived => false,

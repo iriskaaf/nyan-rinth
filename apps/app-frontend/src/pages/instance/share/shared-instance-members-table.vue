@@ -1,11 +1,11 @@
 <template>
 	<div class="flex flex-col gap-4">
-		<div class="flex flex-col gap-4">
+		<div class="flex flex-col gap-2">
 			<div class="flex items-center gap-2">
-				<StyledInput
+				<Input
 					v-model="search"
 					:icon="SearchIcon"
-					:placeholder="formatMessage(nyanMessages.searchUsers, { count: rows.length })"
+					:placeholder="`Search ${rows.length} users...`"
 					wrapper-class="min-w-0 flex-1"
 					input-class="!h-10"
 					clearable
@@ -32,7 +32,7 @@
 					>
 						<SpinnerIcon v-if="invitePending" class="animate-spin" aria-hidden="true" />
 						<UserPlusIcon v-else aria-hidden="true" />
-						{{ formatMessage(nyanMessages.inviteFriends) }}
+						Invite friends
 					</Button>
 				</template>
 			</div>
@@ -43,7 +43,7 @@
 					:aria-pressed="methodFilter === 'all'"
 					@click="methodFilter = 'all'"
 				>
-					{{ formatMessage(nyanMessages.all) }}
+					All
 				</button>
 				<button
 					v-for="option in methodFilterOptions"
@@ -82,7 +82,7 @@
 					>
 						<Avatar
 							:src="row.avatarUrl"
-							:alt="formatMessage(nyanMessages.userAvatar, { name: row.username })"
+							:alt="`${row.username}'s avatar`"
 							:tint-by="row.username"
 							size="24px"
 							circle
@@ -137,8 +137,6 @@
 </template>
 
 <script setup lang="ts">
-import { nyanMessages } from '@/helpers/ui-messages'
-
 import {
 	FilterIcon,
 	LinkIcon,
@@ -153,8 +151,8 @@ import {
 	AutoLink,
 	Avatar,
 	defineMessages,
+	Input,
 	type SortDirection,
-	StyledInput,
 	Table,
 	type TableColumn,
 	truncatedTooltip,

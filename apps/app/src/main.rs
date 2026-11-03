@@ -4,15 +4,15 @@
 )]
 #![recursion_limit = "256"]
 
+use anyhow::Context;
 use native_dialog::{DialogBuilder, MessageLevel};
 use std::env;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Listener, Manager};
 use tauri_plugin_fs::FsExt;
 use theseus::prelude::*;
 
 mod api;
-mod error;
 
 #[cfg(target_os = "macos")]
 mod macos;
@@ -31,6 +31,7 @@ async fn initialize_state(
 ) -> api::Result<()> {
     tracing::info!("Initializing app event state...");
     theseus::EventState::init(app.clone(), events).await?;
+
     tracing::info!("Initializing app state...");
     State::init(app.config().identifier.clone()).await?;
 
@@ -39,10 +40,11 @@ async fn initialize_state(
         .allow_directory(state.directories.caches_dir(), true)?;
     app.asset_protocol_scope()
         .allow_directory(state.directories.caches_dir().join("icons"), true)?;
+    app.asset_protocol_scope()
+        .allow_directory(state.directories.icon_dir(), true)?;
     app.fs_scope()
         .allow_directory(state.directories.instances_dir(), true)?;
 
-    tracing::info!("NyanRinth state successfully initialized.");
     Ok(())
 }
 
@@ -74,8 +76,7 @@ fn is_dev() -> bool {
 
 #[tauri::command]
 fn are_updates_enabled() -> bool {
-    cfg!(feature = "updater")
-        && env::var("MODRINTH_EXTERNAL_UPDATE_PROVIDER").is_err()
+    false
 }
 
 #[cfg(feature = "updater")]
@@ -87,11 +88,9 @@ pub use updater_impl_noop::*;
 // Toggles decorations
 #[tauri::command]
 async fn toggle_decorations(b: bool, window: tauri::Window) -> api::Result<()> {
-    window.set_decorations(b).map_err(|e| {
-        theseus::Error::from(theseus::ErrorKind::OtherError(format!(
-            "Failed to toggle decorations: {e}"
-        )))
-    })?;
+    window
+        .set_decorations(b)
+        .context("failed to toggle decorations")?;
     Ok(())
 }
 
@@ -100,20 +99,29 @@ fn restart_app(app: tauri::AppHandle) {
     app.restart();
 }
 
+#[derive(Default)]
+struct RestartAfterPendingUpdate(AtomicBool);
+
 #[tauri::command]
 async fn set_restart_after_pending_update(
     should_restart: bool,
+    restart: tauri::State<'_, RestartAfterPendingUpdate>,
 ) -> api::Result<()> {
-    let state = State::get().await?;
-    state
-        .restart_after_pending_update
-        .store(should_restart, Ordering::Relaxed);
+    restart.0.store(should_restart, Ordering::Relaxed);
     Ok(())
 }
 
 // if Tauri app is called with arguments, then those arguments will be treated as commands
 // ie: deep links or filepaths for .mrpacks
 fn main() {
+    theseus::install_crypto_provider();
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("failed to create app async runtime");
+    tauri::async_runtime::set(runtime.handle().clone());
+
     #[cfg(feature = "export-app-events")]
     theseus::export_app_event_bindings(
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -140,9 +148,31 @@ fn main() {
 
     let _log_guard = theseus::start_logger(&tauri_context.config().identifier);
 
-    tracing::info!("Initialized tracing subscriber. Loading NyanRinth App!");
+    tracing::info!("Initialized tracing subscriber. Loading Modrinth App!");
 
     let mut builder = tauri::Builder::default();
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .menu(macos::menu::create)
+            .on_menu_event(macos::menu::handle_event);
+    }
+
+    #[cfg(feature = "updater")]
+    {
+        use tauri_plugin_http::reqwest::header::{HeaderValue, USER_AGENT};
+        use theseus::launcher_user_agent;
+        builder = builder.plugin(
+            tauri_plugin_updater::Builder::new()
+                .header(
+                    USER_AGENT,
+                    HeaderValue::from_str(&launcher_user_agent()).unwrap(),
+                )
+                .unwrap()
+                .build(),
+        );
+    }
 
     builder = builder
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
@@ -163,19 +193,69 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+            SWP_NOZORDER, SetWindowPos,
+        };
+
+        // Refresh the hidden window's frame before window-state measures its client area.
+        builder = builder.plugin(
+            tauri::plugin::Builder::<_, ()>::new("window-frame")
+                .on_window_ready(|window| {
+                    if window.label() != "main" {
+                        return;
+                    }
+
+                    let hwnd = match window.hwnd() {
+                        Ok(hwnd) => hwnd,
+                        Err(e) => {
+                            tracing::warn!("Failed to get window handle: {e}");
+                            return;
+                        }
+                    };
+
+                    if let Err(e) = unsafe {
+                        SetWindowPos(
+                            hwnd,
+                            None,
+                            0,
+                            0,
+                            0,
+                            0,
+                            SWP_FRAMECHANGED
+                                | SWP_NOACTIVATE
+                                | SWP_NOMOVE
+                                | SWP_NOSIZE
+                                | SWP_NOZORDER,
+                        )
+                    } {
+                        tracing::warn!("Failed to refresh window frame: {e}");
+                    }
+                })
+                .build(),
+        );
+    }
+
+    let window_state_flags = tauri_plugin_window_state::StateFlags::POSITION
+        | tauri_plugin_window_state::StateFlags::SIZE
+        | tauri_plugin_window_state::StateFlags::MAXIMIZED;
+    #[cfg(target_os = "windows")]
+    let window_state_flags =
+        window_state_flags | tauri_plugin_window_state::StateFlags::DECORATIONS;
+
+    builder = builder
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_filename("app-window-state.json")
                 .with_denylist(&["signin"])
-                // Use *only* POSITION and SIZE state flags, because saving VISIBLE causes the `visible: false` to not take effect
-                .with_state_flags(
-                    tauri_plugin_window_state::StateFlags::POSITION
-                        | tauri_plugin_window_state::StateFlags::SIZE
-                        | tauri_plugin_window_state::StateFlags::MAXIMIZED,
-                )
+                // Restoring VISIBLE would override the hidden startup window.
+                .with_state_flags(window_state_flags)
                 .build(),
-		)
+        )
         .setup(|app| {
             #[cfg(target_os = "macos")]
             {
@@ -245,10 +325,11 @@ fn main() {
         .plugin(api::utils::init())
         .plugin(api::cache::init())
         .plugin(api::files::init())
-        // .plugin(api::ads::init())
+        .plugin(api::ads::init())
         .plugin(api::friends::init())
         .plugin(api::worlds::init())
         .manage(PendingUpdateData::default())
+        .manage(RestartAfterPendingUpdate::default())
         .invoke_handler(tauri::generate_handler![
             initialize_state,
             is_dev,
@@ -284,11 +365,10 @@ fn main() {
                 #[cfg(feature = "updater")]
                 if matches!(&event, tauri::RunEvent::Exit) {
                     let update_data = app.state::<PendingUpdateData>().inner();
-                    let should_restart = State::get_if_initialized()
-                        .map(|s| {
-                            s.restart_after_pending_update.load(Ordering::Relaxed)
-                        })
-                        .unwrap_or(false);
+                    let should_restart = app
+                        .state::<RestartAfterPendingUpdate>()
+                        .0
+                        .load(Ordering::Relaxed);
                     if let Some((update, data)) = &*update_data.0.lock().unwrap()
                     {
                         fn set_changelog_toast(version: Option<String>) {
@@ -305,7 +385,14 @@ fn main() {
                             }
                         }
 
-                        set_changelog_toast(Some(update.version.clone()));
+						let current_version = &app.package_info().version;
+						let mut version_parts = update.version.split('.');
+						let major = version_parts.next().and_then(|part| part.parse::<u64>().ok());
+						let minor = version_parts.next().and_then(|part| part.parse::<u64>().ok());
+						let is_major_update = major.zip(minor).is_some_and(|version| {
+							version > (current_version.major, current_version.minor)
+						});
+						set_changelog_toast(is_major_update.then(|| update.version.clone()));
                         let update = if should_restart {
                             (**update).clone()
                         } else {
@@ -382,7 +469,7 @@ fn main() {
                     DialogBuilder::message()
                         .set_level(MessageLevel::Error)
                         .set_title("Initialization error")
-                        .set_text("Your Microsoft Edge WebView2 installation is corrupt.\n\nMicrosoft Edge WebView2 is required to run NyanRinth App.\n\nLearn how to repair it at https://support.modrinth.com/en/articles/8797765-corrupted-microsoft-edge-webview2-installation")
+                        .set_text("Your Microsoft Edge WebView2 installation is corrupt.\n\nMicrosoft Edge WebView2 is required to run Modrinth App.\n\nLearn how to repair it at https://support.modrinth.com/en/articles/8797765-corrupted-microsoft-edge-webview2-installation")
                         .alert()
                         .show()
                         .unwrap();
@@ -403,5 +490,18 @@ fn main() {
 
             panic!("{1}: {:?}", e, "error while running tauri application")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// Builds a TLS config the way crates relying on rustls's process-level
+    /// provider do (e.g. async-tungstenite for the friends socket), with the
+    /// app's full dependency graph. This only fails here, not in app-lib's
+    /// own tests, because a conflicting provider feature can come from
+    /// unifying app-lib's dependencies with the Tauri plugins'.
+    #[test]
+    fn rustls_process_provider_is_resolvable() {
+        let _ = rustls::ClientConfig::builder();
     }
 }

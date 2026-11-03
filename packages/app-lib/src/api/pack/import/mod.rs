@@ -1,12 +1,20 @@
 use std::{
 	fmt,
+	future::Future,
 	path::{Path, PathBuf},
 };
 
+use crate::ErrorKind;
+use crate::state::content_store::{FileContent, content_file_path};
+use crate::state::instances::commands::{
+	ContentOrigin, InstallContent, install_stored_file,
+};
+use anyhow::{Context, bail};
 use io::IOError;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+	State,
 	install::{
 		InstallPhaseDetails, InstallPhaseId, InstallProgress,
 		InstallProgressReporter,
@@ -69,7 +77,7 @@ pub async fn get_importable_instances(
 		return Ok(rinth::read_instances(&base_path)
 			.await?
 			.into_iter()
-			.map(|instance| instance.path)
+			.map(|item| item.path)
 			.collect());
 	}
 	// Some launchers have a different folder structure for instances
@@ -83,27 +91,26 @@ pub async fn get_importable_instances(
 				.await
 				.unwrap_or_else(|| "instances".to_string())
 		}
+		ImportLauncherType::PrismLauncher | ImportLauncherType::PineconeMC => {
+			mmc::get_instances_subpath(
+				base_path.clone().join("prismlauncher.cfg"),
+			)
+			.await
+			.unwrap_or_else(|| "instances".to_string())
+		}
 		ImportLauncherType::Modrinth | ImportLauncherType::AstralRinth => {
 			unreachable!()
 		}
-		ImportLauncherType::PineconeMC => {
-			mmc::instances_subpath(&base_path, launcher_type).await
-		}
-		ImportLauncherType::PrismLauncher => mmc::get_instances_subpath(
-			base_path.clone().join("prismlauncher.cfg"),
-		)
-		.await
-		.unwrap_or_else(|| "instances".to_string()),
 		ImportLauncherType::Unknown => {
 			let types = [
 				ImportLauncherType::MultiMC,
 				ImportLauncherType::PrismLauncher,
-				ImportLauncherType::PineconeMC,
-				ImportLauncherType::Modrinth,
-				ImportLauncherType::AstralRinth,
 				ImportLauncherType::ATLauncher,
 				ImportLauncherType::GDLauncher,
 				ImportLauncherType::Curseforge,
+				ImportLauncherType::PineconeMC,
+				ImportLauncherType::Modrinth,
+				ImportLauncherType::AstralRinth,
 			];
 			for lt in types {
 				if let Ok(instances) =
@@ -117,26 +124,27 @@ pub async fn get_importable_instances(
 		}
 	};
 
-	let instances_folder = base_path.join(&instances_subfolder);
+	let instances_folder = if matches!(
+		launcher_type,
+		ImportLauncherType::MultiMC
+			| ImportLauncherType::PrismLauncher
+			| ImportLauncherType::PineconeMC
+	) {
+		mmc_instances_path(&base_path, launcher_type).await
+	} else {
+		base_path.join(&instances_subfolder)
+	};
 	let mut instances = Vec::new();
-	let mut dir = io::read_dir(&instances_folder).await.map_err(| _ | {
-        crate::ErrorKind::InputError(format!(
-            "Invalid {launcher_type} launcher path, could not find '{instances_subfolder}' subfolder."
-        ))
-    })?;
+	let mut dir = io::read_dir(&instances_folder).await.context(ErrorKind::InputError(format!(
+        "invalid {launcher_type} launcher path, could not find '{instances_subfolder}' subfolder"
+    )))?;
 	while let Some(entry) = dir
 		.next_entry()
 		.await
 		.map_err(|e| IOError::with_path(e, &instances_folder))?
 	{
 		let path = entry.path();
-		if path.is_dir()
-			&& !entry
-				.file_type()
-				.await
-				.map_err(|e| IOError::with_path(e, &path))?
-				.is_symlink()
-		{
+		if path.is_dir() {
 			// Check instance is valid of this launcher type
 			if is_valid_importable_instance(path.clone(), launcher_type).await {
 				let name = path.file_name();
@@ -149,21 +157,20 @@ pub async fn get_importable_instances(
 	Ok(instances)
 }
 
-pub(crate) async fn import_instance_with_reporter(
+pub(crate) fn import_instance_with_reporter(
 	instance_id: &str,
 	launcher_type: ImportLauncherType,
 	base_path: PathBuf,
 	instance_folder: String,
 	reporter: InstallProgressReporter,
-) -> crate::Result<()> {
-	import_instance_inner(
+) -> impl Future<Output = crate::Result<()>> + Send + '_ {
+	Box::pin(import_instance_inner(
 		instance_id,
 		launcher_type,
 		base_path,
 		instance_folder,
 		reporter,
-	)
-	.await
+	))
 }
 
 async fn import_instance_inner(
@@ -173,15 +180,6 @@ async fn import_instance_inner(
 	instance_folder: String,
 	reporter: InstallProgressReporter,
 ) -> crate::Result<()> {
-	if !get_importable_instances(launcher_type, base_path.clone())
-		.await?
-		.contains(&instance_folder)
-	{
-		return Err(crate::ErrorKind::InputError(
-			"Source instance is no longer available".into(),
-		)
-		.into());
-	}
 	tracing::debug!("Importing instance from {instance_folder}");
 	let details = InstallPhaseDetails::Import {
 		launcher_type,
@@ -191,10 +189,8 @@ async fn import_instance_inner(
 		ImportLauncherType::MultiMC
 		| ImportLauncherType::PrismLauncher
 		| ImportLauncherType::PineconeMC => {
-			let subpath =
-				mmc::instances_subpath(&base_path, launcher_type).await;
 			mmc::import_mmc(
-				base_path.join(subpath),
+				mmc_instances_path(&base_path, launcher_type).await,
 				base_path,       // path to base mmc folder
 				instance_folder, // instance folder in mmc_base_path
 				instance_id,
@@ -245,12 +241,12 @@ async fn import_instance_inner(
 			let types = [
 				ImportLauncherType::MultiMC,
 				ImportLauncherType::PrismLauncher,
-				ImportLauncherType::PineconeMC,
-				ImportLauncherType::Modrinth,
-				ImportLauncherType::AstralRinth,
 				ImportLauncherType::ATLauncher,
 				ImportLauncherType::GDLauncher,
 				ImportLauncherType::Curseforge,
+				ImportLauncherType::PineconeMC,
+				ImportLauncherType::Modrinth,
+				ImportLauncherType::AstralRinth,
 			];
 			let mut matched = false;
 			for lt in types {
@@ -271,11 +267,10 @@ async fn import_instance_inner(
 				}
 			}
 			if !matched {
-				return Err(crate::ErrorKind::InputError(
-					"Could not determine launcher type for the given path"
+				bail!(ErrorKind::InputError(
+					"could not determine launcher type for the given path"
 						.to_string(),
-				)
-				.into());
+				));
 			}
 			return Ok(());
 		}
@@ -420,7 +415,9 @@ pub async fn is_valid_importable_instance(
 		ImportLauncherType::Curseforge => {
 			curseforge::is_valid_curseforge(instance_path).await
 		}
-		ImportLauncherType::Modrinth | ImportLauncherType::AstralRinth => false,
+		ImportLauncherType::Modrinth | ImportLauncherType::AstralRinth => {
+			instance_path.join("app.db").is_file()
+		}
 		ImportLauncherType::Unknown => false,
 	}
 }
@@ -444,58 +441,250 @@ pub async fn recache_icon(
 	}
 }
 
-pub(crate) async fn copy_dotminecraft_with_reporter(
+pub(crate) fn copy_dotminecraft_with_reporter<'a>(
+	instance_id: &'a str,
+	dotminecraft: PathBuf,
+	io_semaphore: &'a IoSemaphore,
+	reporter: InstallProgressReporter,
+	details: InstallPhaseDetails,
+) -> impl Future<Output = crate::Result<()>> + Send + 'a {
+	Box::pin(copy_dotminecraft_with_reporter_inner(
+		instance_id,
+		dotminecraft,
+		io_semaphore,
+		reporter,
+		details,
+	))
+}
+
+async fn copy_dotminecraft_with_reporter_inner(
 	instance_id: &str,
 	dotminecraft: PathBuf,
 	io_semaphore: &IoSemaphore,
 	reporter: InstallProgressReporter,
 	details: InstallPhaseDetails,
 ) -> crate::Result<()> {
-	let instance_path =
-		crate::api::instance::get_full_path(instance_id).await?;
+	let state = crate::State::get().await?;
+	let _lease = state.content_store.lease().await;
+	let dotminecraft = tokio::fs::canonicalize(&dotminecraft).await?;
 	let subfiles = get_all_subfiles(&dotminecraft, false).await?;
-	let total_subfiles = subfiles.len() as u64;
-
-	for (index, src_child) in subfiles.into_iter().enumerate() {
-		let dst_child =
-			src_child.strip_prefix(&dotminecraft).map_err(|_| {
-				crate::ErrorKind::InputError(format!(
-					"Invalid file: {}",
-					&src_child.display()
-				))
-			})?;
-		let dst_child = instance_path.join(dst_child);
-
-		tokio::time::sleep(std::time::Duration::from_millis(1)).await;
-
-		fetch::copy(&src_child, &dst_child, io_semaphore).await?;
+	let mut content_paths = std::collections::HashSet::new();
+	let mut duplicate_content_paths = std::collections::HashSet::new();
+	for source in &subfiles {
+		let relative = source
+			.strip_prefix(&dotminecraft)?
+			.components()
+			.map(|part| part.as_os_str().to_string_lossy())
+			.collect::<Vec<_>>()
+			.join("/");
+		if crate::state::content_store::is_managed_content_path(&relative) {
+			let canonical = relative.trim_end_matches(".disabled").to_string();
+			if !content_paths.insert(canonical.clone()) {
+				duplicate_content_paths.insert(canonical);
+			}
+		}
+	}
+	let profiles =
+		tokio::fs::canonicalize(state.directories.instances_dir()).await?;
+	let source_instance = if let Ok(path) = dotminecraft.strip_prefix(&profiles)
+	{
+		crate::state::instances::adapters::sqlite::instance_rows::get_instance_by_path(&path.to_string_lossy(), &state.pool).await?
+	} else {
+		None
+	};
+	let mut managed_paths = std::collections::HashSet::new();
+	if let Some(source) = &source_instance {
+		if crate::state::instance_has_running_process(&source.id, &state)
+			.await?
+		{
+			bail!(ErrorKind::InputError(
+				"stop the source instance before duplicating it".to_string(),
+			));
+		}
+		let files = crate::state::instances::commands::sync_content_files(
+			&source.id, &state,
+		)
+		.await?;
+		let entries = if let Some(content_set) = &source.applied_content_set_id
+		{
+			crate::state::instances::adapters::sqlite::content_rows::get_content_entries(content_set, &state.pool).await?
+		} else {
+			Vec::new()
+		};
+		for file in files {
+			if file.missing {
+				bail!(ErrorKind::InputError(format!(
+					"restore or repair {} before duplicating this instance",
+					file.relative_path
+				)));
+			}
+			let stored_file =
+				match state.content_store.file_content(&file).await? {
+					FileContent::Stored { stored_file, .. } => stored_file,
+					FileContent::Unmanaged => continue,
+					FileContent::Damaged(_) => {
+						bail!(ErrorKind::InputError(format!(
+							"repair {} before duplicating this instance",
+							file.relative_path
+						)));
+					}
+				};
+			managed_paths.insert(content_file_path(&file));
+			let project_type =
+				crate::state::ProjectType::get_from_parent_folder(
+					&file.relative_path,
+				)
+				.ok_or(ErrorKind::InputError(
+					"invalid content path".to_string(),
+				))?;
+			let entry = entries.iter().find(|entry| {
+				entry.file_id.as_deref() == Some(file.id.as_str())
+			});
+			install_stored_file(
+				instance_id,
+				InstallContent {
+					requested_path: &file.relative_path,
+					stored_file: &stored_file,
+					project_type,
+					source_kind: entry.map_or(
+						crate::state::ContentSourceKind::Local,
+						|entry| entry.source_kind,
+					),
+					origin: entry
+						.and_then(|entry| {
+							entry
+								.project_id
+								.as_deref()
+								.zip(entry.version_id.as_deref())
+						})
+						.map(|(project_id, version_id)| ContentOrigin {
+							project_id,
+							version_id,
+						}),
+					enabled_override: Some(file.enabled),
+					previous_path: None,
+				},
+				&state,
+			)
+			.await?;
+			if crate::state::instances::commands::is_project_locked(
+				&source.id,
+				&file.relative_path,
+				&state,
+			)
+			.await?
+			{
+				crate::state::instances::commands::set_project_locked(
+					instance_id,
+					&file.relative_path,
+					true,
+					&state,
+				)
+				.await?;
+			}
+		}
+	}
+	let total = subfiles.len() as u64;
+	for (index, source) in subfiles.into_iter().enumerate() {
+		let relative = source
+			.strip_prefix(&dotminecraft)?
+			.components()
+			.map(|part| part.as_os_str().to_string_lossy())
+			.collect::<Vec<_>>()
+			.join("/");
+		if managed_paths.contains(&relative) {
+			continue;
+		}
+		if tokio::fs::symlink_metadata(&source)
+			.await?
+			.file_type()
+			.is_symlink()
+		{
+			tracing::warn!(path = %source.display(), "Skipping an unmanaged symlink while importing an instance");
+			continue;
+		}
+		if crate::state::content_store::is_managed_content_path(&relative)
+			&& !duplicate_content_paths
+				.contains(relative.trim_end_matches(".disabled"))
+		{
+			let stored_file = state.content_store.store_file(&source).await?;
+			let project_type =
+				crate::state::ProjectType::get_from_parent_folder(&relative)
+					.ok_or(ErrorKind::InputError(
+						"invalid imported content path".to_string(),
+					))?;
+			install_stored_file(
+				instance_id,
+				InstallContent {
+					requested_path: &relative,
+					stored_file: &stored_file,
+					project_type,
+					source_kind: crate::state::ContentSourceKind::Local,
+					origin: None,
+					enabled_override: Some(!relative.ends_with(".disabled")),
+					previous_path: None,
+				},
+				&state,
+			)
+			.await?;
+		} else {
+			let target_instance = crate::state::instances::adapters::sqlite::instance_rows::get_instance_by_id(instance_id, &state.pool).await?
+				.ok_or(ErrorKind::InputError("unknown destination instance".to_string()))?;
+			let target = state
+				.content_store
+				.instance_path(&target_instance.path, &relative)
+				.await?;
+			if tokio::fs::symlink_metadata(&target)
+				.await
+				.is_ok_and(|metadata| metadata.file_type().is_symlink())
+			{
+				bail!(ErrorKind::InputError(
+					"import cannot overwrite a symbolic link".to_string(),
+				));
+			}
+			let same_file = tokio::fs::try_exists(&target).await?
+				&& same_file::is_same_file(&source, &target)?;
+			if !same_file {
+				fetch::copy(&source, &target, io_semaphore).await?;
+			}
+		}
 		reporter
 			.update(
 				InstallPhaseId::PreparingInstance,
 				Some(InstallProgress {
 					current: (index + 1) as u64,
-					total: total_subfiles,
+					total,
 					secondary: None,
 				}),
 				details.clone(),
 			)
 			.await?;
 	}
-
+	reporter
+		.update(
+			InstallPhaseId::PreparingInstance,
+			Some(InstallProgress {
+				current: total,
+				total,
+				secondary: None,
+			}),
+			details,
+		)
+		.await?;
 	Ok(())
 }
 
 pub(crate) async fn finish_import(
 	instance_id: &str,
 	dotminecraft: PathBuf,
-	io_semaphore: &IoSemaphore,
+	state: &State,
 	reporter: InstallProgressReporter,
 	details: InstallPhaseDetails,
 ) -> crate::Result<()> {
 	copy_dotminecraft_with_reporter(
 		instance_id,
 		dotminecraft,
-		io_semaphore,
+		&state.io_semaphore,
 		reporter.clone(),
 		details,
 	)
@@ -505,6 +694,7 @@ pub(crate) async fn finish_import(
 		instance_id,
 		false,
 		Some(reporter),
+		state,
 	)
 	.await?;
 
@@ -520,7 +710,8 @@ pub async fn get_all_subfiles(
 	src: &Path,
 	include_empty_dirs: bool,
 ) -> crate::Result<Vec<PathBuf>> {
-	if !src.is_dir() {
+	let metadata = tokio::fs::symlink_metadata(src).await?;
+	if !metadata.is_dir() || metadata.file_type().is_symlink() {
 		return Ok(vec![src.to_path_buf()]);
 	}
 
@@ -533,15 +724,8 @@ pub async fn get_all_subfiles(
 		.await
 		.map_err(|e| IOError::with_path(e, src))?
 	{
-		let src_child = child.path();
-		if tokio::fs::symlink_metadata(&src_child)
-			.await?
-			.file_type()
-			.is_symlink()
-		{
-			continue;
-		}
 		has_files = true;
+		let src_child = child.path();
 		files.append(
 			&mut get_all_subfiles(&src_child, include_empty_dirs).await?,
 		);
@@ -552,4 +736,25 @@ pub async fn get_all_subfiles(
 	}
 
 	Ok(files)
+}
+
+async fn mmc_instances_path(
+	base: &Path,
+	launcher: ImportLauncherType,
+) -> PathBuf {
+	let config = if matches!(launcher, ImportLauncherType::MultiMC) {
+		"multimc.cfg"
+	} else {
+		"prismlauncher.cfg"
+	};
+	let path = mmc::get_instances_subpath(base.join(config))
+		.await
+		.map(PathBuf::from)
+		.unwrap_or_else(|| PathBuf::from("instances"));
+	let configured = base.join(path);
+	if configured.is_dir() {
+		configured
+	} else {
+		base.join("instances")
+	}
 }

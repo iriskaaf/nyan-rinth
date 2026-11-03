@@ -129,6 +129,20 @@
 						/>
 					</template>
 
+					<template v-if="serverData.locked_since" #badges>
+						<PageHeaderBadgeItem
+							:icon="LockIcon"
+							:tooltip="
+								formatMessage(lockMessages.lockedBadgeTooltip, {
+									date: formatDateTime(serverData.locked_since),
+								})
+							"
+							class="border-brand-red bg-highlight-red !text-red"
+						>
+							{{ formatMessage(lockMessages.lockedBadge) }}
+						</PageHeaderBadgeItem>
+					</template>
+
 					<template #metadata>
 						<PageHeaderMetadata>
 							<PageHeaderMetadataItem
@@ -176,9 +190,8 @@
 							<PanelServerActionButton />
 							<Tooltip
 								theme="dismissable-prompt"
-								:triggers="[]"
-								:shown="showSettingsHint"
-								:auto-hide="false"
+								:open="showSettingsHint"
+								:disabled="!showSettingsHint"
 								placement="bottom-end"
 							>
 								<IconButton
@@ -272,6 +285,25 @@
 						Hang on, we're reconnecting to your server.
 					</div>
 
+					<Admonition
+						v-if="serverData.locked_since"
+						type="critical"
+						:header="formatMessage(lockMessages.lockedHeader)"
+						class="mb-4 shrink-0"
+					>
+						<IntlFormatted :message-id="lockMessages.lockedBody">
+							<template #support-link="{ children }">
+								<button
+									type="button"
+									class="m-0 cursor-pointer border-none bg-transparent p-0 font-semibold text-link hover:underline"
+									@click="showIntercom"
+								>
+									<component :is="() => children" />
+								</button>
+							</template>
+						</IntlFormatted>
+					</Admonition>
+
 					<ServerPanelAdmonitions
 						class="mb-4 shrink-0"
 						@installation-retry="handleInstallationRetry"
@@ -306,6 +338,7 @@
 </template>
 
 <script setup lang="ts">
+import { show as showIntercom } from '@intercom/messenger-js-sdk'
 import type { Archon, Labrinth } from '@modrinth/api-client'
 import { ModrinthApiError, NuxtModrinthClient } from '@modrinth/api-client'
 import {
@@ -330,20 +363,23 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useStorage } from '@vueuse/core'
 import DOMPurify from 'dompurify'
-import { Tooltip } from 'floating-vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
+import Admonition from '#ui/components/base/Admonition.vue'
 import Avatar from '#ui/components/base/Avatar.vue'
 import { IconButton, TeleportOverflowMenu } from '#ui/components/base/buttons'
 import ErrorInformationCard from '#ui/components/base/ErrorInformationCard.vue'
+import IntlFormatted from '#ui/components/base/IntlFormatted.vue'
 import NavTabs from '#ui/components/base/NavTabs.vue'
 import PageHeader from '#ui/components/base/page-header/index.vue'
 import PageHeaderMetadata from '#ui/components/base/page-header/metadata/index.vue'
 import PageHeaderMetadataItem from '#ui/components/base/page-header/metadata/page-header-metadata-item.vue'
 import PageHeaderActions from '#ui/components/base/page-header/page-header-actions.vue'
+import PageHeaderBadgeItem from '#ui/components/base/page-header/page-header-badge-item.vue'
 import ServerNotice from '#ui/components/base/ServerNotice.vue'
 import TagIcon from '#ui/components/base/TagIcon.vue'
+import { Tooltip } from '#ui/components/floating'
 import ConfirmLeaveModal from '#ui/components/modal/ConfirmLeaveModal.vue'
 import ServerPanelAdmonitions from '#ui/components/servers/admonitions/ServerPanelAdmonitions.vue'
 import ServerIcon from '#ui/components/servers/icons/ServerIcon.vue'
@@ -353,6 +389,7 @@ import ServerSettingsModal from '#ui/components/servers/ServerSettingsModal.vue'
 import {
 	hasServerPermission,
 	useDebugLogger,
+	useFormatDateTime,
 	useLoadingBarToken,
 	useModrinthServersConsole,
 	useReadyState,
@@ -493,6 +530,27 @@ function dismissSettingsHint() {
 
 const serverSettingsModal = ref<InstanceType<typeof ServerSettingsModal> | null>(null)
 const confirmLeaveModal = ref<InstanceType<typeof ConfirmLeaveModal>>()
+const formatDateTime = useFormatDateTime({ dateStyle: 'long', timeStyle: 'short' })
+
+const lockMessages = defineMessages({
+	lockedBadge: {
+		id: 'servers.manage.locked.badge',
+		defaultMessage: 'Locked',
+	},
+	lockedBadgeTooltip: {
+		id: 'servers.manage.locked.badge-tooltip',
+		defaultMessage: 'Locked since {date}',
+	},
+	lockedHeader: {
+		id: 'servers.manage.locked.header',
+		defaultMessage: 'Server locked by support',
+	},
+	lockedBody: {
+		id: 'servers.manage.locked.body',
+		defaultMessage:
+			'Support has temporarily locked this server, so you cannot make any changes. <support-link>Contact support</support-link> if you believe this is a mistake.',
+	},
+})
 
 const {
 	data: serverData,
@@ -593,7 +651,7 @@ const {
 })
 
 const serverHeaderImage = computed(() =>
-	serverData.value?.is_medal ? 'https://cdn-raw.modrinth.com/medal_icon.webp' : serverImage.value,
+	serverData.value?.is_medal ? 'https://cdn.modrinth.com/medal_icon.webp' : serverImage.value,
 )
 
 const showServerUptime = computed(() => props.showUptime && serverPowerState.value === 'running')
@@ -879,10 +937,10 @@ const popupOptions = computed(
 				modpack_id: serverProject.value?.id,
 				modpack_name: serverProject.value?.title,
 			},
-			onOpen: () => console.log(`Opened survey notice: ${surveyNotice.value?.id}`),
+			onOpen: () => debug(`Opened survey notice: ${surveyNotice.value?.id}`),
 			onClose: async () => await dismissSurvey(),
 			onSubmit: (payload: unknown) => {
-				console.log('Form submitted:', payload)
+				debug('Form submitted:', payload)
 			},
 		}) satisfies TallyPopupOptions,
 )

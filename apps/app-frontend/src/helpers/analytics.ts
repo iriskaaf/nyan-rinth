@@ -1,5 +1,3 @@
-import { posthog } from 'posthog-js'
-
 interface InstanceProperties {
 	loader: string
 	game_version: string
@@ -12,7 +10,7 @@ interface ProjectProperties extends InstanceProperties {
 
 type AnalyticsEventMap = {
 	Launched: { version: string; dev: boolean }
-	PageView: { path: string; fromPath: string; failed: unknown }
+	PageView: { path: string; fromPath: string; failed: boolean }
 	InstanceCreate: { source: string }
 	InstanceCreateStart: { source: string }
 	InstanceStart: InstanceProperties & { source: string }
@@ -21,7 +19,6 @@ type AnalyticsEventMap = {
 	InstanceRepair: InstanceProperties
 	InstanceSetIcon: Record<string, never>
 	InstanceRemoveIcon: Record<string, never>
-	InstanceUpdateAll: InstanceProperties & { count: number; selected: boolean }
 	InstanceProjectUpdate: InstanceProperties & { id: string; name: string; project_type: string }
 	InstanceProjectDisable: InstanceProperties & {
 		id: string
@@ -43,33 +40,17 @@ type AnalyticsEventMap = {
 
 export type AnalyticsEvent = keyof AnalyticsEventMap
 
-let initialized = false
+export const initAnalytics = () => {}
 
-export const initAnalytics = () => {
-	// NyanRinth does not submit events to the upstream launcher's analytics account.
-}
+export const debugAnalytics = () => {}
 
-export const debugAnalytics = () => {
-	if (!initialized) return
-	posthog.debug()
-}
+export const optOutAnalytics = () => {}
 
-export const optOutAnalytics = () => {
-	if (!initialized) return
-	posthog.opt_out_capturing()
-}
-
-export const optInAnalytics = () => {
-	initAnalytics()
-	posthog.opt_in_capturing()
-}
+export const optInAnalytics = () => {}
 
 type OptionalArgs<T> = Record<string, never> extends T ? [properties?: T] : [properties: T]
 
 export const trackEvent = <E extends AnalyticsEvent>(
-	eventName: E,
-	...args: OptionalArgs<AnalyticsEventMap[E]>
-) => {
-	if (!initialized) return
-	posthog.capture(eventName, args[0])
-}
+	_eventName: E,
+	..._args: OptionalArgs<AnalyticsEventMap[E]>
+) => {}

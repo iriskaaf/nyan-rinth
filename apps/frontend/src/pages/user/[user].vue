@@ -11,7 +11,7 @@
 		:on-create-collection="openCollectionCreateModal"
 	>
 		<template #sidebar>
-			<!-- <AdPlaceholder v-if="!auth.user" /> -->
+			<AdPlaceholder v-if="!auth.user" />
 		</template>
 	</UserProfilePageLayout>
 </template>
@@ -21,6 +21,7 @@ import type { Labrinth } from '@modrinth/api-client'
 import { injectModrinthClient, provideUserProfile, UserProfilePageLayout } from '@modrinth/ui'
 import { useQueryClient } from '@tanstack/vue-query'
 
+import AdPlaceholder from '~/components/ui/AdPlaceholder.vue'
 import CollectionCreateModal from '~/components/ui/create/CollectionCreateModal.vue'
 import ProjectCreateModal from '~/components/ui/create/ProjectCreateModal.vue'
 import { warmProjectCheckCaches } from '~/composables/queries/project'
@@ -110,8 +111,8 @@ useSeoMeta({
 	ogDescription: () => description.value,
 	ogImage: () =>
 		prefetchedUser
-			? (prefetchedUser?.avatar_url ?? 'https://cdn-raw.modrinth.com/placeholder-circle.png')
-			: 'https://cdn-raw.modrinth.com/not-found-transparent.png',
+			? (prefetchedUser?.avatar_url ?? 'https://cdn.modrinth.com/placeholder-circle.png')
+			: 'https://cdn.modrinth.com/not-found-circle.png',
 })
 
 const projectCreateModal = ref<InstanceType<typeof ProjectCreateModal> | null>(null)

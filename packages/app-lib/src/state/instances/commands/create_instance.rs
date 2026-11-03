@@ -12,6 +12,7 @@ use crate::util::fetch;
 use crate::util::io;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use tracing::{info, trace};
 use uuid::Uuid;
 
@@ -49,6 +50,7 @@ pub(crate) async fn create_instance(
                 &input.game_version,
                 input.loader,
                 input.loader_version.as_deref(),
+                &state.directories,
             )
             .await?
             .map(|value| value.id)
@@ -96,8 +98,13 @@ pub(crate) async fn create_instance(
         let launch_overrides =
             InstanceLaunchOverrides::empty(instance_id.clone());
 
-        let mut tx = state.pool.begin().await?;
+        let mut tx = state.pool.begin_with("BEGIN IMMEDIATE").await?;
         instance_rows::insert_instance(&instance, &mut tx).await?;
+        instance_rows::insert_default_instance_sync_preferences(
+            &instance_id,
+            &mut tx,
+        )
+        .await?;
         if let Some(icon_config) = &input.icon_config {
             instance_rows::update_instance_icon_config(
                 &instance_id,
@@ -125,6 +132,17 @@ pub(crate) async fn create_instance(
             &state.directories,
         )
         .await;
+        if let Err(error) =
+            crate::api::instance::reconcile_instance_synced_options(
+                &instance.id,
+            )
+            .await
+        {
+            tracing::warn!(
+                "Failed to reconcile synced options for newly created instance {}: {error}",
+                instance.id
+            );
+        }
 
         Ok(instance)
     }
@@ -145,10 +163,11 @@ async fn resolve_instance_path(
     let base_path = path
         .map(ToOwned::to_owned)
         .unwrap_or_else(|| sanitize_instance_name(name));
+    crate::state::content_store::validate_relative(&base_path)?;
     let mut path = base_path.clone();
     let mut full_path = state.directories.instances_dir().join(&path);
 
-    if path_available(&path, &full_path, state).await? {
+    if path_available(&path, &full_path, &state.pool).await? {
         return Ok((path, full_path));
     }
 
@@ -157,7 +176,7 @@ async fn resolve_instance_path(
         path = format!("{base_path} ({which})");
         full_path = state.directories.instances_dir().join(&path);
 
-        if path_available(&path, &full_path, state).await? {
+        if path_available(&path, &full_path, &state.pool).await? {
             return Ok((path, full_path));
         }
 
@@ -168,13 +187,13 @@ async fn resolve_instance_path(
 async fn path_available(
     path: &str,
     full_path: &std::path::Path,
-    state: &State,
+    pool: &SqlitePool,
 ) -> crate::Result<bool> {
     if full_path.exists() {
         return Ok(false);
     }
 
-    Ok(instance_rows::get_instance_by_path(path, &state.pool)
+    Ok(instance_rows::get_instance_by_path(path, pool)
         .await?
         .is_none())
 }
@@ -200,9 +219,8 @@ pub(crate) async fn resolve_icon_path(
         .await
         {
             Ok(bytes) => bytes,
-            Err(error)
-                if ignore_missing_remote_icon && is_not_found_error(&error) =>
-            {
+            Err(error) if ignore_missing_remote_icon => {
+                tracing::warn!("Error while getting instance icon: {error}");
                 return Ok(None);
             }
             Err(error) => return Err(error),
@@ -217,18 +235,6 @@ pub(crate) async fn resolve_icon_path(
     };
 
     Ok(Some(file.to_string_lossy().to_string()))
-}
-
-fn is_not_found_error(error: &crate::Error) -> bool {
-    match error.raw.as_ref() {
-        crate::ErrorKind::FetchError(error) => {
-            error.status() == Some(reqwest::StatusCode::NOT_FOUND)
-        }
-        crate::ErrorKind::LabrinthError(error) => {
-            error.status == Some(reqwest::StatusCode::NOT_FOUND.as_u16())
-        }
-        _ => false,
-    }
 }
 
 fn content_source_kind(link: &InstanceLink) -> ContentSourceKind {
@@ -254,8 +260,11 @@ fn content_source_kind(link: &InstanceLink) -> ContentSourceKind {
 }
 
 fn sanitize_instance_name(input: &str) -> String {
-    input.replace(
-        ['/', '\\', '?', '*', ':', '\'', '\"', '|', '<', '>', '!'],
-        "_",
-    )
+    input
+        .replace(
+            ['/', '\\', '?', '*', ':', '\'', '\"', '|', '<', '>', '!'],
+            "_",
+        )
+        .trim_end_matches(['.', ' '])
+        .to_string()
 }

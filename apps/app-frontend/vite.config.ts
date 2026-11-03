@@ -68,13 +68,6 @@ export default defineConfig({
 			},
 		}),
 	],
-	optimizeDeps: {
-		exclude: [
-			'vue',
-			'pinia',
-			'vue-router',
-		],
-	},
 
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
 	// prevent vite from obscuring rust errors
@@ -101,7 +94,7 @@ export default defineConfig({
 	},
 	// to make use of `TAURI_ENV_DEBUG` and other env variables
 	// https://v2.tauri.app/reference/environment-variables/#tauri-cli-hook-commands
-	envPrefix: ['VITE_', 'TAURI_', 'MODRINTH_', 'SHARED_INSTANCES_', 'REPO_XORISON_'],
+	envPrefix: ['VITE_', 'TAURI_', 'MODRINTH_', 'SHARED_INSTANCES_'],
 	build: {
 		rolldownOptions: {
 			onwarn(warning, defaultHandler) {

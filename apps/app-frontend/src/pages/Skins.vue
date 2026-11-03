@@ -8,7 +8,7 @@ import ElySkinConnectModal from '@/components/ui/skin/ElySkinConnectModal.vue'
 import ElySkinThumbnail from '@/components/ui/skin/ElySkinThumbnail.vue'
 import { users, get_default_user } from '@/helpers/auth'
 import type { MinecraftCredential } from '@/models/astralrinth/authentication'
-import { useRootBreadcrumb } from '@/providers/breadcrumbs'
+import { useRootBreadcrumb } from '@/shared/breadcrumbs/use-breadcrumb'
 import { appMessages } from '@/utils/app-messages'
 
 const { formatMessage } = useVIntl()

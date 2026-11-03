@@ -1,6 +1,7 @@
 <template>
 	<NewModal ref="modal" :header="formatMessage(messages.title)">
 		<div class="min-w-md flex max-w-md flex-col gap-3">
+			<RestrictedActionAlert v-model="isRestricted" scope="ORGANIZATION_CREATE" @navigate="hide" />
 			<CreateLimitAlert v-model="hasHitLimit" type="org" />
 			<div class="flex flex-col gap-2">
 				<label for="name">
@@ -9,7 +10,7 @@
 						<span class="text-brand-red">*</span>
 					</span>
 				</label>
-				<StyledInput
+				<Input
 					id="name"
 					v-model="name"
 					:maxlength="64"
@@ -28,7 +29,7 @@
 				</label>
 				<div class="text-input-wrapper">
 					<div class="text-input-wrapper__before">https://modrinth.com/organization/</div>
-					<StyledInput
+					<Input
 						id="slug"
 						v-model="slug"
 						:maxlength="64"
@@ -46,10 +47,9 @@
 					</span>
 					<span>{{ formatMessage(messages.summaryDescription) }}</span>
 				</label>
-				<StyledInput
+				<Textarea
 					id="additional-information"
 					v-model="description"
-					multiline
 					:maxlength="256"
 					:placeholder="formatMessage(messages.summaryPlaceholder)"
 					:disabled="hasHitLimit"
@@ -63,7 +63,12 @@
 					<XIcon aria-hidden="true" />
 					{{ formatMessage(commonMessages.cancelButton) }}
 				</Button>
-				<Button type="colored" color="brand" :disabled="hasHitLimit" @click="createOrganization">
+				<Button
+					type="colored"
+					color="brand"
+					:disabled="hasHitLimit || isRestricted"
+					@click="createOrganization"
+				>
 					<PlusIcon aria-hidden="true" />
 					{{ formatMessage(messages.createOrganization) }}
 				</Button>
@@ -79,15 +84,17 @@ import {
 	commonMessages,
 	defineMessages,
 	injectNotificationManager,
+	Input,
 	NewModal,
-	StyledInput,
+	Textarea,
 	useVIntl,
 } from '@modrinth/ui'
 import { ref } from 'vue'
 
-import { generateUrlSlug } from '~/utils/slugs'
+import { generateUrlSlug } from '~/composables/project-slug-suggestions'
 
 import CreateLimitAlert from './CreateLimitAlert.vue'
+import RestrictedActionAlert from './RestrictedActionAlert.vue'
 
 const router = useNativeRouter()
 const { addNotification } = injectNotificationManager()
@@ -138,6 +145,7 @@ const slug = ref<string>('')
 const description = ref<string>('')
 const manualSlug = ref<boolean>(false)
 const hasHitLimit = ref<boolean>(false)
+const isRestricted = ref<boolean>(false)
 const modal = ref<InstanceType<typeof NewModal>>()
 
 async function createOrganization(): Promise<void> {

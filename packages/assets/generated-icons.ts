@@ -7,8 +7,10 @@ export type IconComponent = FunctionalComponent<SVGAttributes>
 
 import _AffiliateIcon from './icons/affiliate.svg?component'
 import _AlignLeftIcon from './icons/align-left.svg?component'
+import _AnvilIcon from './icons/anvil.svg?component'
 import _ArchiveIcon from './icons/archive.svg?component'
 import _ArrowBigRightDashIcon from './icons/arrow-big-right-dash.svg?component'
+import _ArrowBigUpIcon from './icons/arrow-big-up.svg?component'
 import _ArrowBigUpDashIcon from './icons/arrow-big-up-dash.svg?component'
 import _ArrowDownIcon from './icons/arrow-down.svg?component'
 import _ArrowDown10Icon from './icons/arrow-down-1-0.svg?component'
@@ -20,6 +22,7 @@ import _ArrowLeftIcon from './icons/arrow-left.svg?component'
 import _ArrowLeftRightIcon from './icons/arrow-left-right.svg?component'
 import _ArrowUpIcon from './icons/arrow-up.svg?component'
 import _ArrowUpDownIcon from './icons/arrow-up-down.svg?component'
+import _ArrowUpFromLineIcon from './icons/arrow-up-from-line.svg?component'
 import _ArrowUpRightIcon from './icons/arrow-up-right.svg?component'
 import _ArrowUpZAIcon from './icons/arrow-up-z-a.svg?component'
 import _AsteriskIcon from './icons/asterisk.svg?component'
@@ -43,6 +46,7 @@ import _EarlyServersBadge from './icons/badges/early-servers.svg?component'
 import _EarlyShadersBadge from './icons/badges/early-shaders.svg?component'
 import _ModeratorBadge from './icons/badges/moderator.svg?component'
 import _PlusBadge from './icons/badges/plus.svg?component'
+import _PrideBadge from './icons/badges/pride.svg?component'
 import _StaffBadge from './icons/badges/staff.svg?component'
 import _BanIcon from './icons/ban.svg?component'
 import _BellIcon from './icons/bell.svg?component'
@@ -58,12 +62,16 @@ import _BookmarkIcon from './icons/bookmark.svg?component'
 import _BotIcon from './icons/bot.svg?component'
 import _BoxIcon from './icons/box.svg?component'
 import _BoxImportIcon from './icons/box-import.svg?component'
+import _BoxPlusIcon from './icons/box-plus.svg?component'
 import _BoxesIcon from './icons/boxes.svg?component'
 import _BracesIcon from './icons/braces.svg?component'
+import _BrainCircuitIcon from './icons/brain-circuit.svg?component'
+import _BrainCogIcon from './icons/brain-cog.svg?component'
 import _BrushCleaningIcon from './icons/brush-cleaning.svg?component'
 import _BugIcon from './icons/bug.svg?component'
 import _CalendarIcon from './icons/calendar.svg?component'
 import _CalendarArrowDownIcon from './icons/calendar-arrow-down.svg?component'
+import _CalendarClockIcon from './icons/calendar-clock.svg?component'
 import _CardIcon from './icons/card.svg?component'
 import _ChartIcon from './icons/chart.svg?component'
 import _ChartAreaIcon from './icons/chart-area.svg?component'
@@ -76,10 +84,12 @@ import _ChevronDownIcon from './icons/chevron-down.svg?component'
 import _ChevronLeftIcon from './icons/chevron-left.svg?component'
 import _ChevronRightIcon from './icons/chevron-right.svg?component'
 import _ChevronUpIcon from './icons/chevron-up.svg?component'
+import _CircleIcon from './icons/circle.svg?component'
 import _CircleAlertIcon from './icons/circle-alert.svg?component'
 import _CircleArrowRightIcon from './icons/circle-arrow-right.svg?component'
 import _CircleDashedIcon from './icons/circle-dashed.svg?component'
 import _CircleDollarSignIcon from './icons/circle-dollar-sign.svg?component'
+import _CircleDotIcon from './icons/circle-dot.svg?component'
 import _CircleSlashIcon from './icons/circle-slash.svg?component'
 import _CircleUserIcon from './icons/circle-user.svg?component'
 import _CircuitBoardIcon from './icons/circuit-board.svg?component'
@@ -96,12 +106,14 @@ import _CogIcon from './icons/cog.svg?component'
 import _CoinsIcon from './icons/coins.svg?component'
 import _CollapseIcon from './icons/collapse.svg?component'
 import _CollectionIcon from './icons/collection.svg?component'
+import _CollectionPlusIcon from './icons/collection-plus.svg?component'
 import _CompassIcon from './icons/compass.svg?component'
 import _ComponentIcon from './icons/component.svg?component'
 import _ContractIcon from './icons/contract.svg?component'
 import _CopyIcon from './icons/copy.svg?component'
 import _CopyrightIcon from './icons/copyright.svg?component'
 import _CpuIcon from './icons/cpu.svg?component'
+import _CropIcon from './icons/crop.svg?component'
 import _CrownIcon from './icons/crown.svg?component'
 import _CubeIcon from './icons/cube.svg?component'
 import _CurrencyIcon from './icons/currency.svg?component'
@@ -112,6 +124,7 @@ import _DownloadIcon from './icons/download.svg?component'
 import _DropdownIcon from './icons/dropdown.svg?component'
 import _EditIcon from './icons/edit.svg?component'
 import _EllipsisVerticalIcon from './icons/ellipsis-vertical.svg?component'
+import _EraserIcon from './icons/eraser.svg?component'
 import _ExpandIcon from './icons/expand.svg?component'
 import _ExternalIcon from './icons/external.svg?component'
 import _EyeIcon from './icons/eye.svg?component'
@@ -122,6 +135,7 @@ import _FileCodeIcon from './icons/file-code.svg?component'
 import _FileCogIcon from './icons/file-cog.svg?component'
 import _FileImageIcon from './icons/file-image.svg?component'
 import _FilePlusIcon from './icons/file-plus.svg?component'
+import _FileSearchCornerIcon from './icons/file-search-corner.svg?component'
 import _FileTextIcon from './icons/file-text.svg?component'
 import _FilterIcon from './icons/filter.svg?component'
 import _FilterXIcon from './icons/filter-x.svg?component'
@@ -137,6 +151,7 @@ import _GapIcon from './icons/gap.svg?component'
 import _GaugeIcon from './icons/gauge.svg?component'
 import _GenericListIcon from './icons/generic-list.svg?component'
 import _GiftIcon from './icons/gift.svg?component'
+import _GitCommitHorizontalIcon from './icons/git-commit-horizontal.svg?component'
 import _GitForkIcon from './icons/git-fork.svg?component'
 import _GitGraphIcon from './icons/git-graph.svg?component'
 import _GlassesIcon from './icons/glasses.svg?component'
@@ -153,6 +168,7 @@ import _Heading3Icon from './icons/heading-3.svg?component'
 import _HeartIcon from './icons/heart.svg?component'
 import _HeartHandshakeIcon from './icons/heart-handshake.svg?component'
 import _HeartMinusIcon from './icons/heart-minus.svg?component'
+import _HighlighterIcon from './icons/highlighter.svg?component'
 import _HistoryIcon from './icons/history.svg?component'
 import _HomeIcon from './icons/home.svg?component'
 import _ImageIcon from './icons/image.svg?component'
@@ -168,19 +184,24 @@ import _LandmarkIcon from './icons/landmark.svg?component'
 import _LanguagesIcon from './icons/languages.svg?component'
 import _LayersIcon from './icons/layers.svg?component'
 import _LayoutGridIcon from './icons/layout-grid.svg?component'
+import _LayoutPanelLeftIcon from './icons/layout-panel-left.svg?component'
 import _LayoutTemplateIcon from './icons/layout-template.svg?component'
 import _LeftArrowIcon from './icons/left-arrow.svg?component'
 import _LibraryIcon from './icons/library.svg?component'
 import _LightBulbIcon from './icons/light-bulb.svg?component'
 import _LinkIcon from './icons/link.svg?component'
+import _Link2Icon from './icons/link-2.svg?component'
 import _ListIcon from './icons/list.svg?component'
 import _ListBulletedIcon from './icons/list-bulleted.svg?component'
+import _ListChevronsDownUpIcon from './icons/list-chevrons-down-up.svg?component'
+import _ListChevronsUpDownIcon from './icons/list-chevrons-up-down.svg?component'
 import _ListEndIcon from './icons/list-end.svg?component'
 import _ListFilterIcon from './icons/list-filter.svg?component'
 import _ListOrderedIcon from './icons/list-ordered.svg?component'
 import _ListPlusIcon from './icons/list-plus.svg?component'
 import _LoaderIcon from './icons/loader.svg?component'
 import _LoaderCircleIcon from './icons/loader-circle.svg?component'
+import _LoaderSpinnerIcon from './icons/loader-spinner.svg?component'
 import _LockIcon from './icons/lock.svg?component'
 import _LockOpenIcon from './icons/lock-open.svg?component'
 import _LogInIcon from './icons/log-in.svg?component'
@@ -192,22 +213,29 @@ import _MaximizeIcon from './icons/maximize.svg?component'
 import _MegaphoneIcon from './icons/megaphone.svg?component'
 import _MemoryStickIcon from './icons/memory-stick.svg?component'
 import _MessageIcon from './icons/message.svg?component'
+import _MessageSquareWarningIcon from './icons/message-square-warning.svg?component'
 import _MessagesSquareIcon from './icons/messages-square.svg?component'
+import _MicrochipIcon from './icons/microchip.svg?component'
 import _MicrophoneIcon from './icons/microphone.svg?component'
 import _MinimizeIcon from './icons/minimize.svg?component'
 import _MinusIcon from './icons/minus.svg?component'
 import _MonitorIcon from './icons/monitor.svg?component'
+import _MonitorCogIcon from './icons/monitor-cog.svg?component'
 import _MonitorSmartphoneIcon from './icons/monitor-smartphone.svg?component'
+import _MonitorXIcon from './icons/monitor-x.svg?component'
 import _MoonIcon from './icons/moon.svg?component'
 import _MoreHorizontalIcon from './icons/more-horizontal.svg?component'
 import _MoreVerticalIcon from './icons/more-vertical.svg?component'
+import _MousePointer2Icon from './icons/mouse-pointer-2.svg?component'
 import _MoveIcon from './icons/move.svg?component'
+import _MoveUpRightIcon from './icons/move-up-right.svg?component'
 import _NewspaperIcon from './icons/newspaper.svg?component'
 import _NoSignalIcon from './icons/no-signal.svg?component'
 import _NotepadTextIcon from './icons/notepad-text.svg?component'
 import _OmorphiaIcon from './icons/omorphia.svg?component'
 import _OnlineIndicatorIcon from './icons/online-indicator.svg?component'
 import _OrganizationIcon from './icons/organization.svg?component'
+import _OrganizationPlusIcon from './icons/organization-plus.svg?component'
 import _PackageIcon from './icons/package.svg?component'
 import _PackageClosedIcon from './icons/package-closed.svg?component'
 import _PackageOpenIcon from './icons/package-open.svg?component'
@@ -216,6 +244,13 @@ import _PackageSearchIcon from './icons/package-search.svg?component'
 import _PageRoundIcon from './icons/page-round.svg?component'
 import _PaintbrushIcon from './icons/paintbrush.svg?component'
 import _PaletteIcon from './icons/palette.svg?component'
+import _PanelLeftCloseIcon from './icons/panel-left-close.svg?component'
+import _PanelLeftOpenIcon from './icons/panel-left-open.svg?component'
+import _PanelRightCloseIcon from './icons/panel-right-close.svg?component'
+import _PanelRightOpenIcon from './icons/panel-right-open.svg?component'
+import _PanelTopIcon from './icons/panel-top.svg?component'
+import _PanelTopCloseIcon from './icons/panel-top-close.svg?component'
+import _PanelTopOpenIcon from './icons/panel-top-open.svg?component'
 import _PauseIcon from './icons/pause.svg?component'
 import _PencilIcon from './icons/pencil.svg?component'
 import _PickaxeIcon from './icons/pickaxe.svg?component'
@@ -246,6 +281,7 @@ import _SearchIcon from './icons/search.svg?component'
 import _SendIcon from './icons/send.svg?component'
 import _ServerIcon from './icons/server.svg?component'
 import _ServerPlusIcon from './icons/server-plus.svg?component'
+import _ServerSearchIcon from './icons/server-search.svg?component'
 import _ServerStackIcon from './icons/server-stack.svg?component'
 import _SettingsIcon from './icons/settings.svg?component'
 import _Settings2Icon from './icons/settings-2.svg?component'
@@ -254,23 +290,28 @@ import _ShieldIcon from './icons/shield.svg?component'
 import _ShieldAlertIcon from './icons/shield-alert.svg?component'
 import _ShieldCheckIcon from './icons/shield-check.svg?component'
 import _ShirtIcon from './icons/shirt.svg?component'
+import _ShredderIcon from './icons/shredder.svg?component'
 import _SignalIcon from './icons/signal.svg?component'
 import _SignatureIcon from './icons/signature.svg?component'
 import _SkullIcon from './icons/skull.svg?component'
 import _SlashIcon from './icons/slash.svg?component'
+import _SmartphoneIcon from './icons/smartphone.svg?component'
 import _SortAscIcon from './icons/sort-asc.svg?component'
 import _SortDescIcon from './icons/sort-desc.svg?component'
 import _SparklesIcon from './icons/sparkles.svg?component'
 import _SpinnerIcon from './icons/spinner.svg?component'
 import _SplitIcon from './icons/split.svg?component'
+import _SquareIcon from './icons/square.svg?component'
 import _SquarePlusIcon from './icons/square-plus.svg?component'
 import _StarIcon from './icons/star.svg?component'
+import _StickyNotePlusIcon from './icons/sticky-note-plus.svg?component'
 import _StopCircleIcon from './icons/stop-circle.svg?component'
 import _StoreIcon from './icons/store.svg?component'
 import _StrikethroughIcon from './icons/strikethrough.svg?component'
 import _SunIcon from './icons/sun.svg?component'
 import _SunriseIcon from './icons/sunrise.svg?component'
 import _SupportChatIcon from './icons/support-chat.svg?component'
+import _TabletIcon from './icons/tablet.svg?component'
 import _TagIcon from './icons/tag.svg?component'
 import _TagsIcon from './icons/tags.svg?component'
 import _TagCategoryAdventureIcon from './icons/tags/categories/adventure.svg?component'
@@ -418,6 +459,7 @@ import _TrashExclamationIcon from './icons/trash-exclamation.svg?component'
 import _TrendingDownIcon from './icons/trending-down.svg?component'
 import _TrendingUpIcon from './icons/trending-up.svg?component'
 import _TriangleAlertIcon from './icons/triangle-alert.svg?component'
+import _TypeIcon from './icons/type.svg?component'
 import _UnderlineIcon from './icons/underline.svg?component'
 import _UndoIcon from './icons/undo.svg?component'
 import _UnfoldHorizontalIcon from './icons/unfold-horizontal.svg?component'
@@ -438,6 +480,8 @@ import _UserXIcon from './icons/user-x.svg?component'
 import _UsersIcon from './icons/users.svg?component'
 import _VersionIcon from './icons/version.svg?component'
 import _VideoIcon from './icons/video.svg?component'
+import _Volume2Icon from './icons/volume-2.svg?component'
+import _VolumeXIcon from './icons/volume-x.svg?component'
 import _WikiIcon from './icons/wiki.svg?component'
 import _WindowIcon from './icons/window.svg?component'
 import _WorldIcon from './icons/world.svg?component'
@@ -450,8 +494,10 @@ import _ZoomOutIcon from './icons/zoom-out.svg?component'
 
 export const AffiliateIcon = _AffiliateIcon
 export const AlignLeftIcon = _AlignLeftIcon
+export const AnvilIcon = _AnvilIcon
 export const ArchiveIcon = _ArchiveIcon
 export const ArrowBigRightDashIcon = _ArrowBigRightDashIcon
+export const ArrowBigUpIcon = _ArrowBigUpIcon
 export const ArrowBigUpDashIcon = _ArrowBigUpDashIcon
 export const ArrowDownIcon = _ArrowDownIcon
 export const ArrowDown10Icon = _ArrowDown10Icon
@@ -463,6 +509,7 @@ export const ArrowLeftIcon = _ArrowLeftIcon
 export const ArrowLeftRightIcon = _ArrowLeftRightIcon
 export const ArrowUpIcon = _ArrowUpIcon
 export const ArrowUpDownIcon = _ArrowUpDownIcon
+export const ArrowUpFromLineIcon = _ArrowUpFromLineIcon
 export const ArrowUpRightIcon = _ArrowUpRightIcon
 export const ArrowUpZAIcon = _ArrowUpZAIcon
 export const AsteriskIcon = _AsteriskIcon
@@ -486,6 +533,7 @@ export const EarlyServersBadge = _EarlyServersBadge
 export const EarlyShadersBadge = _EarlyShadersBadge
 export const ModeratorBadge = _ModeratorBadge
 export const PlusBadge = _PlusBadge
+export const PrideBadge = _PrideBadge
 export const StaffBadge = _StaffBadge
 export const BanIcon = _BanIcon
 export const BellIcon = _BellIcon
@@ -501,12 +549,16 @@ export const BookmarkIcon = _BookmarkIcon
 export const BotIcon = _BotIcon
 export const BoxIcon = _BoxIcon
 export const BoxImportIcon = _BoxImportIcon
+export const BoxPlusIcon = _BoxPlusIcon
 export const BoxesIcon = _BoxesIcon
 export const BracesIcon = _BracesIcon
+export const BrainCircuitIcon = _BrainCircuitIcon
+export const BrainCogIcon = _BrainCogIcon
 export const BrushCleaningIcon = _BrushCleaningIcon
 export const BugIcon = _BugIcon
 export const CalendarIcon = _CalendarIcon
 export const CalendarArrowDownIcon = _CalendarArrowDownIcon
+export const CalendarClockIcon = _CalendarClockIcon
 export const CardIcon = _CardIcon
 export const ChartIcon = _ChartIcon
 export const ChartAreaIcon = _ChartAreaIcon
@@ -519,10 +571,12 @@ export const ChevronDownIcon = _ChevronDownIcon
 export const ChevronLeftIcon = _ChevronLeftIcon
 export const ChevronRightIcon = _ChevronRightIcon
 export const ChevronUpIcon = _ChevronUpIcon
+export const CircleIcon = _CircleIcon
 export const CircleAlertIcon = _CircleAlertIcon
 export const CircleArrowRightIcon = _CircleArrowRightIcon
 export const CircleDashedIcon = _CircleDashedIcon
 export const CircleDollarSignIcon = _CircleDollarSignIcon
+export const CircleDotIcon = _CircleDotIcon
 export const CircleSlashIcon = _CircleSlashIcon
 export const CircleUserIcon = _CircleUserIcon
 export const CircuitBoardIcon = _CircuitBoardIcon
@@ -539,12 +593,14 @@ export const CogIcon = _CogIcon
 export const CoinsIcon = _CoinsIcon
 export const CollapseIcon = _CollapseIcon
 export const CollectionIcon = _CollectionIcon
+export const CollectionPlusIcon = _CollectionPlusIcon
 export const CompassIcon = _CompassIcon
 export const ComponentIcon = _ComponentIcon
 export const ContractIcon = _ContractIcon
 export const CopyIcon = _CopyIcon
 export const CopyrightIcon = _CopyrightIcon
 export const CpuIcon = _CpuIcon
+export const CropIcon = _CropIcon
 export const CrownIcon = _CrownIcon
 export const CubeIcon = _CubeIcon
 export const CurrencyIcon = _CurrencyIcon
@@ -555,6 +611,7 @@ export const DownloadIcon = _DownloadIcon
 export const DropdownIcon = _DropdownIcon
 export const EditIcon = _EditIcon
 export const EllipsisVerticalIcon = _EllipsisVerticalIcon
+export const EraserIcon = _EraserIcon
 export const ExpandIcon = _ExpandIcon
 export const ExternalIcon = _ExternalIcon
 export const EyeIcon = _EyeIcon
@@ -565,6 +622,7 @@ export const FileCodeIcon = _FileCodeIcon
 export const FileCogIcon = _FileCogIcon
 export const FileImageIcon = _FileImageIcon
 export const FilePlusIcon = _FilePlusIcon
+export const FileSearchCornerIcon = _FileSearchCornerIcon
 export const FileTextIcon = _FileTextIcon
 export const FilterIcon = _FilterIcon
 export const FilterXIcon = _FilterXIcon
@@ -580,6 +638,7 @@ export const GapIcon = _GapIcon
 export const GaugeIcon = _GaugeIcon
 export const GenericListIcon = _GenericListIcon
 export const GiftIcon = _GiftIcon
+export const GitCommitHorizontalIcon = _GitCommitHorizontalIcon
 export const GitForkIcon = _GitForkIcon
 export const GitGraphIcon = _GitGraphIcon
 export const GlassesIcon = _GlassesIcon
@@ -596,6 +655,7 @@ export const Heading3Icon = _Heading3Icon
 export const HeartIcon = _HeartIcon
 export const HeartHandshakeIcon = _HeartHandshakeIcon
 export const HeartMinusIcon = _HeartMinusIcon
+export const HighlighterIcon = _HighlighterIcon
 export const HistoryIcon = _HistoryIcon
 export const HomeIcon = _HomeIcon
 export const ImageIcon = _ImageIcon
@@ -611,19 +671,24 @@ export const LandmarkIcon = _LandmarkIcon
 export const LanguagesIcon = _LanguagesIcon
 export const LayersIcon = _LayersIcon
 export const LayoutGridIcon = _LayoutGridIcon
+export const LayoutPanelLeftIcon = _LayoutPanelLeftIcon
 export const LayoutTemplateIcon = _LayoutTemplateIcon
 export const LeftArrowIcon = _LeftArrowIcon
 export const LibraryIcon = _LibraryIcon
 export const LightBulbIcon = _LightBulbIcon
 export const LinkIcon = _LinkIcon
+export const Link2Icon = _Link2Icon
 export const ListIcon = _ListIcon
 export const ListBulletedIcon = _ListBulletedIcon
+export const ListChevronsDownUpIcon = _ListChevronsDownUpIcon
+export const ListChevronsUpDownIcon = _ListChevronsUpDownIcon
 export const ListEndIcon = _ListEndIcon
 export const ListFilterIcon = _ListFilterIcon
 export const ListOrderedIcon = _ListOrderedIcon
 export const ListPlusIcon = _ListPlusIcon
 export const LoaderIcon = _LoaderIcon
 export const LoaderCircleIcon = _LoaderCircleIcon
+export const LoaderSpinnerIcon = _LoaderSpinnerIcon
 export const LockIcon = _LockIcon
 export const LockOpenIcon = _LockOpenIcon
 export const LogInIcon = _LogInIcon
@@ -635,22 +700,29 @@ export const MaximizeIcon = _MaximizeIcon
 export const MegaphoneIcon = _MegaphoneIcon
 export const MemoryStickIcon = _MemoryStickIcon
 export const MessageIcon = _MessageIcon
+export const MessageSquareWarningIcon = _MessageSquareWarningIcon
 export const MessagesSquareIcon = _MessagesSquareIcon
+export const MicrochipIcon = _MicrochipIcon
 export const MicrophoneIcon = _MicrophoneIcon
 export const MinimizeIcon = _MinimizeIcon
 export const MinusIcon = _MinusIcon
 export const MonitorIcon = _MonitorIcon
+export const MonitorCogIcon = _MonitorCogIcon
 export const MonitorSmartphoneIcon = _MonitorSmartphoneIcon
+export const MonitorXIcon = _MonitorXIcon
 export const MoonIcon = _MoonIcon
 export const MoreHorizontalIcon = _MoreHorizontalIcon
 export const MoreVerticalIcon = _MoreVerticalIcon
+export const MousePointer2Icon = _MousePointer2Icon
 export const MoveIcon = _MoveIcon
+export const MoveUpRightIcon = _MoveUpRightIcon
 export const NewspaperIcon = _NewspaperIcon
 export const NoSignalIcon = _NoSignalIcon
 export const NotepadTextIcon = _NotepadTextIcon
 export const OmorphiaIcon = _OmorphiaIcon
 export const OnlineIndicatorIcon = _OnlineIndicatorIcon
 export const OrganizationIcon = _OrganizationIcon
+export const OrganizationPlusIcon = _OrganizationPlusIcon
 export const PackageIcon = _PackageIcon
 export const PackageClosedIcon = _PackageClosedIcon
 export const PackageOpenIcon = _PackageOpenIcon
@@ -659,6 +731,13 @@ export const PackageSearchIcon = _PackageSearchIcon
 export const PageRoundIcon = _PageRoundIcon
 export const PaintbrushIcon = _PaintbrushIcon
 export const PaletteIcon = _PaletteIcon
+export const PanelLeftCloseIcon = _PanelLeftCloseIcon
+export const PanelLeftOpenIcon = _PanelLeftOpenIcon
+export const PanelRightCloseIcon = _PanelRightCloseIcon
+export const PanelRightOpenIcon = _PanelRightOpenIcon
+export const PanelTopIcon = _PanelTopIcon
+export const PanelTopCloseIcon = _PanelTopCloseIcon
+export const PanelTopOpenIcon = _PanelTopOpenIcon
 export const PauseIcon = _PauseIcon
 export const PencilIcon = _PencilIcon
 export const PickaxeIcon = _PickaxeIcon
@@ -689,6 +768,7 @@ export const SearchIcon = _SearchIcon
 export const SendIcon = _SendIcon
 export const ServerIcon = _ServerIcon
 export const ServerPlusIcon = _ServerPlusIcon
+export const ServerSearchIcon = _ServerSearchIcon
 export const ServerStackIcon = _ServerStackIcon
 export const SettingsIcon = _SettingsIcon
 export const Settings2Icon = _Settings2Icon
@@ -697,23 +777,28 @@ export const ShieldIcon = _ShieldIcon
 export const ShieldAlertIcon = _ShieldAlertIcon
 export const ShieldCheckIcon = _ShieldCheckIcon
 export const ShirtIcon = _ShirtIcon
+export const ShredderIcon = _ShredderIcon
 export const SignalIcon = _SignalIcon
 export const SignatureIcon = _SignatureIcon
 export const SkullIcon = _SkullIcon
 export const SlashIcon = _SlashIcon
+export const SmartphoneIcon = _SmartphoneIcon
 export const SortAscIcon = _SortAscIcon
 export const SortDescIcon = _SortDescIcon
 export const SparklesIcon = _SparklesIcon
 export const SpinnerIcon = _SpinnerIcon
 export const SplitIcon = _SplitIcon
+export const SquareIcon = _SquareIcon
 export const SquarePlusIcon = _SquarePlusIcon
 export const StarIcon = _StarIcon
+export const StickyNotePlusIcon = _StickyNotePlusIcon
 export const StopCircleIcon = _StopCircleIcon
 export const StoreIcon = _StoreIcon
 export const StrikethroughIcon = _StrikethroughIcon
 export const SunIcon = _SunIcon
 export const SunriseIcon = _SunriseIcon
 export const SupportChatIcon = _SupportChatIcon
+export const TabletIcon = _TabletIcon
 export const TagIcon = _TagIcon
 export const TagsIcon = _TagsIcon
 export const TagCategoryAdventureIcon = _TagCategoryAdventureIcon
@@ -861,6 +946,7 @@ export const TrashExclamationIcon = _TrashExclamationIcon
 export const TrendingDownIcon = _TrendingDownIcon
 export const TrendingUpIcon = _TrendingUpIcon
 export const TriangleAlertIcon = _TriangleAlertIcon
+export const TypeIcon = _TypeIcon
 export const UnderlineIcon = _UnderlineIcon
 export const UndoIcon = _UndoIcon
 export const UnfoldHorizontalIcon = _UnfoldHorizontalIcon
@@ -881,6 +967,8 @@ export const UserXIcon = _UserXIcon
 export const UsersIcon = _UsersIcon
 export const VersionIcon = _VersionIcon
 export const VideoIcon = _VideoIcon
+export const Volume2Icon = _Volume2Icon
+export const VolumeXIcon = _VolumeXIcon
 export const WikiIcon = _WikiIcon
 export const WindowIcon = _WindowIcon
 export const WorldIcon = _WorldIcon
@@ -891,140 +979,141 @@ export const XCircleIcon = _XCircleIcon
 export const ZoomInIcon = _ZoomInIcon
 export const ZoomOutIcon = _ZoomOutIcon
 
+
 export const categoryIconMap: Record<string, IconComponent> = {
-	adventure: TagCategoryAdventureIcon,
-	atmosphere: TagCategoryAtmosphereIcon,
-	audio: TagCategoryAudioIcon,
-	backpack: TagCategoryBackpackIcon,
-	badge: TagCategoryBadgeIcon,
+	'adventure': TagCategoryAdventureIcon,
+	'atmosphere': TagCategoryAtmosphereIcon,
+	'audio': TagCategoryAudioIcon,
+	'backpack': TagCategoryBackpackIcon,
+	'badge': TagCategoryBadgeIcon,
 	'badge-check': TagCategoryBadgeCheckIcon,
 	'bed-double': TagCategoryBedDoubleIcon,
-	blocks: TagCategoryBlocksIcon,
-	bloom: TagCategoryBloomIcon,
+	'blocks': TagCategoryBlocksIcon,
+	'bloom': TagCategoryBloomIcon,
 	'building-2': TagCategoryBuilding2Icon,
-	camera: TagCategoryCameraIcon,
-	cartoon: TagCategoryCartoonIcon,
-	castle: TagCategoryCastleIcon,
-	challenging: TagCategoryChallengingIcon,
-	clapperboard: TagCategoryClapperboardIcon,
-	cloud: TagCategoryCloudIcon,
+	'camera': TagCategoryCameraIcon,
+	'cartoon': TagCategoryCartoonIcon,
+	'castle': TagCategoryCastleIcon,
+	'challenging': TagCategoryChallengingIcon,
+	'clapperboard': TagCategoryClapperboardIcon,
+	'cloud': TagCategoryCloudIcon,
 	'colored-lighting': TagCategoryColoredLightingIcon,
-	combat: TagCategoryCombatIcon,
-	compass: TagCategoryCompassIcon,
+	'combat': TagCategoryCombatIcon,
+	'compass': TagCategoryCompassIcon,
 	'core-shaders': TagCategoryCoreShadersIcon,
-	crown: TagCategoryCrownIcon,
-	cursed: TagCategoryCursedIcon,
-	decoration: TagCategoryDecorationIcon,
-	dices: TagCategoryDicesIcon,
-	economy: TagCategoryEconomyIcon,
-	entities: TagCategoryEntitiesIcon,
-	environment: TagCategoryEnvironmentIcon,
-	equipment: TagCategoryEquipmentIcon,
-	fantasy: TagCategoryFantasyIcon,
-	film: TagCategoryFilmIcon,
-	flag: TagCategoryFlagIcon,
-	foliage: TagCategoryFoliageIcon,
-	fonts: TagCategoryFontsIcon,
-	food: TagCategoryFoodIcon,
-	footprints: TagCategoryFootprintsIcon,
+	'crown': TagCategoryCrownIcon,
+	'cursed': TagCategoryCursedIcon,
+	'decoration': TagCategoryDecorationIcon,
+	'dices': TagCategoryDicesIcon,
+	'economy': TagCategoryEconomyIcon,
+	'entities': TagCategoryEntitiesIcon,
+	'environment': TagCategoryEnvironmentIcon,
+	'equipment': TagCategoryEquipmentIcon,
+	'fantasy': TagCategoryFantasyIcon,
+	'film': TagCategoryFilmIcon,
+	'flag': TagCategoryFlagIcon,
+	'foliage': TagCategoryFoliageIcon,
+	'fonts': TagCategoryFontsIcon,
+	'food': TagCategoryFoodIcon,
+	'footprints': TagCategoryFootprintsIcon,
 	'game-mechanics': TagCategoryGameMechanicsIcon,
 	'gamepad-2': TagCategoryGamepad2Icon,
-	gauge: TagCategoryGaugeIcon,
-	globe: TagCategoryGlobeIcon,
+	'gauge': TagCategoryGaugeIcon,
+	'globe': TagCategoryGlobeIcon,
 	'grid-3x3': TagCategoryGrid3x3Icon,
-	gui: TagCategoryGuiIcon,
-	handshake: TagCategoryHandshakeIcon,
+	'gui': TagCategoryGuiIcon,
+	'handshake': TagCategoryHandshakeIcon,
 	'heart-crack': TagCategoryHeartCrackIcon,
 	'heart-pulse': TagCategoryHeartPulseIcon,
-	high: TagCategoryHighIcon,
-	house: TagCategoryHouseIcon,
-	items: TagCategoryItemsIcon,
+	'high': TagCategoryHighIcon,
+	'house': TagCategoryHouseIcon,
+	'items': TagCategoryItemsIcon,
 	'kitchen-sink': TagCategoryKitchenSinkIcon,
-	library: TagCategoryLibraryIcon,
-	lightweight: TagCategoryLightweightIcon,
-	locale: TagCategoryLocaleIcon,
-	lock: TagCategoryLockIcon,
-	low: TagCategoryLowIcon,
-	magic: TagCategoryMagicIcon,
-	management: TagCategoryManagementIcon,
+	'library': TagCategoryLibraryIcon,
+	'lightweight': TagCategoryLightweightIcon,
+	'locale': TagCategoryLocaleIcon,
+	'lock': TagCategoryLockIcon,
+	'low': TagCategoryLowIcon,
+	'magic': TagCategoryMagicIcon,
+	'management': TagCategoryManagementIcon,
 	'map-pinned': TagCategoryMapPinnedIcon,
-	medium: TagCategoryMediumIcon,
-	minigame: TagCategoryMinigameIcon,
-	mobs: TagCategoryMobsIcon,
-	modded: TagCategoryModdedIcon,
-	models: TagCategoryModelsIcon,
-	multiplayer: TagCategoryMultiplayerIcon,
-	network: TagCategoryNetworkIcon,
-	optimization: TagCategoryOptimizationIcon,
-	palette: TagCategoryPaletteIcon,
+	'medium': TagCategoryMediumIcon,
+	'minigame': TagCategoryMinigameIcon,
+	'mobs': TagCategoryMobsIcon,
+	'modded': TagCategoryModdedIcon,
+	'models': TagCategoryModelsIcon,
+	'multiplayer': TagCategoryMultiplayerIcon,
+	'network': TagCategoryNetworkIcon,
+	'optimization': TagCategoryOptimizationIcon,
+	'palette': TagCategoryPaletteIcon,
 	'path-tracing': TagCategoryPathTracingIcon,
 	'paw-print': TagCategoryPawPrintIcon,
-	pbr: TagCategoryPbrIcon,
-	pickaxe: TagCategoryPickaxeIcon,
-	potato: TagCategoryPotatoIcon,
-	quests: TagCategoryQuestsIcon,
-	realistic: TagCategoryRealisticIcon,
-	reflections: TagCategoryReflectionsIcon,
+	'pbr': TagCategoryPbrIcon,
+	'pickaxe': TagCategoryPickaxeIcon,
+	'potato': TagCategoryPotatoIcon,
+	'quests': TagCategoryQuestsIcon,
+	'realistic': TagCategoryRealisticIcon,
+	'reflections': TagCategoryReflectionsIcon,
 	'refresh-ccw': TagCategoryRefreshCcwIcon,
-	screenshot: TagCategoryScreenshotIcon,
+	'screenshot': TagCategoryScreenshotIcon,
 	'scroll-text': TagCategoryScrollTextIcon,
 	'semi-realistic': TagCategorySemiRealisticIcon,
-	shadows: TagCategoryShadowsIcon,
-	shield: TagCategoryShieldIcon,
-	simplistic: TagCategorySimplisticIcon,
-	skull: TagCategorySkullIcon,
-	social: TagCategorySocialIcon,
-	square: TagCategorySquareIcon,
-	storage: TagCategoryStorageIcon,
-	sword: TagCategorySwordIcon,
-	swords: TagCategorySwordsIcon,
-	target: TagCategoryTargetIcon,
-	technology: TagCategoryTechnologyIcon,
-	terminal: TagCategoryTerminalIcon,
-	theater: TagCategoryTheaterIcon,
-	themed: TagCategoryThemedIcon,
-	transportation: TagCategoryTransportationIcon,
+	'shadows': TagCategoryShadowsIcon,
+	'shield': TagCategoryShieldIcon,
+	'simplistic': TagCategorySimplisticIcon,
+	'skull': TagCategorySkullIcon,
+	'social': TagCategorySocialIcon,
+	'square': TagCategorySquareIcon,
+	'storage': TagCategoryStorageIcon,
+	'sword': TagCategorySwordIcon,
+	'swords': TagCategorySwordsIcon,
+	'target': TagCategoryTargetIcon,
+	'technology': TagCategoryTechnologyIcon,
+	'terminal': TagCategoryTerminalIcon,
+	'theater': TagCategoryTheaterIcon,
+	'themed': TagCategoryThemedIcon,
+	'transportation': TagCategoryTransportationIcon,
 	'tree-pine': TagCategoryTreePineIcon,
-	trophy: TagCategoryTrophyIcon,
-	tweaks: TagCategoryTweaksIcon,
-	users: TagCategoryUsersIcon,
-	utility: TagCategoryUtilityIcon,
+	'trophy': TagCategoryTrophyIcon,
+	'tweaks': TagCategoryTweaksIcon,
+	'users': TagCategoryUsersIcon,
+	'utility': TagCategoryUtilityIcon,
 	'vanilla-like': TagCategoryVanillaLikeIcon,
 	'wand-sparkles': TagCategoryWandSparklesIcon,
 	'wifi-off': TagCategoryWifiOffIcon,
-	worldgen: TagCategoryWorldgenIcon,
-	zap: TagCategoryZapIcon,
+	'worldgen': TagCategoryWorldgenIcon,
+	'zap': TagCategoryZapIcon,
 }
 
 export const loaderIconMap: Record<string, IconComponent> = {
-	babric: TagLoaderBabricIcon,
+	'babric': TagLoaderBabricIcon,
 	'bta-babric': TagLoaderBtaBabricIcon,
-	bukkit: TagLoaderBukkitIcon,
-	bungeecord: TagLoaderBungeecordIcon,
-	canvas: TagLoaderCanvasIcon,
-	datapack: TagLoaderDatapackIcon,
-	fabric: TagLoaderFabricIcon,
-	folia: TagLoaderFoliaIcon,
-	forge: TagLoaderForgeIcon,
-	geyser: TagLoaderGeyserIcon,
-	iris: TagLoaderIrisIcon,
+	'bukkit': TagLoaderBukkitIcon,
+	'bungeecord': TagLoaderBungeecordIcon,
+	'canvas': TagLoaderCanvasIcon,
+	'datapack': TagLoaderDatapackIcon,
+	'fabric': TagLoaderFabricIcon,
+	'folia': TagLoaderFoliaIcon,
+	'forge': TagLoaderForgeIcon,
+	'geyser': TagLoaderGeyserIcon,
+	'iris': TagLoaderIrisIcon,
 	'java-agent': TagLoaderJavaAgentIcon,
 	'legacy-fabric': TagLoaderLegacyFabricIcon,
-	liteloader: TagLoaderLiteloaderIcon,
-	minecraft: TagLoaderMinecraftIcon,
-	modloader: TagLoaderModloaderIcon,
-	mrpack: TagLoaderMrpackIcon,
-	neoforge: TagLoaderNeoforgeIcon,
-	nilloader: TagLoaderNilloaderIcon,
-	optifine: TagLoaderOptifineIcon,
-	ornithe: TagLoaderOrnitheIcon,
-	paper: TagLoaderPaperIcon,
-	purpur: TagLoaderPurpurIcon,
-	quilt: TagLoaderQuiltIcon,
-	rift: TagLoaderRiftIcon,
-	spigot: TagLoaderSpigotIcon,
-	sponge: TagLoaderSpongeIcon,
-	vanilla: TagLoaderVanillaIcon,
-	velocity: TagLoaderVelocityIcon,
-	waterfall: TagLoaderWaterfallIcon,
+	'liteloader': TagLoaderLiteloaderIcon,
+	'minecraft': TagLoaderMinecraftIcon,
+	'modloader': TagLoaderModloaderIcon,
+	'mrpack': TagLoaderMrpackIcon,
+	'neoforge': TagLoaderNeoforgeIcon,
+	'nilloader': TagLoaderNilloaderIcon,
+	'optifine': TagLoaderOptifineIcon,
+	'ornithe': TagLoaderOrnitheIcon,
+	'paper': TagLoaderPaperIcon,
+	'purpur': TagLoaderPurpurIcon,
+	'quilt': TagLoaderQuiltIcon,
+	'rift': TagLoaderRiftIcon,
+	'spigot': TagLoaderSpigotIcon,
+	'sponge': TagLoaderSpongeIcon,
+	'vanilla': TagLoaderVanillaIcon,
+	'velocity': TagLoaderVelocityIcon,
+	'waterfall': TagLoaderWaterfallIcon,
 }

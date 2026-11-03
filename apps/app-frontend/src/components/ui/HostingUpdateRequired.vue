@@ -8,18 +8,18 @@ import {
 	downloadAvailableAppUpdate,
 	installAvailableAppUpdate,
 } from '@/providers/app-update'
-import { useRootBreadcrumb } from '@/providers/breadcrumbs'
+import { useRootBreadcrumb } from '@/shared/breadcrumbs'
 
 const { formatMessage } = useVIntl()
 
 const messages = defineMessages({
 	title: {
 		id: 'app.hosting.update-required.title',
-		defaultMessage: 'NyanRinth update required',
+		defaultMessage: 'Modrinth App update required',
 	},
 	description: {
 		id: 'app.hosting.update-required.description',
-		defaultMessage: 'You need to update to use Modrinth Hosting through the NyanRinth',
+		defaultMessage: 'You need to update to use Modrinth Hosting through the Modrinth App',
 	},
 	downloadToUpdate: {
 		id: 'app.hosting.update-required.download',

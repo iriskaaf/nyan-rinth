@@ -5,8 +5,17 @@
   "action.continue": {
     "message": "Lanjutkan"
   },
-  "admin.billing.error.not-found": {
-    "message": "Pengguna tidak ditemukan"
+  "ads-consent.accept": {
+    "message": "Terima semua"
+  },
+  "ads-consent.manage": {
+    "message": "Kelola preferensi"
+  },
+  "ads-consent.reject": {
+    "message": "Tolak semua"
+  },
+  "ads-consent.title": {
+    "message": "Privasi Anda dan bagaimana iklan-iklan mendukung Modrinth"
   },
   "analytics.action.add": {
     "message": "Tambah"
@@ -23,6 +32,15 @@
   "analytics.breakdown.country": {
     "message": "Negara"
   },
+  "analytics.breakdown.dependent-on": {
+    "message": "Terikat pada"
+  },
+  "analytics.breakdown.dependent-project-download": {
+    "message": "Proyek terikat"
+  },
+  "analytics.breakdown.dependent-project-type": {
+    "message": "Jenis proyek terikat"
+  },
   "analytics.breakdown.download-reason": {
     "message": "Alasan pengunduhan"
   },
@@ -37,6 +55,9 @@
   },
   "analytics.breakdown.loader": {
     "message": "Pemuat"
+  },
+  "analytics.breakdown.members": {
+    "message": "Anggota"
   },
   "analytics.breakdown.monetization": {
     "message": "Monetisasi"
@@ -134,6 +155,9 @@
   "analytics.chart.tooltip.hide-entry": {
     "message": "Sembunyikan {name} di grafik"
   },
+  "analytics.chart.tooltip.no-data": {
+    "message": "Tidak ada data"
+  },
   "analytics.chart.tooltip.pinned-aria": {
     "message": "Disematkan"
   },
@@ -227,6 +251,51 @@
   "analytics.group-by.month": {
     "message": "Bulan"
   },
+  "analytics.group-by.week": {
+    "message": "Pekan"
+  },
+  "analytics.group-by.year": {
+    "message": "Tahun"
+  },
+  "analytics.options.loading": {
+    "message": "Memuat..."
+  },
+  "analytics.project-event.project-approved": {
+    "message": "Proyek disetujui"
+  },
+  "analytics.project-status.approved": {
+    "message": "Disetujui"
+  },
+  "analytics.project-status.archived": {
+    "message": "Diarsipkan"
+  },
+  "analytics.project-status.draft": {
+    "message": "Draf"
+  },
+  "analytics.project-status.other": {
+    "message": "Lainnya"
+  },
+  "analytics.project-status.rejected": {
+    "message": "Ditolak"
+  },
+  "analytics.project.all": {
+    "message": "Semua proyek"
+  },
+  "analytics.project.select": {
+    "message": "Pilih proyek"
+  },
+  "analytics.stat.downloads": {
+    "message": "Unduhan"
+  },
+  "analytics.stat.monetization-banner.learn-more": {
+    "message": "Pelajari lebih lanjut"
+  },
+  "analytics.stat.playtime": {
+    "message": "Waktu Bermain"
+  },
+  "analytics.stat.playtime-hours": {
+    "message": "{hours} jam"
+  },
   "app-marketing.download.description": {
     "message": "Aplikasi destop kami tersedia pada semua platform, pilih versi yang Anda inginkan."
   },
@@ -266,23 +335,11 @@
   "app-marketing.download.windows": {
     "message": "Windows"
   },
-  "app-marketing.features.follow.description": {
-    "message": "Simpan konten yang Anda suka dan dapatkan pembaruan dengan satu klik saja."
-  },
-  "app-marketing.features.follow.title": {
-    "message": "Ikuti proyek"
-  },
-  "app-marketing.features.importing.description": {
-    "message": "Impor semua profil favorit Anda dari launcher yang telah Anda gunakan sebelumnya, dan mulai menggunakan Modrinth App dalam hitungan detik!"
-  },
   "app-marketing.features.importing.gdlauncher-alt": {
     "message": "GDLauncher"
   },
   "app-marketing.features.importing.multimc-alt": {
     "message": "MultiMC"
-  },
-  "app-marketing.features.importing.title": {
-    "message": "Pengimporan profil"
   },
   "app-marketing.features.mod-management.actions": {
     "message": "Tindakan"
@@ -308,15 +365,6 @@
   "app-marketing.features.mod-management.version": {
     "message": "Versi"
   },
-  "app-marketing.features.offline.description": {
-    "message": "Mainkan mod Anda, baik saat daring maupun luring."
-  },
-  "app-marketing.features.offline.title": {
-    "message": "Mode luring"
-  },
-  "app-marketing.features.open-source.description": {
-    "message": "Peluncur Modrinth sepenuhnya bersumber terbuka. Anda dapat melihat kode sumber pada <github-link>GitHub</github-link> kami!"
-  },
   "app-marketing.features.open-source.title": {
     "message": "Sumber terbuka"
   },
@@ -326,9 +374,6 @@
   "app-marketing.features.performance.cpu-percent": {
     "message": "% CPU"
   },
-  "app-marketing.features.performance.description": {
-    "message": "Modrinth App bekerja lebih baik daripada pengelola mod ternama lainnya, dengan menggunakan hanya 150 MB RAM!"
-  },
   "app-marketing.features.performance.discord": {
     "message": "Discord"
   },
@@ -337,12 +382,6 @@
   },
   "app-marketing.features.performance.google-chrome": {
     "message": "Google Chrome"
-  },
-  "app-marketing.features.performance.infinite-mb": {
-    "message": "∞ MB"
-  },
-  "app-marketing.features.performance.less-than-150mb": {
-    "message": "< 150 MB"
   },
   "app-marketing.features.performance.modrinth-app": {
     "message": "Modrinth App"
@@ -473,9 +512,6 @@
   "auth.reset-password.title.long": {
     "message": "Atur ulang kata sandi Anda"
   },
-  "auth.sign-in.2fa.placeholder": {
-    "message": "Masukkan kode..."
-  },
   "auth.sign-in.title": {
     "message": "Masuk"
   },
@@ -518,20 +554,11 @@
   "auth.verify-email.title": {
     "message": "Verifikasi Sur-el"
   },
-  "collection.button.edit-icon": {
-    "message": "Sunting ikon"
-  },
   "collection.button.remove-icon": {
     "message": "Hapus ikon"
   },
   "collection.button.remove-project": {
     "message": "Hapus proyek"
-  },
-  "collection.button.replace-icon": {
-    "message": "Ganti ikon"
-  },
-  "collection.button.select-icon": {
-    "message": "Pilih ikon"
   },
   "collection.button.unfollow-project": {
     "message": "Berhenti ikuti proyek"
@@ -547,9 +574,6 @@
   },
   "collection.description.following": {
     "message": "Koleksi semua proyek yang Anda ikuti yang dibuat secara otomatis."
-  },
-  "collection.editing": {
-    "message": "Menyunting koleksi"
   },
   "collection.error.not-found": {
     "message": "Koleksi tidak ditemukan"
@@ -722,27 +746,6 @@
   "create.project.visibility-unlisted": {
     "message": "Tidak terdaftar"
   },
-  "dashboard.affiliate-links.create.button": {
-    "message": "Buat tautan afiliasi"
-  },
-  "dashboard.affiliate-links.error.title": {
-    "message": "Gagal memuat tautan afiliasi"
-  },
-  "dashboard.affiliate-links.header": {
-    "message": "Tautan afiliasi Anda"
-  },
-  "dashboard.affiliate-links.revoke-confirm.body": {
-    "message": "Ini akan mencabut kode afiliasi `{id}` secara permanen dan semua tautan yang telah ada dengan kode ini yang telah dibagikan akan menjadi tidak sah."
-  },
-  "dashboard.affiliate-links.revoke-confirm.button": {
-    "message": "Cabut"
-  },
-  "dashboard.affiliate-links.revoke-confirm.title": {
-    "message": "Apakah Anda yakin ingin mencabut tautan afiliasi Anda yang bernama \"{title}\"?"
-  },
-  "dashboard.affiliate-links.search": {
-    "message": "Cari tautan afiliasi..."
-  },
   "dashboard.collections.button.create-new": {
     "message": "Buat baru"
   },
@@ -897,19 +900,19 @@
     "message": "Nomor identitas penduduk"
   },
   "dashboard.creator-withdraw-modal.muralpay-details.document-number-resident-id-placeholder": {
-    "message": "Masukan nomor identitas penduduk"
+    "message": "Masukkan nomor identitas penduduk"
   },
   "dashboard.creator-withdraw-modal.muralpay-details.document-number-ruc": {
     "message": "Nomor RUC"
   },
   "dashboard.creator-withdraw-modal.muralpay-details.document-number-ruc-placeholder": {
-    "message": "Masukan nomor RUC"
+    "message": "Masukkan nomor RUC"
   },
   "dashboard.creator-withdraw-modal.muralpay-details.document-number-tax-id": {
     "message": "Nomor identitas pajak"
   },
   "dashboard.creator-withdraw-modal.muralpay-details.document-number-tax-id-placeholder": {
-    "message": "Masukan nomor identitas pajak"
+    "message": "Masukkan nomor identitas pajak"
   },
   "dashboard.creator-withdraw-modal.muralpay-details.network": {
     "message": "Jaringan"
@@ -1232,9 +1235,6 @@
   "error.generic.default.list_item.1": {
     "message": "Periksa apakah Modrinth sedang mengalami gangguan di <status-link>halaman Status</status-link>."
   },
-  "error.generic.default.list_item.2": {
-    "message": "Bila hal ini terus terjadi, Anda mungkin ingin memberi tahu Tim Modrinth dengan bergabung ke <discord-link>server Discord</discord-link> kami."
-  },
   "error.generic.default.list_title": {
     "message": "Silakan coba lagi dalam beberapa menit."
   },
@@ -1321,9 +1321,6 @@
   },
   "hosting-marketing.faq.cpu-kind": {
     "message": "Jenis CPU apa yang digunakan oleh server Modrinth Hosting untuk berjalan?"
-  },
-  "hosting-marketing.faq.cpu-kind.answer": {
-    "message": "Server Modrinth Hosting didukung oleh CPU AMD Ryzen 7900 dan CPU setara 7950X3D berkecepatan 5+ GHz, dipasangkan dengan memori DDR5."
   },
   "hosting-marketing.faq.currency": {
     "message": "Dalam mata uang apa harga-harga tersebut?"
@@ -1640,12 +1637,6 @@
   "layout.action.file-lookup": {
     "message": "Pencarian berkas"
   },
-  "layout.action.lookup-by-email": {
-    "message": "Cari dengan sur-el"
-  },
-  "layout.action.manage-affiliates": {
-    "message": "Kelola tautan afiliasi"
-  },
   "layout.action.manage-server-notices": {
     "message": "Kelola pemberitahuan server"
   },
@@ -1657,9 +1648,6 @@
   },
   "layout.action.new-project": {
     "message": "Proyek baru"
-  },
-  "layout.action.new-server-project": {
-    "message": "Server baru"
   },
   "layout.action.publish": {
     "message": "Terbitkan"
@@ -2275,9 +2263,6 @@
   },
   "project.actions.dont-show-again": {
     "message": "Jangan tampilkan lagi"
-  },
-  "project.actions.review-project": {
-    "message": "Tinjau proyek"
   },
   "project.actions.servers-promo.description": {
     "message": "Modrinth Hosting adalah cara termudah untuk bermain bersama teman Anda tanpa repot!"
@@ -3059,15 +3044,6 @@
   "settings.pats.modal.create.title": {
     "message": "Buat token akses pribadi (PAT)"
   },
-  "settings.pats.modal.delete.action": {
-    "message": "Hapus token ini"
-  },
-  "settings.pats.modal.delete.description": {
-    "message": "Token akan terhapus selamanya (benar-benar selamanya)."
-  },
-  "settings.pats.modal.delete.title": {
-    "message": "Apakah Anda yakin ingin menghapus token ini?"
-  },
   "settings.pats.modal.edit.title": {
     "message": "Sunting token akses pribadi"
   },
@@ -3092,14 +3068,8 @@
   "settings.sessions.action.revoke-session": {
     "message": "Cabut sesi"
   },
-  "settings.sessions.created-ago": {
-    "message": "Dibuat {ago}"
-  },
   "settings.sessions.current-session": {
     "message": "Sesi saat ini"
-  },
-  "settings.sessions.description": {
-    "message": "Berikut adalah semua perangkat yang saat ini masuk dengan akun Modrinth Anda. Anda dapat keluar dari masing-masing perangkat secara satu per satu.\n\nBila Anda melihat entri yang tidak dikenali, segera keluar dari perangkat tersebut dan ubah kata sandi akun Modrinth Anda."
   },
   "settings.sessions.last-accessed-ago": {
     "message": "Terakhir diakses {ago}"

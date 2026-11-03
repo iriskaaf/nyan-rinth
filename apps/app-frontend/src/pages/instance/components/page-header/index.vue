@@ -1,7 +1,13 @@
 <template>
 	<PageHeader :title="instance.name">
 		<template #leading>
-			<Avatar :src="iconSrc" :alt="instance.name" size="64px" :tint-by="instance.id" />
+			<Avatar
+				:src="iconSrc"
+				:alt="instance.name"
+				size="64px"
+				:tint-by="instance.id"
+				pad-transparent-corners
+			/>
 		</template>
 
 		<template v-if="instance.shared_instance || instance.quarantined" #badges>
@@ -17,7 +23,7 @@
 				v-else
 				:tooltip="sharedInstanceTooltip"
 				aria-label="Shared instance information"
-				class="!border-brand !bg-brand-highlight !text-brand"
+				class="!border-blue !bg-highlight-blue !text-blue"
 			>
 				Shared
 				<UnknownIcon class="block size-4 shrink-0 text-current" aria-hidden="true" />
@@ -65,17 +71,7 @@
 		<template #actions>
 			<PageHeaderActions>
 				<Button
-					v-if="isInstalling"
-					type="colored"
-					color="brand"
-					size="xl"
-					native-type="button"
-					disabled
-				>
-					{{ formatMessage(commonMessages.installingLabel) }}
-				</Button>
-				<Button
-					v-else-if="playing"
+					v-if="playing"
 					type="colored"
 					color="red"
 					size="xl"
@@ -87,6 +83,16 @@
 					{{
 						stopping ? formatMessage(messages.stopping) : formatMessage(commonMessages.stopButton)
 					}}
+				</Button>
+				<Button
+					v-else-if="isInstalling"
+					type="colored"
+					color="brand"
+					size="xl"
+					native-type="button"
+					disabled
+				>
+					{{ formatMessage(commonMessages.installingLabel) }}
 				</Button>
 				<Button
 					v-else-if="instance.quarantined"
@@ -181,10 +187,10 @@ import {
 import { Button, IconButton, SplitButton, TeleportOverflowMenu } from '@modrinth/ui'
 import {
 	Avatar,
+	type ButtonMenuOption,
 	commonMessages,
 	defineMessages,
 	formatLoaderLabel,
-	type OverflowMenuOption,
 	PageHeader,
 	PageHeaderActions,
 	PageHeaderBadgeItem,
@@ -304,17 +310,12 @@ const emit = defineEmits<{
 	report: [event?: MouseEvent]
 }>()
 
-const installingStages = [
-	'installing',
-	'pack_installing',
-	'pack_installed',
-	'not_installed',
-	'minecraft_installing',
-]
+const installingStages = ['installing', 'pack_installing', 'minecraft_installing']
 
 const { formatMessage } = useVIntl()
 
 const isInstalling = computed(() => installingStages.includes(props.instance.install_stage))
+
 const loaderDisplayName = computed(() => formatLoaderLabel(props.instance.loader) as ServerLoader)
 const loaderLabel = computed(() =>
 	[loaderDisplayName.value, props.instance.game_version].filter(Boolean).join(' '),
@@ -344,7 +345,7 @@ const playtimeLabel = computed(() => {
 
 	return `${seconds} second${seconds === 1 ? '' : 's'}`
 })
-const serverPlayOptions = computed<OverflowMenuOption[]>(() => [
+const serverPlayOptions = computed<ButtonMenuOption[]>(() => [
 	{
 		id: 'launch_instance',
 		label: formatMessage(messages.launchInstance),
@@ -352,8 +353,8 @@ const serverPlayOptions = computed<OverflowMenuOption[]>(() => [
 		action: () => emit('play'),
 	},
 ])
-const moreActions = computed<OverflowMenuOption[]>(() => {
-	const actions: OverflowMenuOption[] = [
+const moreActions = computed<ButtonMenuOption[]>(() => {
+	const actions: ButtonMenuOption[] = [
 		{
 			id: 'open-folder',
 			label: formatMessage(messages.openFolder),

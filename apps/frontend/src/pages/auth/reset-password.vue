@@ -20,7 +20,7 @@
 				<label class="text-md font-semibold text-contrast" for="email">
 					{{ formatMessage(commonMessages.emailLabel) }}
 				</label>
-				<StyledInput
+				<Input
 					id="email"
 					v-model="email"
 					:icon="MailIcon"
@@ -35,7 +35,7 @@
 				<label class="text-md font-semibold text-contrast">{{
 					formatMessage(messages.securityCheckLabel)
 				}}</label>
-				<HCaptcha ref="captcha" v-model="token" />
+				<Turnstile ref="captcha" v-model="token" />
 			</div>
 
 			<Button
@@ -61,7 +61,7 @@
 
 			<div class="flex flex-col gap-2.5">
 				<label for="password" hidden>{{ formatMessage(commonMessages.passwordLabel) }}</label>
-				<StyledInput
+				<Input
 					id="password"
 					v-model="newPassword"
 					:icon="KeyIcon"
@@ -74,7 +74,7 @@
 				<label for="confirm-password" hidden>
 					{{ formatMessage(commonMessages.passwordLabel) }}
 				</label>
-				<StyledInput
+				<Input
 					id="confirm-password"
 					v-model="confirmNewPassword"
 					:icon="KeyIcon"
@@ -100,13 +100,13 @@ import {
 	defineMessages,
 	injectModrinthClient,
 	injectNotificationManager,
-	StyledInput,
+	Input,
 	useVIntl,
 } from '@modrinth/ui'
 import { useQuery } from '@tanstack/vue-query'
 import type { LocationQueryValue } from 'vue-router'
 
-import HCaptcha from '@/components/ui/auth/HCaptcha.vue'
+import Turnstile from '@/components/ui/auth/Turnstile.vue'
 
 interface AuthGlobalsResponse {
 	captcha_enabled?: boolean
@@ -218,7 +218,7 @@ useHead({
 
 const auth = await useAuth()
 if (auth.value.user) {
-	await navigateTo('/dashboard')
+	await navigateTo(`/user/${auth.value.user.username}`)
 }
 
 const route = useNativeRoute()
@@ -265,8 +265,8 @@ async function recovery() {
 			text: getErrorMessage(err),
 			type: 'error',
 		})
-		captcha.value?.reset?.()
 	}
+	captcha.value?.reset?.()
 	stopLoading()
 }
 

@@ -5,6 +5,11 @@
 			isFullscreen ? `fixed inset-0 z-[15] bg-surface-1 p-6 py-8 ${isApp ? 'pt-12' : ''}` : ''
 		"
 	>
+		<div
+			v-if="isApp && isFullscreen"
+			data-tauri-drag-region
+			class="absolute inset-x-0 top-0 h-12"
+		/>
 		<CollapsibleAdmonition
 			v-if="ctx.crashAnalysis?.value && !isFullscreen"
 			type="critical"
@@ -14,47 +19,49 @@
 			@dismiss="ctx.onDismissCrash?.()"
 		/>
 
-		<div class="flex items-center gap-2">
-			<StyledInput
-				v-model="searchQuery"
-				:icon="SearchIcon"
-				placeholder="Search logs"
-				wrapper-class="flex-1"
-				input-class="!h-10"
-				clearable
-			/>
-			<div v-if="ctx.logSources?.value && ctx.activeLogSourceIndex" class="w-[220px]">
-				<Combobox
-					:model-value="ctx.activeLogSourceIndex.value"
-					:options="logSourceOptions"
-					trigger-size="lg"
-					@update:model-value="(v) => (ctx.activeLogSourceIndex!.value = v)"
+		<div class="flex flex-col gap-2">
+			<div class="flex items-center gap-2">
+				<Input
+					v-model="searchQuery"
+					:icon="SearchIcon"
+					placeholder="Search logs"
+					wrapper-class="flex-1"
+					size="medium"
+					clearable
+				/>
+				<div v-if="ctx.logSources?.value && ctx.activeLogSourceIndex" class="w-[220px]">
+					<Combobox
+						:model-value="ctx.activeLogSourceIndex.value"
+						:options="logSourceOptions"
+						trigger-size="lg"
+						@update:model-value="(v) => (ctx.activeLogSourceIndex!.value = v)"
+					/>
+				</div>
+			</div>
+
+			<div class="flex items-center justify-between">
+				<ConsoleFilterPills
+					v-model="activeFilters"
+					:present-levels="presentLevels"
+					@toggle="handleFilterToggle"
+				/>
+				<ConsoleActionButtons
+					:show-clear="isLiveSource"
+					:has-logs="hasLogs"
+					:share-disabled="resolvedShareDisabled"
+					:sharing="isSharing"
+					:fullscreen="isFullscreen"
+					:clear-disabled="resolvedClearDisabled"
+					:clear-disabled-tooltip="resolvedClearDisabledTooltip"
+					:show-delete="showDelete"
+					:delete-disabled="resolvedDeleteDisabled"
+					:delete-disabled-tooltip="ctx.deleteDisabledTooltip"
+					@clear="handleClear"
+					@share="handleShare"
+					@toggle-fullscreen="toggleFullscreen"
+					@delete="handleDelete"
 				/>
 			</div>
-		</div>
-
-		<div class="flex items-center justify-between">
-			<ConsoleFilterPills
-				v-model="activeFilters"
-				:present-levels="presentLevels"
-				@toggle="handleFilterToggle"
-			/>
-			<ConsoleActionButtons
-				:show-clear="isLiveSource"
-				:has-logs="hasLogs"
-				:share-disabled="resolvedShareDisabled"
-				:sharing="isSharing"
-				:fullscreen="isFullscreen"
-				:clear-disabled="resolvedClearDisabled"
-				:clear-disabled-tooltip="resolvedClearDisabledTooltip"
-				:show-delete="showDelete"
-				:delete-disabled="resolvedDeleteDisabled"
-				:delete-disabled-tooltip="ctx.deleteDisabledTooltip"
-				@clear="handleClear"
-				@share="handleShare"
-				@toggle-fullscreen="toggleFullscreen"
-				@delete="handleDelete"
-			/>
 		</div>
 
 		<BaseTerminal
@@ -96,7 +103,7 @@
 <script setup lang="ts">
 import { SearchIcon, TrashIcon, XIcon } from '@modrinth/assets'
 import type { Terminal } from '@xterm/xterm'
-import { computed, isRef, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, isRef, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import Admonition from '#ui/components/base/Admonition.vue'
 import BaseTerminal from '#ui/components/base/BaseTerminal.vue'
@@ -104,9 +111,10 @@ import { Button } from '#ui/components/base/buttons'
 import type { CollapsibleAdmonitionItem } from '#ui/components/base/CollapsibleAdmonition.vue'
 import CollapsibleAdmonition from '#ui/components/base/CollapsibleAdmonition.vue'
 import Combobox from '#ui/components/base/Combobox.vue'
-import StyledInput from '#ui/components/base/StyledInput.vue'
+import Input from '#ui/components/base/inputs/Input.vue'
 import NewModal from '#ui/components/modal/NewModal.vue'
 import ShareModal from '#ui/components/modal/ShareModal.vue'
+import { useModalStack } from '#ui/composables/modal-stack'
 import { injectModrinthClient } from '#ui/providers'
 import { injectModalBehavior } from '#ui/providers/modal-behavior'
 import { injectPageContext } from '#ui/providers/page-context'
@@ -131,6 +139,7 @@ const client = injectModrinthClient()
 const modalBehavior = injectModalBehavior()
 const pageContext = injectPageContext(null)
 const { addNotification } = injectNotificationManager()
+const { hasModal } = useModalStack()
 
 const crashHeader = computed(() => {
 	const problems = ctx.crashAnalysis?.value?.analysis.problems ?? []
@@ -190,7 +199,12 @@ function buildCombinedPredicate(): ((line: LogLine) => boolean) | null {
 	}
 }
 
+onMounted(() => {
+	window.addEventListener('keydown', handleWindowKeyDown, true)
+})
+
 onBeforeUnmount(() => {
+	window.removeEventListener('keydown', handleWindowKeyDown, true)
 	if (isFullscreen.value) {
 		document.body.style.overflow = ''
 		document.body.classList.remove(fullscreenBodyClass)
@@ -294,6 +308,12 @@ function rewriteFiltered() {
 	const predicate = buildCombinedPredicate()
 	rewriteTerminal(term, lines, predicate, activeSearchQuery())
 	lastWrittenIndex = lines.length
+}
+
+function handleWindowKeyDown(event: KeyboardEvent) {
+	if (event.key !== 'Escape' || !isFullscreen.value || hasModal.value) return
+	event.preventDefault()
+	toggleFullscreen()
 }
 
 function toggleFullscreen() {
@@ -462,7 +482,7 @@ async function handleShare() {
 }
 
 .modrinth-console-fullscreen-active .app-grid-navbar,
-.modrinth-console-fullscreen-active .app-grid-statusbar {
+.modrinth-console-fullscreen-active .app-title-bar {
 	z-index: 0 !important;
 }
 </style>

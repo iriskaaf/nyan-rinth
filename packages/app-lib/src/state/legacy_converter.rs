@@ -3,7 +3,8 @@ use crate::jre::check_jre;
 use crate::prelude::ModLoader;
 use crate::state;
 use crate::state::instances::{
-    InstanceLaunchOverrides, InstanceLaunchOverridesData, playtime_to_storage,
+    InstanceLaunchOverrides, InstanceLaunchOverridesData,
+    InstanceTabVisibility, playtime_to_storage,
 };
 use crate::state::{
     CacheValue, CachedEntry, CachedFile, CachedFileHash, CachedFileUpdate,
@@ -127,12 +128,12 @@ where
                         name: legacy_credentials.username,
                         ..MinecraftProfile::default()
                     },
+					account_type: "microsoft".into(),
                     access_token: legacy_credentials.access_token,
                     refresh_token: legacy_credentials.refresh_token,
                     expires: legacy_credentials.expires,
                     active: minecraft_auth.default_user == Some(uuid)
                         || minecraft_users_len == 1,
-                    account_type: legacy_credentials.account_type,
                 }
                 .upsert(exec)
                 .await?;
@@ -640,6 +641,7 @@ where
         force_fullscreen: input.force_fullscreen,
         game_resolution: input.game_resolution,
         hooks: input.hooks,
+        visible_tabs: InstanceTabVisibility::default(),
     };
     let launch_overrides_data = serde_json::to_string(
         &InstanceLaunchOverridesData::from(&launch_overrides),
@@ -695,7 +697,7 @@ struct LegacySettings {
 }
 
 fn default_settings_dir() -> Option<PathBuf> {
-    Some(dirs::config_dir()?.join("com.modrinth.theseus"))
+    Some(dirs::config_dir()?.join("dev.nyanrinth.launcher"))
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -770,7 +772,6 @@ struct LegacyCredentials {
     pub access_token: String,
     pub refresh_token: String,
     pub expires: DateTime<Utc>,
-    pub account_type: String,
 }
 
 #[derive(Deserialize, Debug)]

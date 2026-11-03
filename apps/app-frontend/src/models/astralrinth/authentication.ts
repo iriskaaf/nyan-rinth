@@ -195,9 +195,7 @@ export function getExternalAuthProvider(accountType?: string) {
 }
 
 /** Starts the native OAuth flow for one external authentication provider. */
-async function authenticateExternalProvider(
-	provider: string,
-): Promise<MinecraftCredential | null> {
+async function authenticateExternalProvider(provider: string): Promise<MinecraftCredential | null> {
 	return await invoke('plugin:auth|authenticate_external_provider', { provider })
 }
 

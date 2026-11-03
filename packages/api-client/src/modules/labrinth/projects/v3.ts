@@ -27,6 +27,17 @@ export class LabrinthProjectsV3Module extends AbstractModule {
 		})
 	}
 
+	public async validate(id: string): Promise<Labrinth.Projects.v3.ProjectValidationResponse> {
+		return this.client.request<Labrinth.Projects.v3.ProjectValidationResponse>(
+			`/project/${id}/validate`,
+			{
+				api: 'labrinth',
+				version: 3,
+				method: 'GET',
+			},
+		)
+	}
+
 	/**
 	 * Get a project's dependencies (v3)
 	 *
@@ -268,18 +279,17 @@ export class LabrinthProjectsV3Module extends AbstractModule {
 	}
 
 	/**
-	 * Delete a gallery image from a project
+	 * Delete a gallery image
 	 *
-	 * @param id - Project ID or slug
 	 * @param url - URL of the gallery image to delete
 	 *
 	 * @example
 	 * ```typescript
-	 * await client.labrinth.projects_v3.deleteGalleryImage('sodium', 'https://cdn.modrinth.com/...')
+	 * await client.labrinth.projects_v3.deleteGalleryImage('https://cdn.modrinth.com/...')
 	 * ```
 	 */
-	public async deleteGalleryImage(id: string, url: string): Promise<void> {
-		return this.client.request(`/project/${id}/gallery`, {
+	public async deleteGalleryImage(url: string): Promise<void> {
+		return this.client.request('/project-gallery', {
 			api: 'labrinth',
 			version: 3,
 			method: 'DELETE',

@@ -5,11 +5,10 @@ import {
 	defineMessages,
 	IntlFormatted,
 	normalizeChildren,
-	SettingsFormGroup,
-	StyledInput,
 	useVIntl,
 } from '@modrinth/ui'
 
+import DisclosureExplanation from './DisclosureExplanation.vue'
 import DisclosureToggleCard from './DisclosureToggleCard.vue'
 import type { DisclosureCardMetaProps, DisclosureLockStatus, NoteDisclosure } from './types'
 
@@ -30,11 +29,11 @@ const messages = defineMessages({
 	},
 	description1: {
 		id: 'project.settings.disclosures.advertising.description.1',
-		defaultMessage: `You must enable this if your project contains advertisements, sponsorships, or promotions of other works.`,
+		defaultMessage: `Must be enabled if this project contains advertisements, sponsorships, or promotions of other works.`,
 	},
 	description2: {
 		id: 'project.settings.disclosures.advertising.description.2',
-		defaultMessage: `If the promotion has no direct monetary value <emphasis>and</emphasis> it is for something that the average person would consider <italic>relevant</italic> and <italic>unobtrusive</italic> (such as a link to your Modrinth profile in the corner of the settings page for your own mod), we would not consider that an advertisement.`,
+		defaultMessage: `This does not pertain to unobtrusive promotion of relevant content with no direct monetary value (such as a link to a Modrinth profile in your own configuration menu), and does not pertain to advertisements in the project page such as sponsored banners in the description.`,
 	},
 	notePlaceholder: {
 		id: 'project.settings.disclosures.advertising.note-placeholder',
@@ -48,7 +47,8 @@ const messages = defineMessages({
 		v-bind="props"
 		v-model="model.enabled"
 		:icon="MegaphoneIcon"
-		:title="formatMessage(messages.title)"
+		:title="props.title ?? formatMessage(messages.title)"
+		info-link="https://support.modrinth.com/en/articles/16567675#h_d486036510"
 		@set-lock-status="emit('setLockStatus', $event)"
 	>
 		<p>{{ formatMessage(messages.description1) }}</p>
@@ -67,20 +67,15 @@ const messages = defineMessages({
 			</IntlFormatted>
 		</p>
 		<template #expanded>
-			<SettingsFormGroup
+			<DisclosureExplanation
+				v-model="model.note"
 				:title="formatMessage(commonMessages.explanationLabel)"
 				title-for="advertising-disclosure-note"
-			>
-				<StyledInput
-					id="advertising-disclosure-note"
-					v-model="model.note"
-					multiline
-					:rows="3"
-					class="max-w-[40rem]"
-					:disabled="disabled"
-					:placeholder="formatMessage(messages.notePlaceholder)"
-				/>
-			</SettingsFormGroup>
+				:variant="variant"
+				:resize="showLockControls ? 'vertical' : 'none'"
+				:disabled="disabled"
+				:placeholder="formatMessage(messages.notePlaceholder)"
+			/>
 		</template>
 	</DisclosureToggleCard>
 </template>

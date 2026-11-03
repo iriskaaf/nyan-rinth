@@ -1,5 +1,7 @@
 <template>
 	<div>
+		<ValidationMessage :check="galleryImagesValidation" class="mb-4" />
+		<ProjectIssueCard :target="['add_gallery_images', 'remove_gallery_images']" class="mb-4" />
 		<AiImageWarningModal ref="aiImageWarningModal" />
 		<Modal
 			v-if="currentMember"
@@ -35,35 +37,57 @@
 						alt="gallery-preview"
 					/>
 				</div>
-				<label for="gallery-image-title">
+				<label for="gallery-image-title" class="w-fit">
 					<span class="label__title">Title</span>
 				</label>
-				<StyledInput
+				<Input
 					id="gallery-image-title"
 					v-model="editTitle"
 					:maxlength="64"
 					placeholder="Enter title..."
 				/>
-				<label for="gallery-image-desc">
+				<ValidationMessage
+					class="mt-2 max-w-[550px]"
+					:check="galleryTitleValidation"
+					:project-field="filteredGallery[editIndex]?.title ?? ''"
+					:current-field="editTitle"
+				/>
+				<ValidationMessage :check="saveValidation.forField('gallery-text', 'name')" class="mt-2" />
+				<ProjectIssueCard
+					v-if="editingImageId !== undefined"
+					target="modify_gallery_image"
+					:image-id="editingImageId"
+					class="mt-2"
+				/>
+				<label for="gallery-image-desc" class="w-fit">
 					<span class="label__title">Description</span>
 				</label>
-				<StyledInput
+				<Textarea
 					id="gallery-image-desc"
 					v-model="editDescription"
-					multiline
 					:maxlength="255"
 					placeholder="Enter description..."
 				/>
-				<label for="gallery-image-ordering">
+				<ValidationMessage
+					class="mt-2 max-w-[550px]"
+					:check="galleryDescriptionValidation"
+					:project-field="filteredGallery[editIndex]?.description ?? ''"
+					:current-field="editDescription"
+				/>
+				<ValidationMessage
+					:check="saveValidation.forField('gallery-text', 'description')"
+					class="mt-2"
+				/>
+				<label for="gallery-image-ordering" class="w-fit">
 					<span class="label__title">Order Index</span>
 				</label>
-				<StyledInput
+				<Input
 					id="gallery-image-ordering"
 					v-model="editOrder"
 					type="number"
 					placeholder="Enter order index..."
 				/>
-				<label for="gallery-image-featured">
+				<label for="gallery-image-featured" class="w-fit">
 					<span class="label__title">Banner image</span>
 					<span class="label__description">
 						You can feature one image on your project to be used as a banner image.
@@ -91,7 +115,7 @@
 						v-if="editIndex === -1"
 						type="colored"
 						color="brand"
-						:disabled="shouldPreventActions"
+						:disabled="shouldPreventActions || !canSaveGalleryFields"
 						@click="createGalleryItem"
 					>
 						<PlusIcon aria-hidden="true" />
@@ -101,7 +125,7 @@
 						v-else
 						type="colored"
 						color="brand"
-						:disabled="shouldPreventActions"
+						:disabled="shouldPreventActions || !canSaveGalleryFields"
 						@click="editGalleryItem"
 					>
 						<SaveIcon aria-hidden="true" />
@@ -213,8 +237,9 @@
 		<div class="items">
 			<div v-for="(item, index) in filteredGallery" :key="index" class="card gallery-item">
 				<a class="gallery-thumbnail" @click="expandImage(item, index)">
-					<img
+					<FullImage
 						:src="item.url ? item.url : 'https://cdn.modrinth.com/placeholder-banner.svg'"
+						:raw-src="item.raw_url"
 						:alt="item.title ? item.title : 'gallery-image'"
 					/>
 				</a>
@@ -227,6 +252,12 @@
 							{{ item.description }}
 						</p>
 					</div>
+					<ProjectIssueCard
+						v-if="galleryImageId(item.url) !== undefined"
+						target="modify_gallery_image"
+						:image-id="galleryImageId(item.url)"
+						class="mt-2"
+					/>
 				</div>
 				<div class="gallery-bottom">
 					<div class="gallery-created">
@@ -294,14 +325,20 @@ import {
 	ConfirmModal,
 	DropArea,
 	FileButton,
+	FullImage,
 	IconButton,
 	injectProjectPageContext,
+	Input,
 	NewModal as Modal,
-	StyledInput,
+	Textarea,
 	useFormatDateTime,
 } from '@modrinth/ui'
 
 import AiImageWarningModal from '~/components/ui/AiImageWarningModal.vue'
+import ProjectIssueCard from '~/components/ui/project-issue-card/index.vue'
+import ValidationMessage from '~/components/ValidationMessage.vue'
+import { useProjectNagMessages } from '~/composables/project-nag-validation'
+import { useProjectSaveValidation } from '~/composables/project-save-validation'
 import { fileDeclaresAi } from '~/helpers/c2pa'
 import { isPermission } from '~/utils/permissions.ts'
 
@@ -310,9 +347,9 @@ const formatDate = useFormatDateTime({
 	month: 'long',
 	day: 'numeric',
 })
-
 const {
 	projectV2: project,
+	projectV3,
 	currentMember,
 	createGalleryItem: createGalleryItemMutation,
 	editGalleryItem: editGalleryItemMutation,
@@ -332,6 +369,10 @@ const zoomedIn = ref(false)
 const deleteIndex = ref(-1)
 
 const editIndex = ref(-1)
+function galleryImageId(url) {
+	return projectV3.value?.gallery.find((image) => image.url === url)?.id
+}
+const editingImageId = computed(() => galleryImageId(filteredGallery.value[editIndex.value]?.url))
 const editTitle = ref('')
 const editDescription = ref('')
 const editFeatured = ref(false)
@@ -339,13 +380,36 @@ const editOrder = ref(null)
 const editFile = ref(null)
 const previewImage = ref(null)
 const shouldPreventActions = ref(false)
-
 const MC_SERVER_BANNER_NAME = '__mc_server_banner__'
 const acceptFileTypes = 'image/png,image/jpeg,image/gif,image/webp,.png,.jpeg,.gif,.webp'
 
 const filteredGallery = computed(
 	() => project.value.gallery?.filter((img) => img.title !== MC_SERVER_BANNER_NAME) ?? [],
 )
+const selectedGalleryIndex = computed(() => {
+	const selectedItem = filteredGallery.value[editIndex.value]
+	return selectedItem ? (project.value.gallery ?? []).indexOf(selectedItem) : -1
+})
+const galleryTitleValidation = useProjectNagMessages(
+	'gallery-text',
+	'name',
+	() => selectedGalleryIndex.value,
+)
+const galleryDescriptionValidation = useProjectNagMessages(
+	'gallery-text',
+	'description',
+	() => selectedGalleryIndex.value,
+)
+const galleryImagesValidation = useProjectNagMessages('gallery-images')
+const saveValidation = useProjectSaveValidation(() => ({
+	index: editIndex.value,
+	title: editTitle.value,
+	description: editDescription.value,
+	featured: editFeatured.value,
+	ordering: editOrder.value,
+	file: previewImage.value,
+}))
+const canSaveGalleryFields = computed(() => !saveValidation.hasErrors.value)
 
 const nextImage = () => {
 	expandedGalleryIndex.value++
@@ -370,6 +434,7 @@ const expandImage = (item, index) => {
 }
 
 const resetEdit = () => {
+	saveValidation.clear()
 	editIndex.value = -1
 	editTitle.value = ''
 	editDescription.value = ''
@@ -419,39 +484,55 @@ const showPreviewImage = () => {
 }
 
 const createGalleryItem = async () => {
+	if (!canSaveGalleryFields.value || shouldPreventActions.value) return
 	shouldPreventActions.value = true
 
-	const success = await createGalleryItemMutation(
-		editFile.value,
-		editTitle.value || undefined,
-		editDescription.value || undefined,
-		editFeatured.value,
-		editOrder.value ?? undefined,
-	)
+	const submittedState = saveValidation.snapshot()
+	try {
+		const success = await createGalleryItemMutation(
+			editFile.value,
+			editTitle.value || undefined,
+			editDescription.value || undefined,
+			editFeatured.value,
+			editOrder.value ?? undefined,
+			true,
+		)
 
-	if (success) {
-		modal_edit_item.value.hide()
+		if (success) {
+			saveValidation.clear()
+			modal_edit_item.value.hide()
+		}
+	} catch (error) {
+		if (!saveValidation.capture(error, submittedState)) throw error
+	} finally {
+		shouldPreventActions.value = false
 	}
-
-	shouldPreventActions.value = false
 }
 
 const editGalleryItem = async () => {
+	if (!canSaveGalleryFields.value || shouldPreventActions.value) return
 	shouldPreventActions.value = true
 
-	const success = await editGalleryItemMutation(
-		filteredGallery.value[editIndex.value].url,
-		editTitle.value,
-		editDescription.value,
-		editFeatured.value,
-		editOrder.value ?? undefined,
-	)
+	const submittedState = saveValidation.snapshot()
+	try {
+		const success = await editGalleryItemMutation(
+			filteredGallery.value[editIndex.value].url,
+			editTitle.value,
+			editDescription.value,
+			editFeatured.value,
+			editOrder.value ?? undefined,
+			true,
+		)
 
-	if (success) {
-		modal_edit_item.value.hide()
+		if (success) {
+			saveValidation.clear()
+			modal_edit_item.value.hide()
+		}
+	} catch (error) {
+		if (!saveValidation.capture(error, submittedState)) throw error
+	} finally {
+		shouldPreventActions.value = false
 	}
-
-	shouldPreventActions.value = false
 }
 
 const deleteGalleryImage = async () => {

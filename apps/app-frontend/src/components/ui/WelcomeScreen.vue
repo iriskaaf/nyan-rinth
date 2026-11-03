@@ -3,7 +3,7 @@ import { ImportIcon, PlusIcon } from '@modrinth/assets'
 import { Button, defineMessages, IntlFormatted, useVIntl } from '@modrinth/ui'
 import { inject, onMounted, onUnmounted, ref } from 'vue'
 
-import modrinthSocialIcon from '../../assets/astralrinth-app.svg?url'
+import modrinthSocialIcon from '../../assets/welcome/modrinth-social-icon.png'
 
 const showCreationModal = inject<() => void>('showCreationModal')
 const showImportModal = inject<() => void>('showImportModal')
@@ -12,8 +12,8 @@ const { formatMessage } = useVIntl()
 
 const messages = defineMessages({
 	welcomeTitle: {
-		id: 'nyanrinth.welcome.title',
-		defaultMessage: 'Добро пожаловать в NyanRinth',
+		id: 'app.welcome-screen.title',
+		defaultMessage: 'Welcome to NyanRinth',
 	},
 	welcomeDescription: {
 		id: 'app.welcome-screen.description',

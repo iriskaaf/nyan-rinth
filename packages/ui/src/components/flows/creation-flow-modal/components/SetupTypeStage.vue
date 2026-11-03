@@ -56,7 +56,7 @@
 					:description="formatMessage(messages.uploadModpackDescription)"
 					@click="triggerFileInput"
 				/>
-				<div class="my-1 h-px bg-surface-5" />
+				<div class="h-px bg-surface-5" />
 				<BigOptionButton
 					:icon="BoxesIcon"
 					:title="formatMessage(messages.customSetupTitle)"
@@ -188,8 +188,8 @@ const messages = defineMessages({
 		defaultMessage: 'Choose a project and we’ll use its latest version.',
 	},
 	uploadModpackTitle: {
-		id: 'creation-flow.modal.setup-type.option.import-file.title',
-		defaultMessage: 'Import from file',
+		id: 'creation-flow.modal.setup-type.option.upload-modpack.title',
+		defaultMessage: 'Upload a modpack',
 	},
 	uploadModpackDescription: {
 		id: 'creation-flow.modal.setup-type.option.upload-modpack.description',
@@ -201,7 +201,7 @@ const messages = defineMessages({
 	},
 	importInstanceDescription: {
 		id: 'creation-flow.modal.setup-type.option.import-instance.description',
-		defaultMessage: 'Copy instances from Prism, PineconeMC, Modrinth, AstralRinth and other launchers.',
+		defaultMessage: 'Import an instance from Prism, CurseForge, or similar.',
 	},
 	vanillaMinecraftTitle: {
 		id: 'creation-flow.modal.setup-type.option.vanilla-minecraft.title',

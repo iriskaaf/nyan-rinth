@@ -101,6 +101,8 @@ pub struct CacheSettings {
     pub actual_expiry: i64,
     pub version_default_expiry: i64,
     pub version_actual_expiry: i64,
+    pub session_default_expiry: i64,
+    pub session_actual_expiry: i64,
     pub encoding_format: EncodingFormat,
     pub compression_algorithm: Codec,
     pub compression_level: i32,
@@ -173,6 +175,9 @@ impl CacheSettings {
             "versions" | "versions_files" => {
                 (self.version_default_expiry, self.version_actual_expiry)
             }
+            "sessions" => {
+                (self.session_default_expiry, self.session_actual_expiry)
+            }
             _ => (self.default_expiry, self.actual_expiry),
         }
     }
@@ -210,7 +215,7 @@ impl CacheManager {
         P: ConnectionProvider,
         F: FnOnce(Vec<K>) -> Fut,
         Fut: Future<Output = Result<DashMap<K, T>, E>>,
-        E: std::error::Error + Send + Sync + 'static,
+        E: Into<eyre::Report>,
         T: Serialize + DeserializeOwned,
         K: Display
             + Hash
@@ -241,7 +246,7 @@ impl CacheManager {
         P: ConnectionProvider,
         F: FnOnce(Vec<K>) -> Fut,
         Fut: Future<Output = Result<DashMap<K, T>, E>>,
-        E: std::error::Error + Send + Sync + 'static,
+        E: Into<eyre::Report>,
         T: Serialize + DeserializeOwned,
         K: Display
             + Hash
@@ -288,7 +293,7 @@ impl CacheManager {
         P: ConnectionProvider,
         F: FnOnce(Vec<I>) -> Fut,
         Fut: Future<Output = Result<DashMap<K, (Option<S>, T)>, E>>,
-        E: std::error::Error + Send + Sync + 'static,
+        E: Into<eyre::Report>,
         T: Serialize + DeserializeOwned,
         I: Display + Hash + Eq + PartialEq + Clone + Debug,
         K: Display
@@ -329,7 +334,7 @@ impl CacheManager {
         P: ConnectionProvider,
         F: FnOnce(Vec<I>) -> Fut,
         Fut: Future<Output = Result<DashMap<K, (Option<S>, T)>, E>>,
-        E: std::error::Error + Send + Sync + 'static,
+        E: Into<eyre::Report>,
         T: Serialize + DeserializeOwned,
         I: Display + Hash + Eq + PartialEq + Clone + Debug,
         K: Display
@@ -527,8 +532,9 @@ impl CacheManager {
                     .await
                     .map_err(|_| lock_timeout_error(0, waiters.len()))
                     .wrap_err("waiting to fill Redis cache")?;
-                let values =
-                    values.wrap_err("fetching values to fill Redis cache")?;
+                let values = values
+                    .map_err(Into::<eyre::Report>::into)
+                    .wrap_err("fetching values to fill Redis cache")?;
 
                 let mut return_values = HashMap::new();
                 let mut encoded_values = Vec::with_capacity(values.len());

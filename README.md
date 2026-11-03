@@ -1,22 +1,7 @@
-<p align="center"><img src="apps/app/icons/128x128.png" width="96" alt="NyanRinth"></p>
+# NyanRinth 1.2.0-alpha.1
 
-# NyanRinth 1.1.0 Alpha
+Archived source checkpoint of the transition from AstralRinth to Modrinth v0.22.1.
 
-Minecraft launcher for Windows with Ely.by accounts and skins, based on AstralRinth.
+The port introduces the upstream content store and settings system while retaining Ely.by accounts, skins and launcher customization. A separate database converter preserves the original database. See [UPSTREAM.md](UPSTREAM.md) for provenance.
 
-This is an archived release. See the [project homepage](https://github.com/iriskaaf/nyan-rinth) for the current version and [Releases](https://github.com/iriskaaf/nyan-rinth/releases/tag/v1.1.0) for the matching Windows installer and release notes.
-
-## Build
-
-Windows x64, Node.js 24.15+, pnpm 10.33.2, Rust 1.95.0 MSVC, Visual Studio C++ Build Tools with Windows SDK, and JDK 17+ are required.
-
-```powershell
-Copy-Item packages/app-lib/.env.prod packages/app-lib/.env
-pnpm install --frozen-lockfile
-$env:SQLX_OFFLINE = 'true'
-pnpm --filter @modrinth/app build --bundles nsis
-```
-
-## Credits and licenses
-
-See [UPSTREAM.md](UPSTREAM.md), [COPYING.md](COPYING.md), and the license files in each package. NyanRinth is an independent project and is not an official product of Modrinth, Ely.by, Mojang or Microsoft.
+This checkpoint is provided for history and source comparison. Current downloads, build instructions and migration guidance are on the [project homepage](https://github.com/iriskaaf/nyan-rinth).

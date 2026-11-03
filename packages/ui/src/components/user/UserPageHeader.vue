@@ -3,6 +3,7 @@
 		<template #leading>
 			<Avatar
 				:src="user.avatar_url"
+				:raw-src="user.raw_avatar_url"
 				:alt="user.username"
 				:size="isModrinthUser ? '64px' : '96px'"
 				:tint-by="user.username"
@@ -10,22 +11,31 @@
 			/>
 		</template>
 
-		<template v-if="isOfficialAccount || showAffiliateBadge" #badges>
+		<template v-if="isOfficialAccount || user.lock || showRestrictedBadge" #badges>
 			<PageHeaderBadgeItem
 				v-if="isOfficialAccount"
 				:icon="BadgeCheckIcon"
 				:icon-props="{ fill: 'var(--color-brand-highlight)' }"
 				:tooltip="formatMessage(messages.officialAccount)"
-				class="border-brand-highlight bg-brand-highlight text-brand"
+				class="border-brand-highlight bg-brand-highlight !text-brand"
 			>
 				{{ formatMessage(messages.officialAccount) }}
 			</PageHeaderBadgeItem>
 			<PageHeaderBadgeItem
-				v-if="showAffiliateBadge"
-				:icon="AffiliateIcon"
-				class="border-brand-highlight bg-brand-highlight text-brand"
+				v-if="user.lock"
+				:icon="LockIcon"
+				:tooltip="user.lock.reason"
+				class="border-highlight-red bg-highlight-red !text-red"
 			>
-				{{ formatMessage(messages.affiliateLabel) }}
+				{{ formatMessage(messages.lockedLabel) }}
+			</PageHeaderBadgeItem>
+			<PageHeaderBadgeItem
+				v-if="showRestrictedBadge"
+				:icon="ShieldAlertIcon"
+				:tooltip="user.restriction?.private_reason ?? user.restriction?.reason ?? undefined"
+				class="border-highlight-orange bg-highlight-orange !text-orange"
+			>
+				{{ formatMessage(messages.restrictedLabel) }}
 			</PageHeaderBadgeItem>
 		</template>
 
@@ -65,7 +75,11 @@
 					<EditIcon />
 					{{ formatMessage(commonMessages.editButton) }}
 				</Button>
-				<ButtonLink v-else-if="isSelf" size="xl" :to="editProfileLink">
+				<ButtonLink
+					v-else-if="isSelf && typeof editProfileLink === 'string'"
+					size="xl"
+					:to="editProfileLink"
+				>
 					<EditIcon />
 					{{ formatMessage(commonMessages.editButton) }}
 				</ButtonLink>
@@ -86,9 +100,9 @@
 <script setup lang="ts">
 import type { Labrinth } from '@modrinth/api-client'
 import {
-	AffiliateIcon,
 	BadgeCheckIcon,
 	BanIcon,
+	BoxesIcon,
 	BoxIcon,
 	CalendarIcon,
 	ChartIcon,
@@ -97,13 +111,18 @@ import {
 	DownloadIcon,
 	EditIcon,
 	InfoIcon,
+	KeyIcon,
+	LockIcon,
+	LockOpenIcon,
+	LogOutIcon,
 	MoreVerticalIcon,
 	ReportIcon,
+	ShieldAlertIcon,
 } from '@modrinth/assets'
 import { computed } from 'vue'
 
 import Avatar from '#ui/components/base/Avatar.vue'
-import type { OverflowMenuOption } from '#ui/components/base/buttons'
+import type { ButtonMenuOption } from '#ui/components/base/buttons'
 import { Button, ButtonLink, TeleportOverflowMenu } from '#ui/components/base/buttons'
 import PageHeader from '#ui/components/base/page-header/index.vue'
 import PageHeaderMetadata from '#ui/components/base/page-header/metadata/index.vue'
@@ -116,9 +135,17 @@ import type { AuthUser } from '#ui/providers/auth'
 import { commonMessages } from '#ui/utils'
 
 const messages = defineMessages({
-	affiliateLabel: {
-		id: 'profile.label.affiliate',
-		defaultMessage: 'Affiliate',
+	profileManageProjectsButton: {
+		id: 'profile.button.manage-projects',
+		defaultMessage: 'Manage projects',
+	},
+	reset2faButton: {
+		id: 'profile.button.reset-2fa',
+		defaultMessage: 'Reset two-factor authentication',
+	},
+	editUserButton: {
+		id: 'profile.button.edit-user',
+		defaultMessage: 'Edit user',
 	},
 	analyticsButton: {
 		id: 'profile.button.analytics',
@@ -140,6 +167,10 @@ const messages = defineMessages({
 		id: 'profile.button.info',
 		defaultMessage: 'View user details',
 	},
+	sharedInstancesButton: {
+		id: 'profile.button.shared-instances',
+		defaultMessage: 'View shared instances',
+	},
 	officialAccount: {
 		id: 'profile.official-account',
 		defaultMessage: 'Official Modrinth account',
@@ -156,17 +187,37 @@ const messages = defineMessages({
 		id: 'profile.label.download-count',
 		defaultMessage: '{count, plural, one {download} other {downloads}}',
 	},
-	profileManageProjectsButton: {
-		id: 'profile.button.manage-projects',
-		defaultMessage: 'Manage projects',
+	lockedLabel: {
+		id: 'profile.label.locked',
+		defaultMessage: 'Locked',
 	},
-	removeAffiliateButton: {
-		id: 'profile.button.remove-affiliate',
-		defaultMessage: 'Remove as affiliate',
+	lockButton: {
+		id: 'profile.button.lock',
+		defaultMessage: 'Lock account',
 	},
-	setAffiliateButton: {
-		id: 'profile.button.set-affiliate',
-		defaultMessage: 'Set as affiliate',
+	unlockButton: {
+		id: 'profile.button.unlock',
+		defaultMessage: 'Unlock account',
+	},
+	restrictedLabel: {
+		id: 'profile.label.restricted',
+		defaultMessage: 'Restricted',
+	},
+	restrictButton: {
+		id: 'profile.button.restrict',
+		defaultMessage: 'Restrict user',
+	},
+	editRestrictionsButton: {
+		id: 'profile.button.edit-restrictions',
+		defaultMessage: 'Edit restrictions',
+	},
+	revokeSessionsButton: {
+		id: 'profile.button.revoke-sessions',
+		defaultMessage: 'Revoke all sessions',
+	},
+	forcePasswordResetButton: {
+		id: 'profile.button.force-password-reset',
+		defaultMessage: 'Force password reset',
 	},
 })
 
@@ -178,8 +229,6 @@ const props = withDefaults(
 		editProfileLink?: string | (() => void)
 		isModrinthUser?: boolean
 		isOfficialAccount?: boolean
-		showAffiliateBadge?: boolean
-		isAffiliate?: boolean
 		isSelf?: boolean
 		isAdmin?: boolean
 		isStaff?: boolean
@@ -194,8 +243,6 @@ const props = withDefaults(
 		editProfileLink: '/settings/profile',
 		isModrinthUser: false,
 		isOfficialAccount: false,
-		showAffiliateBadge: false,
-		isAffiliate: false,
 		isSelf: false,
 		isAdmin: false,
 		isStaff: false,
@@ -213,11 +260,18 @@ const emit = defineEmits<{
 	copyId: []
 	copyPermalink: []
 	openBilling: []
-	toggleAffiliate: []
 	openInfo: []
+	openSharedInstances: []
 	openAnalytics: []
 	editUser: []
+	toggleLock: []
+	restrict: []
+	revokeSessions: []
+	forcePasswordReset: []
+	reset2fa: []
 }>()
+
+const showRestrictedBadge = computed(() => props.isStaff && !!props.user.restriction)
 
 const { formatMessage } = useVIntl()
 const formatNumber = useFormatNumber()
@@ -228,7 +282,7 @@ const formatDateTime = useFormatDateTime({
 const downloadsTooltip = computed(() => formatNumber(props.downloads))
 const joinedTooltip = computed(() => formatDateTime(props.user.created))
 
-const moreActions = computed<OverflowMenuOption[]>(() => [
+const moreActions = computed<ButtonMenuOption[]>(() => [
 	{
 		id: 'manage-projects',
 		label: formatMessage(messages.profileManageProjectsButton),
@@ -267,29 +321,18 @@ const moreActions = computed<OverflowMenuOption[]>(() => [
 	},
 	{ type: 'divider', shown: props.showStaffActions && (props.isAdmin || props.isStaff) },
 	{
-		id: 'open-billing',
-		label: formatMessage(messages.billingButton),
-		icon: CurrencyIcon,
-		action: () => emit('openBilling'),
-		tone: 'orange',
-		shown: props.showStaffActions && props.isStaff,
-	},
-	{
-		id: 'toggle-affiliate',
-		label: props.isAffiliate
-			? formatMessage(messages.removeAffiliateButton)
-			: formatMessage(messages.setAffiliateButton),
-		icon: AffiliateIcon,
-		action: () => emit('toggleAffiliate'),
-		shown: props.showStaffActions && props.isAdmin,
-		remainOpen: true,
-		tone: props.isAffiliate ? 'red' : 'orange',
-	},
-	{
 		id: 'open-info',
 		label: formatMessage(messages.infoButton),
 		icon: InfoIcon,
 		action: () => emit('openInfo'),
+		tone: 'orange',
+		shown: props.showStaffActions && props.isStaff,
+	},
+	{
+		id: 'open-shared-instances',
+		label: formatMessage(messages.sharedInstancesButton),
+		icon: BoxesIcon,
+		action: () => emit('openSharedInstances'),
 		tone: 'orange',
 		shown: props.showStaffActions && props.isStaff,
 	},
@@ -301,13 +344,73 @@ const moreActions = computed<OverflowMenuOption[]>(() => [
 		tone: 'orange',
 		shown: props.showStaffActions && props.isAdmin,
 	},
+	{ type: 'divider', shown: props.showStaffActions && (props.isAdmin || props.isStaff) },
 	{
 		id: 'edit-user',
-		label: 'Edit user',
+		label: formatMessage(messages.editUserButton),
 		icon: EditIcon,
 		action: () => emit('editUser'),
-		tone: 'orange',
+		tone: 'green',
 		shown: props.showStaffActions && props.isAdmin,
+	},
+	{
+		id: 'open-billing',
+		label: formatMessage(messages.billingButton),
+		icon: CurrencyIcon,
+		action: () => emit('openBilling'),
+		tone: 'green',
+		shown: props.showStaffActions && props.isStaff,
+	},
+	{
+		type: 'divider',
+		shown:
+			props.showStaffActions && props.isAdmin && (props.user.role === 'developer' || !props.isSelf),
+	},
+	{
+		id: 'toggle-lock',
+		label: formatMessage(props.user.lock ? messages.unlockButton : messages.lockButton),
+		icon: props.user.lock ? LockOpenIcon : LockIcon,
+		action: () => emit('toggleLock'),
+		tone: 'red',
+		shown: props.showStaffActions && props.isAdmin && props.user.role === 'developer',
+	},
+	{
+		id: 'restrict',
+		label: formatMessage(
+			props.user.restriction ? messages.editRestrictionsButton : messages.restrictButton,
+		),
+		icon: ShieldAlertIcon,
+		action: () => emit('restrict'),
+		tone: 'red',
+		shown: props.showStaffActions && props.isStaff && props.user.role === 'developer',
+	},
+	{
+		id: 'revoke-sessions',
+		label: formatMessage(messages.revokeSessionsButton),
+		icon: LogOutIcon,
+		action: () => emit('revokeSessions'),
+		tone: 'red',
+		shown: props.showStaffActions && props.isAdmin && !props.isSelf,
+	},
+	{
+		id: 'force-password-reset',
+		label: formatMessage(messages.forcePasswordResetButton),
+		icon: KeyIcon,
+		action: () => emit('forcePasswordReset'),
+		tone: 'red',
+		shown: props.showStaffActions && props.isAdmin && props.user.role === 'developer',
+	},
+	{
+		id: 'reset-2fa',
+		label: formatMessage(messages.reset2faButton),
+		icon: ShieldAlertIcon,
+		action: () => emit('reset2fa'),
+		tone: 'red',
+		shown:
+			props.showStaffActions &&
+			props.isAdmin &&
+			props.user.role === 'developer' &&
+			Boolean(props.user.has_totp),
 	},
 ])
 </script>

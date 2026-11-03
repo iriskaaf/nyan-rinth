@@ -1,6 +1,8 @@
 import type { Labrinth } from '@modrinth/api-client'
-import type { ContentInstallInstance, ContentInstallProjectInfo, ContentItem } from '@modrinth/ui'
 import {
+	type ContentInstallInstance,
+	type ContentInstallProjectInfo,
+	type ContentItem,
 	createContext,
 	defineMessage,
 	getLatestMatchingInstallVersion,
@@ -24,6 +26,7 @@ import {
 	install_create_instance,
 	install_create_modpack_instance,
 	installJobInstanceId,
+	wait_for_install_job,
 } from '@/helpers/install'
 import {
 	add_project_from_version,
@@ -389,15 +392,53 @@ export function createContentInstall(opts: {
 		installFailureRevisionByInstance.value = next
 	}
 
+	const contentInstallWaiters = new Map<string, (succeeded: boolean) => void>()
+
+	function contentInstallKey(instanceId: string, projectId: string) {
+		return `${instanceId}\0${projectId}`
+	}
+
+	/**
+	 * Registers a waiter for the background install started by `install_project_with_dependencies`.
+	 * Must be called before invoking the install so a fast completion event is not missed.
+	 */
+	function waitForContentInstall(instanceId: string, projectId: string) {
+		const key = contentInstallKey(instanceId, projectId)
+		contentInstallWaiters.get(key)?.(false)
+		let resolver: (succeeded: boolean) => void = () => {}
+		const result = new Promise<boolean>((resolve) => {
+			resolver = resolve
+		})
+		contentInstallWaiters.set(key, resolver)
+		return {
+			result,
+			cancel: () => {
+				if (contentInstallWaiters.get(key) === resolver) contentInstallWaiters.delete(key)
+			},
+		}
+	}
+
+	function settleContentInstall(instanceId: string, projectIds: string[], succeeded: boolean) {
+		const primaryProjectId = projectIds[0]
+		if (!primaryProjectId) return
+		const key = contentInstallKey(instanceId, primaryProjectId)
+		const resolve = contentInstallWaiters.get(key)
+		if (!resolve) return
+		contentInstallWaiters.delete(key)
+		resolve(succeeded)
+	}
+
 	opts.appEvents.on('instance', (event) => {
 		if (event.event === 'content_install_finished') {
 			markInstanceContentChanged(event.instance_id)
 			removeInstallingItems(event.instance_id, event.project_ids)
+			settleContentInstall(event.instance_id, event.project_ids, true)
 		} else if (event.event === 'content_install_failed') {
 			removeInstallingItems(event.instance_id, event.project_ids)
 			markInstanceContentInstallFailed(event.instance_id)
 			markInstanceContentChanged(event.instance_id)
 			opts.handleError(event.message)
+			settleContentInstall(event.instance_id, event.project_ids, false)
 		}
 	})
 
@@ -642,6 +683,7 @@ export function createContentInstall(opts: {
 		let plannedProjectIds: string[] = [currentProject.id]
 		addInstallingItem(instance.id, currentProject, version)
 
+		const installWaiter = waitForContentInstall(instance.id, currentProject.id)
 		try {
 			const request = {
 				project_id: currentProject.id,
@@ -657,6 +699,10 @@ export function createContentInstall(opts: {
 				plan.primary.project_id,
 				...plan.dependencies.map((dependency) => dependency.project_id),
 			)
+			if (!(await installWaiter.result)) {
+				if (storeInstance) storeInstance.installing = false
+				return
+			}
 			if (storeInstance) {
 				storeInstance.installed = true
 				storeInstance.installing = false
@@ -672,6 +718,7 @@ export function createContentInstall(opts: {
 			})
 			currentCallback(version.id, installedProjectIds)
 		} catch (err) {
+			installWaiter.cancel()
 			if (storeInstance) storeInstance.installing = false
 			removeInstallingItems(instance.id, plannedProjectIds)
 			markInstanceContentInstallFailed(instance.id)
@@ -779,6 +826,7 @@ export function createContentInstall(opts: {
 			const id = installJobInstanceId(job)
 			if (!id) return
 			createdInstanceId = id
+			await wait_for_install_job(opts.appEvents, job.job_id)
 			addInstallingItem(id, currentProject!, version)
 
 			const plan = await install_project_with_dependencies(id, {
@@ -858,7 +906,7 @@ export function createContentInstall(opts: {
 			const packs = await list()
 			const existingPack = packs.find((pack) => pack.link?.project_id === project.id)
 
-			if (existingPack && !appSettings.getFeatureFlag('skip_non_essential_warnings')) {
+			if (existingPack && !appSettings.skipNonEssentialWarnings) {
 				pendingModpackInstall = { project, version, source, callback, createInstanceCallback }
 				modpackAlreadyInstalledModalRef?.show(existingPack.name, existingPack.id)
 				return
@@ -869,7 +917,7 @@ export function createContentInstall(opts: {
 				project_id: project.id,
 				version_id: version,
 				title: project.title,
-				icon_url: project.icon_url,
+				icon_url: project.raw_icon_url,
 			})
 			const instanceId = installJobInstanceId(job)
 			if (instanceId) {
@@ -912,6 +960,7 @@ export function createContentInstall(opts: {
 				const installedProjectIds: string[] = [project.id]
 				let plannedProjectIds: string[] = [project.id]
 				addInstallingItem(instanceId, project, version)
+				const installWaiter = waitForContentInstall(instance.id, project.id)
 				try {
 					const request = {
 						project_id: project.id,
@@ -927,6 +976,10 @@ export function createContentInstall(opts: {
 						plan.primary.project_id,
 						...plan.dependencies.map((dependency) => dependency.project_id),
 					)
+					if (!(await installWaiter.result)) {
+						callback()
+						return
+					}
 
 					trackEvent('ProjectInstall', {
 						loader: instance.loader,
@@ -939,6 +992,7 @@ export function createContentInstall(opts: {
 					})
 					callback(version.id, installedProjectIds)
 				} catch (err) {
+					installWaiter.cancel()
 					removeInstallingItems(instanceId, plannedProjectIds)
 					markInstanceContentInstallFailed(instanceId)
 					throw err
@@ -985,7 +1039,7 @@ export function createContentInstall(opts: {
 				project_id: project.id,
 				version_id: version,
 				title: project.title,
-				icon_url: project.icon_url,
+				icon_url: project.raw_icon_url,
 			})
 			const instanceId = installJobInstanceId(job)
 			if (instanceId) {

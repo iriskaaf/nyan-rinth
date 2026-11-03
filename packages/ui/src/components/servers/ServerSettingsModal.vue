@@ -2,17 +2,19 @@
 import type { Archon } from '@modrinth/api-client'
 import { ChevronRightIcon } from '@modrinth/assets'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, nextTick, ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import type { TabbedModalTab } from '#ui/components'
 import { TabbedModal } from '#ui/components'
 import { defineMessage, defineMessages, useVIntl } from '#ui/composables/i18n'
 import {
 	ServerSettingsAdvancedPage,
+	ServerSettingsBackupsPage,
 	ServerSettingsGeneralPage,
 	ServerSettingsInstallationPage,
 	ServerSettingsNetworkPage,
 	ServerSettingsPropertiesPage,
+	ServerSettingsSupportPage,
 	serverSettingsTabDefinitions,
 	type ServerSettingsTabId,
 } from '#ui/layouts/shared/server-settings'
@@ -75,9 +77,14 @@ const serverSettingsTabComponentMap = {
 	general: ServerSettingsGeneralPage,
 	installation: ServerSettingsInstallationPage,
 	network: ServerSettingsNetworkPage,
+	backups: ServerSettingsBackupsPage,
 	properties: ServerSettingsPropertiesPage,
 	advanced: ServerSettingsAdvancedPage,
+	support: ServerSettingsSupportPage,
 } as const
+
+const saveBannerTarget = ref<HTMLElement | null>(null)
+const saveBannerShown = ref(false)
 
 provideServerSettings({
 	isApp,
@@ -85,6 +92,7 @@ provideServerSettings({
 	currentUserRole,
 	browseModpacks: props.browseModpacks ?? (() => {}),
 	closeModal: () => hide(),
+	saveBanner: { target: saveBannerTarget, shown: saveBannerShown },
 })
 
 const ownerId = computed(() => server.value?.owner_id ?? 'Ghost')
@@ -133,6 +141,17 @@ async function fetchViewer() {
 	currentUserRole.value = result.userRole
 }
 
+function resolveVisibleTabIndex(tabIndex?: number, tabId?: ServerSettingsTabId) {
+	const visibleTabs = tabs.value.filter((tab) => tab.shown !== false)
+	let requestedTab = tabIndex ?? 0
+	if (tabId) {
+		const defIndex = serverSettingsTabDefinitions.findIndex((d) => d.id === tabId)
+		const visibleIndex = visibleTabs.findIndex((tab) => tabs.value.indexOf(tab) === defIndex)
+		if (visibleIndex >= 0) requestedTab = visibleIndex
+	}
+	return Math.min(Math.max(requestedTab, 0), Math.max(visibleTabs.length - 1, 0))
+}
+
 async function show({ serverId, tabIndex, tabId }: ShowOptions) {
 	try {
 		const targetServerId = currentServerId
@@ -154,21 +173,8 @@ async function show({ serverId, tabIndex, tabId }: ShowOptions) {
 			targetServerId,
 		])
 
+		modal.value?.setTab(resolveVisibleTabIndex(tabIndex, tabId))
 		modal.value?.show()
-		const visibleTabs = tabs.value.filter((tab) => tab.shown !== false)
-		let requestedTab = tabIndex ?? 0
-		if (tabId) {
-			const defIndex = serverSettingsTabDefinitions.findIndex((d) => d.id === tabId)
-			if (defIndex >= 0) {
-				const visibleIndex = visibleTabs.findIndex(
-					(_, i) => tabs.value.indexOf(visibleTabs[i]) === defIndex,
-				)
-				if (visibleIndex >= 0) requestedTab = visibleIndex
-			}
-		}
-		const clampedTab = Math.min(Math.max(requestedTab, 0), Math.max(visibleTabs.length - 1, 0))
-		nextTick(() => modal.value?.setTab(clampedTab))
-
 		const fetchPromises: Promise<unknown>[] = [fetchViewer()]
 
 		if (!cachedServer) {
@@ -190,6 +196,7 @@ async function show({ serverId, tabIndex, tabId }: ShowOptions) {
 		}
 
 		await Promise.all(fetchPromises)
+		modal.value?.setTab(resolveVisibleTabIndex(tabIndex, tabId))
 
 		if (worldId.value) {
 			queryClient.prefetchQuery({
@@ -221,9 +228,13 @@ defineExpose({ show, hide })
 	<TabbedModal
 		ref="modal"
 		:tabs="tabs"
+		:floating-action-bar-shown="saveBannerShown"
 		:max-width="'min(980px, calc(95vw - 2rem))'"
 		:width="'min(980px, calc(95vw - 2rem))'"
 	>
+		<template #floating-action-bar>
+			<div ref="saveBannerTarget" />
+		</template>
 		<template #title>
 			<span class="flex items-center gap-2 text-lg font-semibold text-primary">
 				{{ server.name || 'Server' }} <ChevronRightIcon />

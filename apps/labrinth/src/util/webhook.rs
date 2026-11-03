@@ -54,7 +54,7 @@ async fn get_webhook_metadata(
         redis,
     )
     .await
-    .wrap_api_err("fetching webhook project")?;
+    .wrap_internal_err("fetching webhook project")?;
 
     if let Some(mut project) = project {
         let mut owner = None;
@@ -186,82 +186,6 @@ async fn get_webhook_metadata(
     }
 }
 
-pub enum PayoutSourceAlertType {
-    UnderThreshold {
-        source: String,
-        threshold: u64,
-        current_balance: u64,
-    },
-    CheckFailure {
-        source: String,
-        display_error: String,
-    },
-}
-
-impl PayoutSourceAlertType {
-    pub fn message(&self) -> String {
-        match self {
-            PayoutSourceAlertType::UnderThreshold {
-                source,
-                threshold,
-                current_balance,
-            } => format!(
-"\u{1f6a8} *Payout Source Alert*
-
-Payout source '{source}' has an available balance under the ${threshold} threshold.
-Balance: ${current_balance}."
-            ),
-            PayoutSourceAlertType::CheckFailure {
-                source,
-                display_error,
-            } => format!(
-"\u{1f6a8} *Payout Source Alert*
-
-Failed to check payout source '{source}' balance.
-Error:
-```
-{display_error}
-```"
-            ),
-        }
-    }
-}
-
-pub async fn send_slack_payout_source_alert_webhook(
-    alert: PayoutSourceAlertType,
-    webhook_url: &str,
-) -> Result<(), ApiError> {
-    let client = reqwest::Client::new();
-
-    client
-        .post(webhook_url)
-        .json(&serde_json::json!({
-            "blocks": [
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": alert.message()
-                    }
-                },
-                {
-                    "type": "context",
-                    "elements": [
-                        {
-                            "type": "mrkdwn",
-                            "text": format!("via labrinth • <!date^{}^{{date_short_pretty}} at {{time}}|Unknown date>", Utc::now().timestamp())
-                        }
-                    ]
-                }
-            ],
-        }))
-        .send()
-        .await
-        .map_err(|err| eyre::eyre!(err)).wrap_internal_err("error while sending projects webhook".to_string())?;
-
-    Ok(())
-}
-
 pub async fn send_slack_project_webhook(
     project_id: ProjectId,
     pool: &PgPool,
@@ -353,7 +277,7 @@ pub async fn send_slack_project_webhook(
                 "elements": [
                     {
                         "type": "image",
-                        "image_url": "https://cdn-raw.modrinth.com/modrinth-new.png",
+                        "image_url": "https://cdn.modrinth.com/modrinth-new.png",
                         "alt_text": "Author"
                     },
                     {
@@ -492,7 +416,7 @@ pub async fn send_discord_webhook(
             footer: Some(DiscordEmbedFooter {
                 text: format!("{} on Modrinth", project.display_project_type),
                 icon_url: Some(
-                    "https://cdn-raw.modrinth.com/modrinth-new.png".to_string(),
+                    "https://cdn.modrinth.com/modrinth-new.png".to_string(),
                 ),
             }),
         };

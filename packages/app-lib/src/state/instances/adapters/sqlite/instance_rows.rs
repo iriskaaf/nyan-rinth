@@ -1,15 +1,18 @@
 #![allow(dead_code)]
 
+use crate::ErrorKind;
 use crate::state::instances::{
     ContentSet, ContentSetStatus, ContentSetSyncStatus, ContentSourceKind,
     Instance, InstanceIconBackground, InstanceIconConfig,
     InstanceLaunchContext, InstanceLaunchOverrides,
-    InstanceLaunchOverridesData, InstanceLink, SharedInstanceAttachment,
-    SharedInstanceRole, playtime_to_storage,
+    InstanceLaunchOverridesData, InstanceLink, InstanceSyncedOption,
+    InstanceSyncedOptions, SharedInstanceAttachment, SharedInstanceRole,
+    playtime_to_storage,
 };
 use crate::state::{
     InstanceInstallStage, LauncherFeatureVersion, ModLoader, ReleaseChannel,
 };
+use anyhow::{Context, bail};
 use chrono::{DateTime, TimeZone, Utc};
 use serde::de::DeserializeOwned;
 use sqlx::{Executor, Sqlite, SqlitePool, Transaction};
@@ -146,8 +149,8 @@ impl TryFrom<InstanceLinkRow> for InstanceLink {
                 modpack_project_id: row.modrinth_project_id,
                 modpack_version_id: row.modrinth_version_id,
             }),
-            other => Err(crate::ErrorKind::InputError(format!(
-                "Unknown instance link kind {other}"
+            other => Err(ErrorKind::InputError(format!(
+                "unknown instance link kind {other}"
             ))
             .into()),
         }
@@ -168,6 +171,7 @@ pub(crate) struct InstanceMetadataRecord {
     pub link: InstanceLink,
     pub shared_instance: Option<SharedInstanceAttachment>,
     pub group_ids: Vec<String>,
+    pub synced_options: InstanceSyncedOptions,
     pub launch_overrides: InstanceLaunchOverrides,
 }
 
@@ -175,6 +179,13 @@ pub(crate) struct InstanceMetadataRecord {
 pub(crate) struct InstanceDisplayInfo {
     pub id: String,
     pub name: String,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+pub(crate) struct InstanceScreenshotSource {
+    pub id: String,
+    pub name: String,
+    pub path: String,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -236,12 +247,9 @@ impl TryFrom<InstanceLaunchOverridesRow> for InstanceLaunchOverrides {
     fn try_from(row: InstanceLaunchOverridesRow) -> crate::Result<Self> {
         let data =
             serde_json::from_str::<InstanceLaunchOverridesData>(&row.overrides)
-                .map_err(|err| {
-                    crate::ErrorKind::InputError(format!(
-                        "Invalid launch overrides JSON: {err}"
-                    ))
-                    .as_error()
-                })?;
+                .context(ErrorKind::InputError(
+                    "invalid launch overrides JSON".to_string(),
+                ))?;
 
         Ok(data.into_launch_overrides(row.instance_id))
     }
@@ -349,10 +357,9 @@ impl InstanceMetadataRow {
                 }),
                 (None, None) => None,
                 _ => {
-                    return Err(crate::ErrorKind::InputError(
-                        "Instance icon config is incomplete".to_string(),
-                    )
-                    .into());
+                    bail!(ErrorKind::InputError(
+                        "instance icon config is incomplete".to_string(),
+                    ));
                 }
             };
 
@@ -363,6 +370,7 @@ impl InstanceMetadataRow {
             link,
             shared_instance,
             group_ids,
+            synced_options: InstanceSyncedOptions::default(),
             launch_overrides,
         })
     }
@@ -464,6 +472,109 @@ where
     .await?;
 
     Ok(row)
+}
+
+pub(crate) async fn get_instance_screenshot_source(
+    instance_id: &str,
+    pool: &SqlitePool,
+) -> crate::Result<Option<InstanceScreenshotSource>> {
+    let source = sqlx::query_as::<_, InstanceScreenshotSource>(
+        "
+		SELECT id, name, path
+		FROM instances
+		WHERE id = ?
+		",
+    )
+    .bind(instance_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(source)
+}
+
+pub(crate) async fn list_screenshot_sources(
+    pool: &SqlitePool,
+) -> crate::Result<Vec<InstanceScreenshotSource>> {
+    let sources = sqlx::query_as::<_, InstanceScreenshotSource>(
+        "
+		SELECT id, name, path
+		FROM instances
+		ORDER BY name, id
+		",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(sources)
+}
+
+pub(crate) async fn get_instance_sync_preferences(
+    instance_id: &str,
+    pool: &SqlitePool,
+) -> crate::Result<InstanceSyncedOptions> {
+    let enabled_features = sqlx::query_scalar!(
+        "
+		SELECT feature
+		FROM instance_sync_preferences
+		WHERE instance_id = ? AND enabled = 1
+		",
+        instance_id,
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .collect::<HashSet<_>>();
+
+    Ok(InstanceSyncedOptions {
+        game_options: enabled_features.contains("game_options"),
+        command_history: enabled_features.contains("command_history"),
+        multiplayer_servers: enabled_features.contains("multiplayer_servers"),
+        creative_hotbars: enabled_features.contains("creative_hotbars"),
+        screenshots: enabled_features.contains("screenshots"),
+        resource_packs: enabled_features.contains("resource_packs"),
+        data_packs: enabled_features.contains("data_packs"),
+    })
+}
+
+async fn attach_sync_preferences(
+    records: &mut [InstanceMetadataRecord],
+    pool: &SqlitePool,
+) -> crate::Result<()> {
+    let enabled_preferences = sqlx::query!(
+        "
+		SELECT instance_id, feature
+		FROM instance_sync_preferences
+		WHERE enabled = 1
+		",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for record in records {
+        for row in enabled_preferences
+            .iter()
+            .filter(|row| row.instance_id == record.instance.id)
+        {
+            match row.feature.as_str() {
+                "game_options" => record.synced_options.game_options = true,
+                "command_history" => {
+                    record.synced_options.command_history = true
+                }
+                "multiplayer_servers" => {
+                    record.synced_options.multiplayer_servers = true
+                }
+                "creative_hotbars" => {
+                    record.synced_options.creative_hotbars = true
+                }
+                "screenshots" => record.synced_options.screenshots = true,
+                "resource_packs" => record.synced_options.resource_packs = true,
+                "data_packs" => record.synced_options.data_packs = true,
+                _ => {}
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) async fn is_instance_quarantined<'e, E>(
@@ -677,7 +788,7 @@ pub(crate) async fn update_instance_icon_if_empty(
     pool: &SqlitePool,
 ) -> crate::Result<bool> {
     let modified = Utc::now().timestamp();
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let result = sqlx::query(
         "
 		UPDATE instances
@@ -791,7 +902,13 @@ pub(crate) async fn get_instance_metadata_by_id(
             .fetch_optional(pool)
             .await?;
 
-    row.map(InstanceMetadataRow::into_record).transpose()
+    let mut record = row.map(InstanceMetadataRow::into_record).transpose()?;
+    if let Some(record) = record.as_mut() {
+        record.synced_options =
+            get_instance_sync_preferences(&record.instance.id, pool).await?;
+    }
+
+    Ok(record)
 }
 
 pub(crate) async fn get_instance_metadata_many(
@@ -821,9 +938,12 @@ pub(crate) async fn get_instance_metadata_many(
     .fetch_all(pool)
     .await?;
 
-    rows.into_iter()
+    let mut records = rows
+        .into_iter()
         .map(InstanceMetadataRow::into_record)
-        .collect()
+        .collect::<crate::Result<Vec<_>>>()?;
+    attach_sync_preferences(&mut records, pool).await?;
+    Ok(records)
 }
 
 pub(crate) async fn list_instance_metadata(
@@ -834,9 +954,12 @@ pub(crate) async fn list_instance_metadata(
             .fetch_all(pool)
             .await?;
 
-    rows.into_iter()
+    let mut records = rows
+        .into_iter()
         .map(InstanceMetadataRow::into_record)
-        .collect()
+        .collect::<crate::Result<Vec<_>>>()?;
+    attach_sync_preferences(&mut records, pool).await?;
+    Ok(records)
 }
 
 pub(crate) async fn get_instance_launch_context(
@@ -959,7 +1082,7 @@ pub(crate) async fn create_instance_group(
     name: &str,
     pool: &SqlitePool,
 ) -> crate::Result<()> {
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
     sqlx::query(
         "
@@ -992,7 +1115,7 @@ pub(crate) async fn set_instance_group_order(
     group_ids: &[String],
     pool: &SqlitePool,
 ) -> crate::Result<()> {
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let existing_group_ids = sqlx::query_scalar::<_, String>(
         "
 		SELECT id
@@ -1013,17 +1136,15 @@ pub(crate) async fn set_instance_group_order(
 
     for group_id in group_ids {
         if !seen_group_ids.insert(group_id.as_str()) {
-            return Err(crate::ErrorKind::InputError(format!(
-                "Duplicate instance group {group_id} in group order"
-            ))
-            .into());
+            bail!(ErrorKind::InputError(format!(
+                "duplicate instance group {group_id} in group order"
+            )));
         }
 
         if !existing_group_id_set.contains(group_id.as_str()) {
-            return Err(crate::ErrorKind::InputError(format!(
-                "Unknown instance group {group_id}"
-            ))
-            .into());
+            bail!(ErrorKind::InputError(format!(
+                "unknown instance group {group_id}"
+            )));
         }
 
         ordered_group_ids.push(group_id.as_str());
@@ -1132,6 +1253,62 @@ pub(crate) async fn insert_instance(
         last_played,
         submitted_time_played,
         recent_time_played,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+pub(crate) async fn set_instance_sync_preference(
+    instance_id: &str,
+    option: InstanceSyncedOption,
+    enabled: bool,
+    pool: &SqlitePool,
+) -> crate::Result<()> {
+    let instance_exists = sqlx::query_scalar!(
+        r#"
+		SELECT EXISTS(SELECT 1 FROM instances WHERE id = ?)
+			AS "exists!: bool"
+		"#,
+        instance_id,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if !instance_exists {
+        bail!(ErrorKind::InputError("unknown instance".to_string()));
+    }
+
+    let option_name = option.as_str();
+    sqlx::query!(
+        "
+		INSERT INTO instance_sync_preferences (instance_id, feature, enabled)
+		VALUES (?, ?, ?)
+		ON CONFLICT (instance_id, feature) DO UPDATE SET
+			enabled = excluded.enabled
+		",
+        instance_id,
+        option_name,
+        enabled,
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub(crate) async fn insert_default_instance_sync_preferences(
+    instance_id: &str,
+    tx: &mut Transaction<'_, Sqlite>,
+) -> crate::Result<()> {
+    sqlx::query!(
+        "
+		INSERT INTO instance_sync_preferences (instance_id, feature, enabled)
+		SELECT ?, feature, new_instance_default
+		FROM sync_feature_settings
+		",
+        instance_id,
     )
     .execute(&mut **tx)
     .await?;
@@ -1545,30 +1722,27 @@ fn instance_link_columns(
 }
 
 fn required(value: Option<String>, column: &str) -> crate::Result<String> {
-    value.ok_or_else(|| {
-        crate::ErrorKind::InputError(format!(
-            "Missing required instance link column {column}"
+    value.ok_or(
+        ErrorKind::InputError(format!(
+            "missing required instance link column {column}"
         ))
-        .into()
-    })
+        .into(),
+    )
 }
 
 fn required_i64(value: Option<i64>, column: &str) -> crate::Result<i64> {
-    value.ok_or_else(|| {
-        crate::ErrorKind::InputError(format!(
-            "Missing required instance metadata column {column}"
+    value.ok_or(
+        ErrorKind::InputError(format!(
+            "missing required instance metadata column {column}"
         ))
-        .into()
-    })
+        .into(),
+    )
 }
 
 fn parse_group_ids(value: String) -> crate::Result<Vec<String>> {
-    serde_json::from_str(&value).map_err(|err| {
-        crate::ErrorKind::InputError(format!(
-            "Invalid instance groups JSON: {err}"
-        ))
-        .into()
-    })
+    serde_json::from_str(&value).context(ErrorKind::InputError(
+        "invalid instance groups JSON".to_string(),
+    ))
 }
 
 fn launch_overrides_from_json(
@@ -1631,10 +1805,9 @@ fn optional_i32(
 ) -> crate::Result<Option<i32>> {
     value
         .map(|value| {
-            value.parse().map_err(|err| {
-                crate::ErrorKind::InputError(format!("Invalid {column}: {err}"))
-                    .into()
-            })
+            value
+                .parse::<i32>()
+                .context(ErrorKind::InputError(format!("invalid {column}")))
         })
         .transpose()
 }
@@ -1642,9 +1815,9 @@ fn optional_i32(
 fn parse_uuid(value: Option<String>, column: &str) -> crate::Result<Uuid> {
     let value = required(value, column)?;
 
-    value.parse().map_err(|err| {
-        crate::ErrorKind::InputError(format!("Invalid {column}: {err}")).into()
-    })
+    value
+        .parse::<Uuid>()
+        .context(ErrorKind::InputError(format!("invalid {column}")))
 }
 
 fn parse_optional_uuid(
@@ -1653,10 +1826,9 @@ fn parse_optional_uuid(
 ) -> crate::Result<Option<Uuid>> {
     value
         .map(|value| {
-            value.parse().map_err(|err| {
-                crate::ErrorKind::InputError(format!("Invalid {column}: {err}"))
-                    .into()
-            })
+            value
+                .parse::<Uuid>()
+                .context(ErrorKind::InputError(format!("invalid {column}")))
         })
         .transpose()
 }
@@ -1676,12 +1848,11 @@ where
         return Ok(None);
     }
 
-    serde_json::from_str(&value).map(Some).map_err(|err| {
-        crate::ErrorKind::InputError(format!(
-            "Invalid launch override JSON in {column}: {err}"
-        ))
-        .into()
-    })
+    serde_json::from_str(&value)
+        .map(Some)
+        .context(ErrorKind::InputError(format!(
+            "invalid launch override JSON in {column}"
+        )))
 }
 
 fn timestamp(value: i64) -> DateTime<Utc> {
@@ -1696,10 +1867,9 @@ fn optional_timestamp(value: i64) -> Option<DateTime<Utc>> {
 
 fn unsigned(value: i64, column: &str) -> crate::Result<u64> {
     if value < 0 {
-        return Err(crate::ErrorKind::InputError(format!(
-            "Expected {column} to be non-negative"
-        ))
-        .into());
+        bail!(ErrorKind::InputError(format!(
+            "expected {column} to be non-negative"
+        )));
     }
 
     Ok(value as u64)

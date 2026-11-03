@@ -14,7 +14,6 @@ use xredis::RedisPool;
 
 pub mod facets;
 mod metrics;
-pub mod old;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -37,13 +36,10 @@ use crate::{
     database::{
         self, DBProject,
         models::version_item::VersionQueryResult,
-        models::{
-            DBAffiliateCode, DBAffiliateCodeId, DBProjectId, DBUser, DBVersion,
-            DBVersionId,
-        },
+        models::{DBProjectId, DBUser, DBVersion, DBVersionId},
     },
     models::{
-        ids::{AffiliateCodeId, ProjectId, VersionId},
+        ids::{ProjectId, VersionId},
         pats::Scopes,
         projects::ProjectStatus,
         teams::ProjectPermissions,
@@ -61,14 +57,12 @@ pub use metrics::*;
 pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
     cfg.service(fetch_analytics);
     cfg.configure(facets::config);
-    cfg.configure(old::config);
 }
 
 // request
 
 /// Requests analytics data, aggregating over all possible analytics sources
-/// like projects and affiliate codes, returning the data in a list of time
-/// slices.
+/// like projects, returning the data in a list of time slices.
 #[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct GetRequest {
     /// What time range to return statistics for.
@@ -176,7 +170,7 @@ pub enum ProjectAnalyticsEventKind {
 
 // logic
 
-/// Fetch analytics data.  
+/// Fetch analytics data.
 #[utoipa::path(
 	context_path = "/analytics",
 	tag = "analytics",
@@ -325,13 +319,6 @@ pub async fn fetch_analytics(
     );
     project_events.sort_by_key(|event| event.timestamp);
 
-    let affiliate_code_ids =
-        DBAffiliateCode::get_by_affiliate(user.id.into(), &**pool)
-            .await
-            .wrap_internal_err("fetching affiliate codes from database")?
-            .into_iter()
-            .map(|code| code.id)
-            .collect::<Vec<_>>();
     let project_loaders = project_loader_map(&parent_version_data);
 
     let mut query_clickhouse_cx = QueryClickhouseContext {
@@ -341,7 +328,6 @@ pub async fn fetch_analytics(
         time_slices: &mut time_slices,
         project_ids: &project_ids,
         parent_version_ids: &parent_version_ids,
-        affiliate_code_ids: &affiliate_code_ids,
         project_loaders: &project_loaders,
     };
 
@@ -365,12 +351,6 @@ pub async fn fetch_analytics(
         )
         .await
         .wrap_api_err("fetching project playtime")?;
-    }
-
-    if let Some(metrics) = &req.return_metrics.affiliate_code_clicks {
-        metrics::fetch_affiliate_code_clicks(&mut query_clickhouse_cx, metrics)
-            .await
-            .wrap_api_err("fetching affiliate code clicks")?;
     }
 
     if let Some(metrics) = &req.return_metrics.project_revenue {
@@ -412,38 +392,6 @@ pub async fn fetch_analytics(
         )
         .await
         .wrap_api_err("checking mod")?;
-    }
-
-    if let Some(metrics) = &req.return_metrics.affiliate_code_conversions {
-        metrics::fetch_affiliate_code_conversions(
-            &pool,
-            &mut time_slices,
-            &req,
-            user.id.into(),
-            num_time_slices,
-            metrics,
-        )
-        .await
-        .wrap_api_err("fetching affiliate code conversions")?;
-    }
-
-    if let Some(metrics) = &req.return_metrics.affiliate_code_revenue {
-        if !scopes.contains(Scopes::PAYOUTS_READ) {
-            return Err(ApiError::Auth(eyre::eyre!(
-                AuthenticationError::InvalidCredentials
-            )));
-        }
-
-        metrics::fetch_affiliate_code_revenue(
-            &pool,
-            &mut time_slices,
-            &req,
-            user.id.into(),
-            num_time_slices,
-            metrics,
-        )
-        .await
-        .wrap_api_err("fetching affiliate code revenue")?;
     }
 
     let projects =
@@ -536,9 +484,7 @@ async fn fetch_response_projects(
 
     for time_slice in &*time_slices {
         for data in &time_slice.0 {
-            let AnalyticsData::Project(project) = data else {
-                continue;
-            };
+            let AnalyticsData::Project(project) = data;
 
             let source_project_id = DBProjectId::from(project.source_project);
             if source_project_id.0 != 0 {
@@ -556,7 +502,7 @@ async fn fetch_response_projects(
     let project_ids = project_ids.into_iter().collect::<Vec<_>>();
     let projects = DBProject::get_many_ids(&project_ids, pool, redis)
         .await
-        .wrap_api_err("fetching analytics projects")?;
+        .wrap_internal_err("fetching analytics projects")?;
     let visible_project_ids = filter_visible_project_ids(
         projects.iter().map(|project| &project.inner).collect(),
         &Some(user.clone()),
@@ -589,9 +535,7 @@ async fn fetch_response_users(
 
     for time_slice in time_slices {
         for data in &time_slice.0 {
-            let AnalyticsData::Project(project) = data else {
-                continue;
-            };
+            let AnalyticsData::Project(project) = data;
 
             if let ProjectMetrics::Revenue(revenue) = &project.metrics
                 && let Some(user_id) = revenue.user_id
@@ -625,9 +569,7 @@ fn filter_response_project_ids(
 ) {
     for time_slice in time_slices {
         time_slice.0.retain_mut(|data| {
-            let AnalyticsData::Project(project) = data else {
-                return true;
-            };
+            let AnalyticsData::Project(project) = data;
 
             let source_project_id = DBProjectId::from(project.source_project);
             if source_project_id.0 != 0
@@ -712,22 +654,13 @@ pub(crate) struct QueryClickhouseContext<'a> {
     pub(crate) time_slices: &'a mut [TimeSlice],
     pub(crate) project_ids: &'a [DBProjectId],
     pub(crate) parent_version_ids: &'a [DBVersionId],
-    pub(crate) affiliate_code_ids: &'a [DBAffiliateCodeId],
     pub(crate) project_loaders: &'a HashMap<DBProjectId, HashSet<String>>,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct ClickhouseQueryParams {
-    pub(crate) project_ids: bool,
-    pub(crate) parent_version_ids: bool,
-    pub(crate) affiliate_code_ids: bool,
 }
 
 pub(crate) enum ClickhouseFilterParam<'a> {
     String(&'a [String]),
     Bool(&'static str, &'a [bool]),
     VersionId(&'a [VersionId]),
-    AffiliateCodeId(&'a [AffiliateCodeId]),
     DownloadReason(&'a [DownloadReason]),
 }
 
@@ -753,13 +686,6 @@ impl ClickhouseFilterParam<'_> {
                     .collect::<Vec<_>>();
                 query.bind(values)
             }
-            Self::AffiliateCodeId(values) => {
-                let values = values
-                    .iter()
-                    .map(|id| DBAffiliateCodeId::from(*id))
-                    .collect::<Vec<_>>();
-                query.bind(values)
-            }
             Self::DownloadReason(values) => {
                 let values =
                     values.iter().map(ToString::to_string).collect::<Vec<_>>();
@@ -767,85 +693,6 @@ impl ClickhouseFilterParam<'_> {
             }
         }
     }
-}
-
-impl ClickhouseQueryParams {
-    pub(crate) const fn empty() -> Self {
-        Self {
-            project_ids: false,
-            parent_version_ids: false,
-            affiliate_code_ids: false,
-        }
-    }
-}
-
-impl std::ops::BitOr for ClickhouseQueryParams {
-    type Output = Self;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self {
-            project_ids: self.project_ids || rhs.project_ids,
-            parent_version_ids: self.parent_version_ids
-                || rhs.parent_version_ids,
-            affiliate_code_ids: self.affiliate_code_ids
-                || rhs.affiliate_code_ids,
-        }
-    }
-}
-
-pub(crate) async fn query_clickhouse<Row>(
-    cx: &mut QueryClickhouseContext<'_>,
-    query: &str,
-    params: ClickhouseQueryParams,
-    use_columns: &[(&str, bool)],
-    filter_params: Vec<ClickhouseFilterParam<'_>>,
-    row_filter: impl Fn(&Row::Value<'_>) -> bool,
-    // I hate using the hidden type Row::Value here, but it's what next() returns, so I see no other option
-    row_get_bucket: impl Fn(&Row::Value<'_>) -> u64,
-    row_to_analytics: impl Fn(Row::Value<'_>) -> AnalyticsData,
-) -> Result<(), ApiError>
-where
-    Row: clickhouse::RowRead + serde::de::DeserializeOwned + std::fmt::Debug,
-{
-    let mut query = cx
-        .clickhouse
-        .query(query)
-        .param("time_range_start", cx.req.time_range.start.timestamp())
-        .param("time_range_end", cx.req.time_range.end.timestamp())
-        .param("time_slices", cx.time_slices.len());
-    if params.project_ids {
-        query = query.bind(cx.project_ids);
-    }
-    if params.parent_version_ids {
-        query = query.bind(cx.parent_version_ids);
-    }
-    if params.affiliate_code_ids {
-        query = query.bind(cx.affiliate_code_ids);
-    }
-    for (param_name, used) in use_columns {
-        query = query.param(param_name, used)
-    }
-    for filter_param in filter_params {
-        query = filter_param.bind(query);
-    }
-    let mut cursor = query
-        .fetch::<Row>()
-        .wrap_internal_err("fetching analytics pagination cursor")?;
-
-    while let Some(row) = cursor
-        .next()
-        .await
-        .wrap_internal_err("querying database for `query_clickhouse`")?
-    {
-        if !row_filter(&row) {
-            continue;
-        }
-        let bucket = row_get_bucket(&row) as usize;
-        add_to_time_slice(cx.time_slices, bucket, row_to_analytics(row))
-            .wrap_api_err("executing `row_to_analytics`")?;
-    }
-
-    Ok(())
 }
 
 pub(crate) fn add_to_time_slice(
@@ -878,7 +725,7 @@ async fn filter_allowed_project_ids(
 ) -> Result<Vec<DBProjectId>, ApiError> {
     let projects = DBProject::get_many_ids(project_ids, pool, redis)
         .await
-        .wrap_api_err("fetching projects for analytics authorization")?;
+        .wrap_internal_err("fetching projects for analytics authorization")?;
 
     let team_ids = projects
         .iter()

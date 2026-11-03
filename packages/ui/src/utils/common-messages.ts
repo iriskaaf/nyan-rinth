@@ -8,10 +8,6 @@ export const commonMessages = defineMessages({
 		id: 'button.accept',
 		defaultMessage: 'Accept',
 	},
-	affiliateLinksButton: {
-		id: 'button.affiliate-links',
-		defaultMessage: 'Affiliate links',
-	},
 	analyticsButton: {
 		id: 'button.analytics',
 		defaultMessage: 'Analytics',
@@ -123,6 +119,10 @@ export const commonMessages = defineMessages({
 	downloadButton: {
 		id: 'button.download',
 		defaultMessage: 'Download',
+	},
+	downloadFilesButton: {
+		id: 'button.download-files',
+		defaultMessage: 'Download files',
 	},
 	downloadingButton: {
 		id: 'button.downloading',
@@ -1240,10 +1240,6 @@ export const disclosureAiUsageMessages = defineMessages({
 		id: 'project.settings.disclosures.ai.types-text',
 		defaultMessage: 'Text',
 	},
-	functionality: {
-		id: 'project.settings.disclosures.ai.types-functionality',
-		defaultMessage: 'Functionality',
-	},
 })
 
 export const disclosureTelemetryConsentMessages = defineMessages({
@@ -1466,7 +1462,7 @@ export const fileTypeMessages: Record<
 	}),
 	'sources-jar': defineMessage({
 		id: 'version.file-type.sources-jar',
-		defaultMessage: 'Source jar',
+		defaultMessage: 'Sources jar',
 	}),
 	'dev-jar': defineMessage({
 		id: 'version.file-type.dev-jar',
@@ -1474,7 +1470,7 @@ export const fileTypeMessages: Record<
 	}),
 	'javadoc-jar': defineMessage({
 		id: 'version.file-type.javadoc-jar',
-		defaultMessage: 'Javadoc jar',
+		defaultMessage: 'Javadocs jar',
 	}),
 	signature: defineMessage({
 		id: 'version.file-type.signature',

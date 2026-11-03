@@ -1,15 +1,19 @@
 use crate::api::Result;
+use anyhow::Context;
 use dashmap::DashMap;
 use path_util::SafeRelativeUtf8UnixPathBuf;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use theseus::DownloadReason;
+use tauri::{AppHandle, Manager, Runtime};
+use tauri_plugin_fs::FsExt;
+use tauri_plugin_opener::OpenerExt;
 use theseus::data::{
     AppliedContentSetPatch, ContentItem, Dependency,
     EditInstance as CoreEditInstance, InstanceInstallCandidate,
     InstanceInstallTarget, InstanceLaunchOverridesPatch,
-    InstanceLink as CoreInstanceLink, InstanceMetadata, LinkedModpackInfo,
+    InstanceLink as CoreInstanceLink, InstanceMetadata, InstanceTabVisibility,
+    LinkedModpackInfo,
     SharedInstanceAttachment as CoreSharedInstanceAttachment,
     SharedInstanceRole,
 };
@@ -17,12 +21,11 @@ use theseus::instance::InstallProjectWithDependenciesRequest;
 use theseus::instance::QuickPlayType;
 use theseus::prelude::*;
 use theseus::server_address::ServerAddress;
+use theseus::{DownloadReason, ErrorKind};
 
 pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("instance")
         .invoke_handler(tauri::generate_handler![
-            game_settings_sync_get,
-            game_settings_sync_update,
             instance_remove,
             instance_get,
             instance_get_many,
@@ -38,6 +41,7 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
             instance_get_install_candidates,
             instance_content,
             instance_get_content_items,
+            instance_sync_content_files,
             instance_refresh_content_updates,
             instance_get_dependencies_as_content_items,
             instance_get_linked_modpack_info,
@@ -45,8 +49,49 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
             instance_get_optimal_jre_key,
             instance_get_full_path,
             instance_get_mod_full_path,
+            instance_list_screenshots,
+            instance_list_all_screenshots,
+            instance_list_synced_screenshots,
+            instance_save_edited_screenshot,
+            instance_list_screenshot_groups,
+            instance_create_screenshot_group,
+            instance_rename_screenshot_group,
+            instance_delete_screenshot_group,
+            instance_set_screenshot_group_memberships,
+            instance_import_screenshot_groups,
+            instance_delete_screenshots,
+            instance_export_screenshots,
+            instance_move_screenshots,
+            instance_open_screenshot,
+            instance_set_synced_option,
+            instance_get_synced_option_join_preview,
+            instance_get_synced_options_overview,
+            instance_get_global_synced_options,
+            instance_get_initialized_synced_options,
+            instance_set_global_synced_option,
+            instance_list_game_options_sync_sources,
+            instance_get_synced_game_options_config,
+            instance_get_game_setting_locale_labels,
+            instance_preview_synced_game_option_changes,
+            instance_save_synced_game_option_changes,
+            instance_get_local_game_options_config,
+            instance_preview_local_game_option_changes,
+            instance_save_local_game_option_changes,
+            instance_get_command_history,
+            instance_set_command_history,
+            instance_open_synced_options_folder,
+            instance_list_synced_servers,
+            instance_update_synced_server,
+            instance_remove_synced_server,
+            instance_get_pack_sync_preview,
+            instance_sync_pack,
+            instance_desync_pack,
+            instance_list_synced_packs,
+            instance_upload_synced_pack,
+            instance_set_synced_pack_enabled,
+            instance_remove_synced_pack,
+            instance_rebuild_synced_options,
             instance_check_installed,
-            instance_update_all,
             instance_update_project,
             instance_add_project_from_version,
             instance_install_project_with_dependencies,
@@ -74,6 +119,7 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
             instance_share_remove_users,
             instance_share_get_publish_preview,
             instance_share_publish,
+            instance_share_publish_support_details,
             instance_share_unlink,
             instance_share_unpublish,
             instance_export_mrpack,
@@ -96,6 +142,7 @@ pub struct Instance {
     pub loader: ModLoader,
     pub loader_version: Option<String>,
     pub group_ids: Vec<String>,
+    pub synced_options: InstanceSyncedOptions,
     pub link: Option<InstanceLink>,
     pub shared_instance: Option<SharedInstanceAttachment>,
     pub quarantined: bool,
@@ -112,6 +159,20 @@ pub struct Instance {
     pub force_fullscreen: Option<bool>,
     pub game_resolution: Option<WindowSize>,
     pub hooks: Hooks,
+    pub visible_tabs: InstanceTabVisibility,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct InstanceScreenshot {
+    pub id: String,
+    pub instance_id: String,
+    pub instance_name: String,
+    pub file_name: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub modified_at: i64,
+    pub group_id: Option<String>,
+    pub path: PathBuf,
+    pub url: url::Url,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -239,6 +300,7 @@ pub struct EditInstance {
     )]
     pub game_resolution: Option<Option<WindowSize>>,
     pub hooks: Option<Hooks>,
+    pub visible_tabs: Option<InstanceTabVisibility>,
 }
 
 impl From<InstanceMetadata> for Instance {
@@ -260,6 +322,7 @@ impl From<InstanceMetadata> for Instance {
             loader: metadata.applied_content_set.loader,
             loader_version: metadata.applied_content_set.loader_version,
             group_ids: metadata.group_ids,
+            synced_options: metadata.synced_options,
             link: InstanceLink::from_core(metadata.link),
             shared_instance: metadata.shared_instance.map(Into::into),
             quarantined: metadata.quarantined,
@@ -276,6 +339,7 @@ impl From<InstanceMetadata> for Instance {
             force_fullscreen: metadata.launch_overrides.force_fullscreen,
             game_resolution: metadata.launch_overrides.game_resolution,
             hooks: metadata.launch_overrides.hooks,
+            visible_tabs: metadata.launch_overrides.visible_tabs,
         }
     }
 }
@@ -380,32 +444,22 @@ impl InstanceLink {
                 instance_ids,
                 active_instance_id,
             } => Ok(CoreInstanceLink::ModrinthHosting {
-                server_id: server_id.parse().map_err(|err| {
-                    theseus::Error::from(theseus::ErrorKind::InputError(
-                        format!("Invalid server id: {err}"),
-                    ))
-                })?,
+                server_id: server_id.parse().context(ErrorKind::InputError(
+                    "invalid server id".to_string(),
+                ))?,
                 instance_ids: instance_ids
                     .into_iter()
                     .map(|id| {
-                        id.parse().map_err(|err| {
-                            theseus::Error::from(
-                                theseus::ErrorKind::InputError(format!(
-                                    "Invalid hosted instance id: {err}"
-                                )),
-                            )
-                        })
+                        id.parse().context(ErrorKind::InputError(
+                            "invalid hosted instance id".to_string(),
+                        ))
                     })
-                    .collect::<std::result::Result<Vec<_>, _>>()?,
+                    .collect::<anyhow::Result<Vec<_>>>()?,
                 active_instance_id: active_instance_id
                     .map(|id| {
-                        id.parse().map_err(|err| {
-                            theseus::Error::from(
-                                theseus::ErrorKind::InputError(format!(
-                                    "Invalid active instance id: {err}"
-                                )),
-                            )
-                        })
+                        id.parse().context(ErrorKind::InputError(
+                            "invalid active instance id".to_string(),
+                        ))
                     })
                     .transpose()?,
             }),
@@ -444,6 +498,7 @@ fn edit_to_core(edit_instance: EditInstance) -> Result<CoreEditInstance> {
             force_fullscreen: edit_instance.force_fullscreen,
             game_resolution: edit_instance.game_resolution,
             hooks: edit_instance.hooks,
+            visible_tabs: edit_instance.visible_tabs,
         }),
         content_set_patch: Some(AppliedContentSetPatch {
             source_kind: None,
@@ -579,6 +634,12 @@ pub async fn instance_get_content_items(
 }
 
 #[tauri::command]
+pub async fn instance_sync_content_files(instance_id: &str) -> Result<()> {
+    theseus::instance::sync_content_files(instance_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn instance_refresh_content_updates(instance_id: &str) -> Result<()> {
     Ok(theseus::instance::refresh_content_updates(instance_id).await?)
 }
@@ -635,6 +696,434 @@ pub async fn instance_get_mod_full_path(
 }
 
 #[tauri::command]
+pub async fn instance_list_screenshots<R: Runtime>(
+    app_handle: AppHandle<R>,
+    instance_id: &str,
+) -> Result<Vec<InstanceScreenshot>> {
+    let screenshots = theseus::instance::list_screenshots(instance_id).await?;
+    serialize_screenshots(&app_handle, screenshots)
+}
+
+#[tauri::command]
+pub async fn instance_list_all_screenshots<R: Runtime>(
+    app_handle: AppHandle<R>,
+) -> Result<Vec<InstanceScreenshot>> {
+    let screenshots = theseus::instance::list_all_screenshots().await?;
+    serialize_screenshots(&app_handle, screenshots)
+}
+
+#[tauri::command]
+pub async fn instance_list_synced_screenshots<R: Runtime>(
+    app_handle: AppHandle<R>,
+) -> Result<Vec<InstanceScreenshot>> {
+    let screenshots = theseus::instance::list_synced_screenshots().await?;
+    serialize_screenshots(&app_handle, screenshots)
+}
+
+#[tauri::command]
+pub async fn instance_save_edited_screenshot<R: Runtime>(
+    app_handle: AppHandle<R>,
+    key: theseus::instance::ScreenshotKey,
+    png_bytes: Vec<u8>,
+    mode: theseus::instance::ScreenshotEditSaveMode,
+) -> Result<InstanceScreenshot> {
+    let screenshot =
+        theseus::instance::save_edited_screenshot(key, png_bytes, mode).await?;
+    serialize_screenshot(&app_handle, screenshot)
+}
+
+#[tauri::command]
+pub async fn instance_list_screenshot_groups()
+-> Result<Vec<theseus::instance::ScreenshotGroup>> {
+    Ok(theseus::instance::list_screenshot_groups().await?)
+}
+
+#[tauri::command]
+pub async fn instance_create_screenshot_group(
+    name: String,
+    screenshot_ids: Vec<String>,
+) -> Result<theseus::instance::ScreenshotGroup> {
+    Ok(
+        theseus::instance::create_screenshot_group(name, screenshot_ids)
+            .await?,
+    )
+}
+
+#[tauri::command]
+pub async fn instance_rename_screenshot_group(
+    id: String,
+    new_name: String,
+) -> Result<theseus::instance::ScreenshotGroup> {
+    Ok(theseus::instance::rename_screenshot_group(id, new_name).await?)
+}
+
+#[tauri::command]
+pub async fn instance_delete_screenshot_group(id: String) -> Result<()> {
+    Ok(theseus::instance::delete_screenshot_group(id).await?)
+}
+
+#[tauri::command]
+pub async fn instance_set_screenshot_group_memberships(
+    updates: Vec<theseus::instance::ScreenshotGroupMembershipUpdate>,
+) -> Result<()> {
+    Ok(theseus::instance::set_screenshot_group_memberships(updates).await?)
+}
+
+#[tauri::command]
+pub async fn instance_import_screenshot_groups(
+    groups: Vec<theseus::instance::ScreenshotGroupImport>,
+) -> Result<()> {
+    Ok(theseus::instance::import_screenshot_groups(groups).await?)
+}
+
+#[tauri::command]
+pub async fn instance_delete_screenshots(
+    keys: Vec<theseus::instance::ScreenshotKey>,
+) -> Result<()> {
+    Ok(theseus::instance::delete_screenshots(&keys).await?)
+}
+
+#[tauri::command]
+pub async fn instance_export_screenshots(
+    keys: Vec<theseus::instance::ScreenshotKey>,
+    export_path: PathBuf,
+) -> Result<()> {
+    Ok(theseus::instance::export_screenshots(&keys, export_path).await?)
+}
+
+#[tauri::command]
+pub async fn instance_move_screenshots(
+    keys: Vec<theseus::instance::ScreenshotKey>,
+    target_instance_id: &str,
+) -> Result<Vec<theseus::instance::ScreenshotKey>> {
+    Ok(theseus::instance::move_screenshots(&keys, target_instance_id).await?)
+}
+
+#[tauri::command]
+pub async fn instance_open_screenshot<R: Runtime>(
+    app_handle: AppHandle<R>,
+    key: theseus::instance::ScreenshotKey,
+) -> Result<()> {
+    let path = theseus::instance::get_screenshot_path(&key).await?;
+    app_handle
+        .opener()
+        .reveal_item_in_dir(path)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn instance_set_synced_option(
+    instance_id: &str,
+    option: InstanceSyncedOption,
+    enabled: bool,
+    resolution: Option<theseus::instance::SyncedOptionJoinResolution>,
+) -> Result<Instance> {
+    Ok(Instance::from(
+        theseus::instance::set_synced_option(
+            instance_id,
+            option,
+            enabled,
+            resolution,
+        )
+        .await?,
+    ))
+}
+
+#[tauri::command]
+pub async fn instance_get_synced_option_join_preview(
+    instance_id: &str,
+    option: InstanceSyncedOption,
+) -> Result<theseus::instance::SyncedOptionJoinPreview> {
+    Ok(
+        theseus::instance::get_synced_option_join_preview(instance_id, option)
+            .await?,
+    )
+}
+
+#[tauri::command]
+pub async fn instance_get_synced_options_overview(
+    instance_id: &str,
+) -> Result<theseus::instance::SyncedOptionsOverview> {
+    Ok(theseus::instance::get_synced_options_overview(instance_id).await?)
+}
+
+#[tauri::command]
+pub async fn instance_get_global_synced_options()
+-> Result<theseus::instance::GlobalSyncedOptions> {
+    Ok(theseus::instance::get_global_synced_options().await?)
+}
+
+#[tauri::command]
+pub async fn instance_get_initialized_synced_options()
+-> Result<theseus::instance::GlobalSyncedOptions> {
+    Ok(theseus::instance::get_initialized_synced_options().await?)
+}
+
+#[tauri::command]
+pub async fn instance_set_global_synced_option(
+    option: InstanceSyncedOption,
+    enabled: bool,
+    base_instance_id: Option<String>,
+) -> Result<theseus::instance::GlobalSyncedOptions> {
+    Ok(theseus::instance::set_global_synced_option(
+        option,
+        enabled,
+        base_instance_id.as_deref(),
+    )
+    .await?)
+}
+
+#[tauri::command]
+pub async fn instance_list_game_options_sync_sources()
+-> Result<Vec<theseus::instance::GameOptionsSourceCandidate>> {
+    Ok(theseus::instance::list_game_options_sync_sources().await?)
+}
+
+#[tauri::command]
+pub async fn instance_get_synced_game_options_config()
+-> Result<theseus::instance::GameSettingsEditorState> {
+    Ok(theseus::instance::get_synced_game_options_config().await?)
+}
+
+#[tauri::command]
+pub async fn instance_get_game_setting_locale_labels(
+    instance_id: Option<String>,
+    locale: String,
+    option_ids: Vec<String>,
+    refresh_sources: bool,
+) -> Result<theseus::instance::GameSettingLocaleLabels> {
+    Ok(theseus::instance::get_game_setting_locale_labels(
+        instance_id.as_deref(),
+        &locale,
+        option_ids,
+        refresh_sources,
+    )
+    .await?)
+}
+
+#[tauri::command]
+pub async fn instance_preview_synced_game_option_changes(
+    request: theseus::instance::UpdateGameSettingsRequest,
+) -> Result<theseus::instance::GameSettingsEditorState> {
+    Ok(theseus::instance::preview_synced_game_option_changes(request).await?)
+}
+
+#[tauri::command]
+pub async fn instance_save_synced_game_option_changes(
+    request: theseus::instance::UpdateGameSettingsRequest,
+) -> Result<theseus::instance::SaveGameSettingsResult> {
+    Ok(theseus::instance::save_synced_game_option_changes(request).await?)
+}
+
+#[tauri::command]
+pub async fn instance_get_local_game_options_config(
+    instance_id: &str,
+) -> Result<theseus::instance::GameSettingsEditorState> {
+    Ok(theseus::instance::get_local_game_options_config(instance_id).await?)
+}
+
+#[tauri::command]
+pub async fn instance_preview_local_game_option_changes(
+    instance_id: &str,
+    request: theseus::instance::UpdateGameSettingsRequest,
+) -> Result<theseus::instance::GameSettingsEditorState> {
+    Ok(theseus::instance::preview_local_game_option_changes(
+        instance_id,
+        request,
+    )
+    .await?)
+}
+
+#[tauri::command]
+pub async fn instance_save_local_game_option_changes(
+    instance_id: &str,
+    request: theseus::instance::UpdateGameSettingsRequest,
+) -> Result<theseus::instance::SaveGameSettingsResult> {
+    Ok(
+        theseus::instance::save_local_game_option_changes(instance_id, request)
+            .await?,
+    )
+}
+
+#[tauri::command]
+pub async fn instance_get_command_history() -> Result<String> {
+    Ok(theseus::instance::get_command_history().await?)
+}
+
+#[tauri::command]
+pub async fn instance_set_command_history(contents: &str) -> Result<String> {
+    Ok(theseus::instance::set_command_history(contents).await?)
+}
+
+#[tauri::command]
+pub async fn instance_open_synced_options_folder<R: Runtime>(
+    app_handle: AppHandle<R>,
+) -> Result<()> {
+    let path = theseus::instance::get_synced_options_folder().await?;
+    app_handle
+        .opener()
+        .open_path(path.to_string_lossy(), None::<&str>)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn instance_list_synced_servers()
+-> Result<Vec<theseus::instance::SyncedServer>> {
+    Ok(theseus::instance::list_synced_servers().await?)
+}
+
+#[tauri::command]
+pub async fn instance_update_synced_server(
+    server: theseus::instance::SyncedServer,
+) -> Result<()> {
+    Ok(theseus::instance::update_synced_server(server).await?)
+}
+
+#[tauri::command]
+pub async fn instance_remove_synced_server(server_id: &str) -> Result<()> {
+    Ok(theseus::instance::remove_synced_server(server_id).await?)
+}
+
+#[tauri::command]
+pub async fn instance_get_pack_sync_preview(
+    instance_id: &str,
+    project_path: &str,
+) -> Result<theseus::instance::PackSyncPreview> {
+    Ok(
+        theseus::instance::get_pack_sync_preview(instance_id, project_path)
+            .await?,
+    )
+}
+
+#[tauri::command]
+pub async fn instance_sync_pack(
+    instance_id: &str,
+    project_path: &str,
+) -> Result<()> {
+    Ok(theseus::instance::sync_pack(instance_id, project_path).await?)
+}
+
+#[tauri::command]
+pub async fn instance_desync_pack(
+    instance_id: &str,
+    pack_id: &str,
+    mode: theseus::instance::DesyncServerMode,
+) -> Result<()> {
+    Ok(theseus::instance::desync_pack(instance_id, pack_id, mode).await?)
+}
+
+#[tauri::command]
+pub async fn instance_list_synced_packs(
+    project_type: ProjectType,
+) -> Result<Vec<ContentItem>> {
+    Ok(theseus::instance::list_synced_packs(project_type).await?)
+}
+
+#[tauri::command]
+pub async fn instance_upload_synced_pack(
+    path: &Path,
+    project_type: ProjectType,
+    game_versions: Vec<String>,
+) -> Result<()> {
+    Ok(
+        theseus::instance::upload_synced_pack(
+            path,
+            project_type,
+            game_versions,
+        )
+        .await?,
+    )
+}
+
+#[tauri::command]
+pub async fn instance_set_synced_pack_enabled(
+    pack_id: &str,
+    enabled: bool,
+) -> Result<()> {
+    Ok(theseus::instance::set_synced_pack_enabled(pack_id, enabled).await?)
+}
+
+#[tauri::command]
+pub async fn instance_remove_synced_pack(pack_id: &str) -> Result<()> {
+    Ok(theseus::instance::remove_synced_pack(pack_id).await?)
+}
+
+#[tauri::command]
+pub async fn instance_rebuild_synced_options(
+    instance_id: Option<&str>,
+) -> Result<()> {
+    if let Some(instance_id) = instance_id {
+        theseus::instance::reconcile_instance_synced_options(instance_id)
+            .await?;
+    } else {
+        theseus::instance::reconcile_all_synced_options().await?;
+    }
+    Ok(())
+}
+
+fn serialize_screenshots<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    screenshots: Vec<theseus::instance::InstanceScreenshot>,
+) -> Result<Vec<InstanceScreenshot>> {
+    let screenshot_directories = screenshots
+        .iter()
+        .filter_map(|screenshot| screenshot.path.parent())
+        .collect::<HashSet<_>>();
+    for directory in screenshot_directories {
+        app_handle
+            .asset_protocol_scope()
+            .allow_directory(directory, false)
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
+        app_handle
+            .fs_scope()
+            .allow_directory(directory, false)
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
+    }
+
+    screenshots
+        .into_iter()
+        .map(serialize_screenshot_data)
+        .collect()
+}
+
+fn serialize_screenshot<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    screenshot: theseus::instance::InstanceScreenshot,
+) -> Result<InstanceScreenshot> {
+    app_handle
+        .asset_protocol_scope()
+        .allow_file(&screenshot.path)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    app_handle
+        .fs_scope()
+        .allow_file(&screenshot.path)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    serialize_screenshot_data(screenshot)
+}
+
+fn serialize_screenshot_data(
+    screenshot: theseus::instance::InstanceScreenshot,
+) -> Result<InstanceScreenshot> {
+    let mut url = super::utils::tauri_convert_file_src(&screenshot.path)?;
+    url.query_pairs_mut()
+        .append_pair("revision", &screenshot.modified_at.to_string());
+
+    Ok(InstanceScreenshot {
+        id: screenshot.id,
+        instance_id: screenshot.instance_id,
+        instance_name: screenshot.instance_name,
+        file_name: screenshot.file_name,
+        created_at: screenshot.created_at,
+        modified_at: screenshot.modified_at,
+        group_id: screenshot.group_id,
+        path: screenshot.path,
+        url,
+    })
+}
+
+#[tauri::command]
 pub async fn instance_get_optimal_jre_key(
     instance_id: &str,
 ) -> Result<Option<JavaVersion>> {
@@ -660,13 +1149,6 @@ pub async fn instance_check_installed(
     } else {
         Ok(false)
     }
-}
-
-#[tauri::command]
-pub async fn instance_update_all(
-    instance_id: &str,
-) -> Result<HashMap<String, String>> {
-    Ok(theseus::instance::update_all_projects(instance_id).await?)
 }
 
 #[tauri::command]
@@ -998,12 +1480,29 @@ pub async fn instance_share_get_publish_preview(
 #[tauri::command]
 pub async fn instance_share_publish(
     instance_id: &str,
-    config_paths: Vec<String>,
+    file_paths: Vec<String>,
+    on_progress: tauri::ipc::Channel<(u64, u64)>,
 ) -> Result<SharedInstanceAttachment> {
+    Ok(theseus::instance::publish_shared_instance(
+        instance_id,
+        file_paths,
+        &|uploaded, total| {
+            let _ = on_progress.send((uploaded, total));
+        },
+    )
+    .await?
+    .into())
+}
+
+#[tauri::command]
+pub async fn instance_share_publish_support_details(
+    instance_id: &str,
+) -> Result<Option<String>> {
     Ok(
-        theseus::instance::publish_shared_instance(instance_id, config_paths)
-            .await?
-            .into(),
+        theseus::instance::get_shared_instance_publish_support_details(
+            instance_id,
+        )
+        .await?,
     )
 }
 
@@ -1017,14 +1516,4 @@ pub async fn instance_share_unlink(instance_id: &str) -> Result<()> {
 pub async fn instance_share_unpublish(instance_id: &str) -> Result<()> {
     theseus::instance::unpublish_shared_instance(instance_id).await?;
     Ok(())
-}
-
-#[tauri::command]
-async fn game_settings_sync_get() -> Result<theseus::instance::game_settings_sync::SyncView> {
-	Ok(theseus::instance::game_settings_sync::get_config().await?)
-}
-
-#[tauri::command]
-async fn game_settings_sync_update(update: theseus::instance::game_settings_sync::SyncUpdate) -> Result<theseus::instance::game_settings_sync::SyncView> {
-	Ok(theseus::instance::game_settings_sync::update_config(update).await?)
 }

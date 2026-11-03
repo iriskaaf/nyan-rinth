@@ -20,7 +20,7 @@ use crate::util::gotenberg::GotenbergClient;
 use actix_web::{HttpRequest, HttpResponse, delete, get, post, web};
 use chrono::{DateTime, Duration, Utc};
 use hex::ToHex;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use modrinth_util::decimal::Decimal2dp;
 use reqwest::Method;
 use rust_decimal::Decimal;
@@ -919,7 +919,7 @@ pub async fn cancel_payout(
                     }
                     PayoutMethodType::Tremendous => {
                         payouts
-                            .make_tremendous_request::<(), ()>(
+                            .make_tremendous_request::<(), serde_json::Value>(
                                 Method::POST,
                                 &format!("rewards/{platform_id}/cancel"),
                                 None,

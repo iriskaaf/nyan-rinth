@@ -3,10 +3,13 @@ import { NotepadTextIcon, XIcon } from '@modrinth/assets'
 import { Button, defineMessages, injectNotificationManager, useVIntl } from '@modrinth/ui'
 import { type } from '@tauri-apps/plugin-os'
 import { $fetch } from 'ofetch'
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 
+import { release_ads_window_hold, take_ads_window_hold } from '@/helpers/ads.js'
 import { list } from '@/helpers/instance'
 import { get as getCreds } from '@/helpers/mr_auth.ts'
+
+let adsWindowHold = false
 
 type Survey = {
 	id: string
@@ -36,7 +39,7 @@ const messages = defineMessages({
 	surveyBody: {
 		id: 'app.survey.body',
 		defaultMessage:
-			'Would you mind answering a few questions about your experience with NyanRinth?',
+			'Would you mind answering a few questions about your experience with Modrinth App?',
 	},
 	surveyFooter: {
 		id: 'app.survey.footer',
@@ -91,24 +94,43 @@ async function openSurvey() {
 		onOpen: () => console.info('Opened user survey'),
 		onClose: () => {
 			console.info('Closed user survey')
+			if (adsWindowHold) {
+				adsWindowHold = false
+				release_ads_window_hold()
+			}
 		},
 		onSubmit: () => console.info('Active user survey submitted'),
 	}
 
 	try {
+		await take_ads_window_hold()
+		adsWindowHold = true
 		if (tallyWindow.Tally?.openPopup) {
 			console.info(`Opening Tally popup for user survey (form ID: ${formId})`)
 			dismissSurvey()
 			tallyWindow.Tally.openPopup(formId, popupOptions)
 		} else {
 			console.warn('Tally script not yet loaded')
+			adsWindowHold = false
+			await release_ads_window_hold()
 		}
 	} catch (e) {
 		console.error('Error opening Tally popup:', e)
+		if (adsWindowHold) {
+			adsWindowHold = false
+			await release_ads_window_hold()
+		}
 	}
 
 	console.info(`Found user survey to show with tally_id: ${formId}`)
 }
+
+onUnmounted(() => {
+	if (adsWindowHold) {
+		adsWindowHold = false
+		release_ads_window_hold()
+	}
+})
 
 function dismissSurvey() {
 	if (!availableSurvey.value) return

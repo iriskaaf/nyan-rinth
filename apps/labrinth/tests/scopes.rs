@@ -411,6 +411,16 @@ pub async fn project_version_reads_scopes() {
             .await
             .unwrap();
 
+        // Leave review before hiding the project's version so review validation stays satisfied.
+        let resp = api
+            .edit_project(
+                beta_project_id,
+                json!({ "status": "draft" }),
+                ADMIN_USER_PAT,
+            )
+            .await;
+        assert_status!(&resp, StatusCode::NO_CONTENT);
+
         // Version reading
         // First, set version to hidden (which is when the scope is required to read it)
         let read_version = Scopes::VERSION_READ;
@@ -547,7 +557,7 @@ pub async fn project_write_scopes() {
                 &[beta_project_id.as_str()],
                 json!(
                 {
-                    "description": "test_project_version_write_scopes Description"
+                    "description": "This description verifies project write scopes while containing enough information to satisfy project review validation requirements for a project that is currently being processed."
                 }),
                 pat.as_deref(),
             )

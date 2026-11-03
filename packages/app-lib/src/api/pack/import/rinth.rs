@@ -45,7 +45,7 @@ pub(super) async fn read_instances(
 	} else {
 		"SELECT path, name, game_version, mod_loader AS loader, mod_loader_version AS loader_version FROM profiles"
 	};
-	let data_root: PathBuf = sqlx::query_scalar::<_, Option<String>>(
+	let configured_root: PathBuf = sqlx::query_scalar::<_, Option<String>>(
 		"SELECT custom_dir FROM settings LIMIT 1",
 	)
 	.fetch_optional(&mut connection)
@@ -55,14 +55,20 @@ pub(super) async fn read_instances(
 	.flatten()
 	.map(PathBuf::from)
 	.unwrap_or_else(|| base.to_path_buf());
-	let rows = sqlx::query(query).fetch_all(&mut connection).await?;
+	let rows = sqlx::query(sqlx::AssertSqlSafe(query))
+		.fetch_all(&mut connection)
+		.await?;
 	let mut instances = Vec::new();
 	for row in rows {
 		let path: String = row.try_get("path")?;
-		if safe_folder(&path) && data_root.join("profiles").join(&path).is_dir()
-		{
+		if safe_folder(&path) {
+			let Some(directory) =
+				resolve_instance_directory(base, &configured_root, &path)
+			else {
+				continue;
+			};
 			instances.push(SourceInstance {
-				directory: data_root.join("profiles").join(&path),
+				directory,
 				path,
 				name: row.try_get("name")?,
 				game_version: row.try_get("game_version")?,
@@ -121,6 +127,7 @@ pub(super) async fn import_rinth(
 		instance_id: instance_id.to_string(),
 		source_filename: None,
 	};
+	let state = State::get().await?;
 	install_from::set_instance_information(
 		instance_id.to_string(),
 		&description,
@@ -128,17 +135,28 @@ pub(super) async fn import_rinth(
 		None,
 		&dependencies,
 		false,
+		&state.directories,
 	)
 	.await?;
 	let state = State::get().await?;
 	super::finish_import(
 		instance_id,
 		source.directory,
-		&state.io_semaphore,
+		&state,
 		reporter,
 		details,
 	)
 	.await
+}
+
+fn resolve_instance_directory(
+	base: &Path,
+	configured: &Path,
+	folder: &str,
+) -> Option<PathBuf> {
+	let relocated = base.join("profiles").join(folder);
+	let original = configured.join("profiles").join(folder);
+	[relocated, original].into_iter().find(|p| p.is_dir())
 }
 
 #[cfg(test)]
@@ -165,6 +183,13 @@ mod tests {
 			let before = std::fs::read(dir.path().join("app.db")).unwrap();
 			let sources = read_instances(dir.path()).await.unwrap();
 			assert_eq!(sources.len(), 1);
+			let detected = super::super::get_importable_instances(
+				crate::pack::import::ImportLauncherType::Unknown,
+				dir.path().to_path_buf(),
+			)
+			.await
+			.unwrap();
+			assert_eq!(detected, vec!["test".to_string()]);
 			assert_eq!(sources[0].name, "Test");
 			assert_eq!(sources[0].loader_version.as_deref(), Some("0.16.0"));
 			assert_eq!(
@@ -172,5 +197,32 @@ mod tests {
 				std::fs::read(dir.path().join("app.db")).unwrap()
 			);
 		}
+	}
+}
+
+#[cfg(test)]
+mod relocation_tests {
+	use super::*;
+	#[test]
+	fn copied_installation_prefers_its_own_profiles() {
+		let copied = tempfile::tempdir().unwrap();
+		let original = tempfile::tempdir().unwrap();
+		let folder = "Сборка с пробелами";
+		std::fs::create_dir_all(copied.path().join("profiles").join(folder))
+			.unwrap();
+		std::fs::create_dir_all(original.path().join("profiles").join(folder))
+			.unwrap();
+		assert_eq!(
+			resolve_instance_directory(copied.path(), original.path(), folder),
+			Some(copied.path().join("profiles").join(folder))
+		);
+		assert!(
+			resolve_instance_directory(
+				copied.path(),
+				original.path(),
+				"missing"
+			)
+			.is_none()
+		);
 	}
 }

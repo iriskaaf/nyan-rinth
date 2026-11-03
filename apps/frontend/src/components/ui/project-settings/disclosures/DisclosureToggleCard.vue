@@ -1,27 +1,31 @@
 <script setup lang="ts">
-import { CircleSlashIcon, LockIcon, LockOpenIcon } from '@modrinth/assets'
+import { UnknownIcon } from '@modrinth/assets'
 import {
-	Button,
-	ButtonGroup,
 	defineMessages,
 	IntlFormatted,
 	normalizeChildren,
 	SettingsInlineWarning,
 	SettingsToggleCard,
+	useVIntl,
 } from '@modrinth/ui'
 import type { Component } from 'vue'
 import { computed } from 'vue'
 
+import DisclosureLockControls from './DisclosureLockControls.vue'
 import DisclosureUpdatedBy from './DisclosureUpdatedBy.vue'
+import ProjectReviewDisclosureCard from './ProjectReviewDisclosureCard.vue'
 import type { DisclosureCardMetaProps, DisclosureLockStatus } from './types'
 
 defineOptions({ inheritAttrs: false })
+
+const { formatMessage } = useVIntl()
 
 const props = defineProps<
 	DisclosureCardMetaProps & {
 		title: string
 		icon?: Component
 		description?: string
+		infoLink?: string
 	}
 >()
 
@@ -32,12 +36,6 @@ const emit = defineEmits<{
 const enabled = defineModel<boolean>({ required: true })
 
 const resolvedLockStatus = computed(() => props.lockStatus ?? 'unlocked')
-
-const LOCK_STATUSES = [
-	{ status: 'unlocked', label: 'Unlocked' },
-	{ status: 'cannot_disable', label: 'Cannot disable' },
-	{ status: 'fully_locked', label: 'Fully locked' },
-] as const
 
 const messages = defineMessages({
 	cannotDisableWarning: {
@@ -54,6 +52,10 @@ const messages = defineMessages({
 		id: 'project.settings.disclosures.lock-status.disabled.warning',
 		defaultMessage:
 			'This disclosure has been locked by the moderators. Please <contact-support-link>contact support</contact-support-link> if you believe this is in error.',
+	},
+	infoTooltip: {
+		id: 'project.settings.disclosures.info-tooltip',
+		defaultMessage: 'Click to learn more about when to use this disclosure.',
 	},
 })
 
@@ -82,19 +84,57 @@ function setLockStatus(status: DisclosureLockStatus) {
 </script>
 
 <template>
-	<SettingsToggleCard
+	<component
+		:is="variant === 'review' ? ProjectReviewDisclosureCard : SettingsToggleCard"
 		v-model="enabled"
 		:disabled="disabled"
 		:toggle-disabled="toggleDisabled"
+		:editing="editing"
+		:on-toggle-editing="onToggleEditing"
+		:on-cancel-editing="onCancelEditing"
+		:on-save-editing="onSaveEditing"
+		:section-can-save="sectionCanSave"
+		:section-saving="sectionSaving"
+		:section-save-error="sectionSaveError"
+		:section-save-disabled-reason="sectionSaveDisabledReason"
 		:icon="icon"
 		:title="title"
-		:description="description"
+		:description="hideDescription ? undefined : description"
 	>
-		<slot />
+		<template v-if="!hideDescription && $slots.default" #default>
+			<slot />
+		</template>
+		<template #title-suffix>
+			<a
+				v-if="infoLink"
+				v-tooltip="formatMessage(messages.infoTooltip)"
+				class="smart-clickable:allow-pointer-events flex text-secondary hover:brightness-[--hover-brightness]"
+				:href="infoLink"
+				target="_blank"
+				rel="noopener noreferrer"
+			>
+				<UnknownIcon class="size-5" />
+			</a>
+		</template>
 		<template v-if="$slots.expanded" #expanded>
 			<slot name="expanded" />
 		</template>
-		<template v-if="showFooter" #footer>
+		<template v-if="variant === 'review' && updatedAt" #updated-by>
+			<DisclosureUpdatedBy
+				:updated-at="updatedAt"
+				:updated-by="updatedBy"
+				:set-by-moderator="setByModerator"
+			/>
+		</template>
+		<template v-if="variant === 'review' && showModeratorLockControls" #lock-controls>
+			<DisclosureLockControls
+				compact
+				:lock-status="resolvedLockStatus"
+				:disabled="disabled"
+				@set-lock-status="setLockStatus"
+			/>
+		</template>
+		<template v-if="variant !== 'review' && showFooter" #footer>
 			<div class="flex flex-col gap-3">
 				<SettingsInlineWarning v-if="showLockWarning && lockWarningMessage">
 					<IntlFormatted :message-id="lockWarningMessage">
@@ -118,29 +158,15 @@ function setLockStatus(status: DisclosureLockStatus) {
 						:set-by-moderator="setByModerator"
 					/>
 					<span v-else />
-					<ButtonGroup v-if="showModeratorLockControls" class="ml-auto" label="Lock status">
-						<Button
-							v-for="{ status, label } in LOCK_STATUSES"
-							:key="status"
-							:color="
-								status === 'cannot_disable'
-									? 'orange'
-									: status === 'fully_locked'
-										? 'red'
-										: undefined
-							"
-							:type="status !== 'unlocked' ? 'colored-text' : undefined"
-							:disabled="disabled || resolvedLockStatus === status"
-							@click="setLockStatus(status)"
-						>
-							<LockOpenIcon v-if="status === 'unlocked'" />
-							<CircleSlashIcon v-else-if="status === 'cannot_disable'" />
-							<LockIcon v-else />
-							{{ label }}
-						</Button>
-					</ButtonGroup>
+					<DisclosureLockControls
+						v-if="showModeratorLockControls"
+						class="ml-auto"
+						:lock-status="resolvedLockStatus"
+						:disabled="disabled"
+						@set-lock-status="setLockStatus"
+					/>
 				</div>
 			</div>
 		</template>
-	</SettingsToggleCard>
+	</component>
 </template>

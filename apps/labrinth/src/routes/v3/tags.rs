@@ -2,14 +2,14 @@ use crate::util::error::Context as _;
 use std::collections::HashMap;
 
 use super::ApiError;
-use crate::database::models::categories::{
-    Category, LinkPlatform, ProjectType, ReportType,
-};
+use crate::database::models::categories::{Category, ProjectType, ReportType};
 use crate::database::models::loader_fields::{
     Game, Loader, LoaderField, LoaderFieldEnumValue, LoaderFieldType,
     LoaderMetadata,
 };
+use crate::models::link_platform::LinkPlatform;
 use actix_web::{HttpResponse, get, web};
+use strum::IntoEnumIterator;
 use xredis::RedisPool;
 
 use crate::database::PgPool;
@@ -239,10 +239,10 @@ pub async fn license_list() -> HttpResponse {
     let licenses = spdx::identifiers::LICENSES;
     let mut results: Vec<License> = Vec::with_capacity(licenses.len());
 
-    for (short, name, _) in licenses {
+    for license in licenses {
         results.push(License {
-            short: short.to_string(),
-            name: name.to_string(),
+            short: license.name.to_string(),
+            name: license.full_name.to_string(),
         });
     }
 
@@ -303,19 +303,15 @@ pub async fn link_platform_list_route(
 }
 
 pub async fn link_platform_list(
-    pool: web::Data<PgPool>,
-    redis: web::Data<RedisPool>,
+    _pool: web::Data<PgPool>,
+    _redis: web::Data<RedisPool>,
 ) -> Result<HttpResponse, ApiError> {
-    let results: Vec<LinkPlatformQueryData> =
-        LinkPlatform::list(&**pool, &redis)
-            .await
-            .wrap_internal_err("reading HTTP response body")?
-            .into_iter()
-            .map(|x| LinkPlatformQueryData {
-                name: x.name,
-                donation: x.donation,
-            })
-            .collect();
+    let results: Vec<LinkPlatformQueryData> = LinkPlatform::iter()
+        .map(|platform| LinkPlatformQueryData {
+            name: platform.to_string(),
+            donation: platform.is_donation(),
+        })
+        .collect();
     Ok(HttpResponse::Ok().json(results))
 }
 

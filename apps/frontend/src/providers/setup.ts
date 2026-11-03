@@ -14,7 +14,7 @@ export function setupProviders(auth: Awaited<ReturnType<typeof useAuth>>) {
 	provideNotificationManager(notificationManager)
 
 	const authProvider = setupAuthProvider(auth)
-	const client = setupModrinthClientProvider(auth)
+	const client = setupModrinthClientProvider(auth, notificationManager)
 	const userPreferences = setupUserPreferencesProvider({
 		auth: authProvider,
 		getPreferences: (userId) => client.labrinth.users_v3.getPreferences(userId),
@@ -28,5 +28,5 @@ export function setupProviders(auth: Awaited<ReturnType<typeof useAuth>>) {
 	setupLoadingStateProvider()
 	setupUserCountryProvider()
 
-	return userPreferences
+	return { client, userPreferences, notificationManager }
 }

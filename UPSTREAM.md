@@ -1,9 +1,7 @@
 # Upstream
 
-NyanRinth 1.1.0 is based on [AstralRinth](https://github.com/42WASD/AstralRinth), beta commit `69e9ef400c5c77b0360d87bffabb952fa5aa6e76`, itself derived from [Modrinth](https://github.com/modrinth/code).
+NyanRinth 1.2.0-alpha.1 is the first preserved port to [Modrinth v0.22.1](https://github.com/modrinth/code/tree/v0.22.1), commit `b3a202687e9a33e5f5da676ae7b62181a2011702`.
 
-This snapshot was imported from the preserved `NyanRinth-1.1.0-source.zip` archive. The author date records the archive file timestamp; the commit date records the GitHub import. This is a release snapshot, not a reconstruction of individual development commits.
+This checkpoint was imported from a preserved local source tree. The author date follows the timestamp of its version manifest (2026-11-03T13:19:36+05:00); the commit date records this import. Local credentials, tool configuration and temporary reports are excluded. This checkpoint has not been rebuilt for publication and has no new binary release.
 
-Local editor settings, agent configuration, temporary reports and environment overrides are excluded. Original copyright notices and package licenses are retained. Bundled authlib-injector 1.2.8 is unmodified; its [source](https://github.com/yushijinhun/authlib-injector/tree/v1.2.8) is available under AGPL-3.0.
-
-The game-options catalog and conversions in this release were ported from Modrinth v0.22.1. The launcher platform remains based on AstralRinth.
+The port keeps the upstream content store, installation jobs, runtime cache, synchronized options and database migrations. Ely.by authentication, skins, DPAPI sessions, authlib-injector and the old-profile converter are carried over from NyanRinth. Historical copyright notices and package licenses are retained; see COPYING.md.

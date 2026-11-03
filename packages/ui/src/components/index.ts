@@ -1,4 +1,3 @@
-export * from './affiliate'
 export * from './base'
 export * from './billing'
 export * from './brand'
@@ -6,6 +5,15 @@ export * from './changelog'
 export * from './chart'
 export * from './content'
 export * from './external_files'
+export * from './floating'
+export { default as ImageViewerEditor } from './image-viewer-editor/index.vue'
+export type {
+	ImageViewerEditorData,
+	ImageViewerEditorItem,
+	ImageViewerEditorMetadata,
+	ImageViewerEditorSavePayload,
+	ImageViewerEditorSource,
+} from './image-viewer-editor/types'
 export * from './modal'
 export * from './nav'
 export * from './notifications'

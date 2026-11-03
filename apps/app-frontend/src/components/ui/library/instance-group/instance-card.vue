@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { PointerActivationConstraints } from '@dnd-kit/dom'
 import { KeyboardSensor, PointerSensor, useDraggable } from '@dnd-kit/vue'
 import { CheckIcon, DownloadIcon, PlayIcon, SpinnerIcon, StopCircleIcon } from '@modrinth/assets'
 import { defineMessages, IconButton, injectNotificationManager, useVIntl } from '@modrinth/ui'
@@ -23,7 +24,7 @@ const LOADING_INDICATOR_DELAY_MS = 100
 
 const instanceCardSensors = [
 	PointerSensor.configure({
-		preventActivation: () => false,
+		activationConstraints: [new PointerActivationConstraints.Distance({ value: 5 })],
 	}),
 	KeyboardSensor,
 ]
@@ -123,6 +124,7 @@ const { isDragging } = useDraggable({
 const router = useRouter()
 
 const seeInstance = async () => {
+	if (installing.value) return
 	await router.push(`/instance/${encodeURIComponent(props.instance.id)}`)
 }
 
@@ -176,7 +178,7 @@ const checkProcess = async () => {
 
 const play = async (event: MouseEvent | null, context: string) => {
 	event?.stopPropagation()
-	if (props.instance.quarantined) return
+	if (props.instance.quarantined || installing.value || modLoading.value) return
 	loading.value = true
 	await run(props.instance.id)
 		.catch((err) => handleSevereError(err, { instanceId: props.instance.id }))
@@ -205,7 +207,7 @@ const stop = async (event: MouseEvent | null, context: string) => {
 
 const repair = async (event: MouseEvent) => {
 	event.stopPropagation()
-	if (props.instance.quarantined) return
+	if (props.instance.quarantined || installing.value || modLoading.value) return
 
 	if (
 		props.instance.install_stage !== 'pack_installed' &&
@@ -228,7 +230,7 @@ const openFolder = async () => {
 }
 
 const addContent = async () => {
-	if (props.instance.quarantined) return
+	if (props.instance.quarantined || installing.value || modLoading.value) return
 	await router.push({
 		path: `/browse/${props.instance.loader === 'vanilla' ? 'datapack' : 'mod'}`,
 		query: { i: props.instance.id },
@@ -242,6 +244,9 @@ defineExpose({
 	openFolder,
 	addContent,
 	instance: props.instance,
+	get playing() {
+		return playing.value
+	},
 })
 
 useAppEvent('process', (event) => {

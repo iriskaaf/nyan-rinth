@@ -1,11 +1,8 @@
 <template>
 	<div class="flex flex-col">
-		<router-link
-			class="mb-4 flex w-fit items-center gap-2 rounded-lg px-2 py-0.5 pl-0 text-link"
-			:to="buildProjectHref(`/project/${route.params.id}/versions`)"
-		>
-			<ChevronLeftIcon class="shrink-0" /> {{ formatMessage(messages.allVersions) }}
-		</router-link>
+		<BackToParentLink :to="buildProjectHref(`/project/${route.params.id}/versions`)">
+			{{ formatMessage(messages.allVersions) }}
+		</BackToParentLink>
 		<VersionPage
 			v-if="version"
 			:version="version"
@@ -85,14 +82,13 @@
 import type { Labrinth } from '@modrinth/api-client'
 import {
 	CheckIcon,
-	ChevronLeftIcon,
 	DownloadIcon,
 	ExternalIcon,
 	MoreVerticalIcon,
 	ReportIcon,
 	VersionIcon,
 } from '@modrinth/assets'
-import { Button, ButtonLink, TeleportOverflowMenu } from '@modrinth/ui'
+import { BackToParentLink, Button, ButtonLink, TeleportOverflowMenu } from '@modrinth/ui'
 import {
 	commonMessages,
 	defineMessages,
@@ -106,7 +102,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { SwapIcon } from '@/assets/icons'
 import { get_project_many, get_version_many } from '@/helpers/cache.js'
-import { useBreadcrumb } from '@/providers/breadcrumbs'
+import { useBreadcrumb } from '@/shared/breadcrumbs'
 
 const { formatMessage } = useVIntl()
 const formatBytes = useFormatBytes()

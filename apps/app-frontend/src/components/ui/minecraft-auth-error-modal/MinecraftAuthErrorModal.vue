@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import { nyanMessages } from '@/helpers/ui-messages'
-import { useVIntl } from '@modrinth/ui'
-
 import {
 	CheckIcon,
 	CopyIcon,
@@ -10,21 +7,13 @@ import {
 	MessagesSquareIcon,
 	WrenchIcon,
 } from '@modrinth/assets'
-import {
-	Admonition,
-	Button,
-	ButtonLink,
-	Collapsible,
-	IconButton,
-	IntlFormatted,
-	NewModal,
-} from '@modrinth/ui'
+import { Admonition, Button, ButtonLink, Collapsible, IconButton, NewModal } from '@modrinth/ui'
 import { computed, ref } from 'vue'
 
 import { handleSevereError } from '@/composables/use-error.js'
 import { login as login_flow, set_default_user } from '@/helpers/auth.js'
 
-import { findMinecraftAuthError, type MinecraftAuthError } from './minecraft-auth-errors'
+import { type MinecraftAuthError, minecraftAuthErrors } from './minecraft-auth-errors'
 
 const modal = ref<InstanceType<typeof NewModal>>()
 const rawError = ref<string>('')
@@ -33,10 +22,10 @@ const debugCollapsed = ref(true)
 const copied = ref(false)
 const loadingSignIn = ref(false)
 
-function show(errorVal: { message?: string }) {
+function show(errorVal: { message?: string; code?: string }) {
 	rawError.value = errorVal?.message ?? String(errorVal)
 
-	matchedError.value = findMinecraftAuthError(rawError.value)
+	matchedError.value = (errorVal?.code && minecraftAuthErrors[errorVal.code]) || null
 
 	debugCollapsed.value = true
 	modal.value?.show()
@@ -66,7 +55,7 @@ async function signInAgain() {
 	}
 }
 
-const debugInfo = computed(() => rawError.value || formatMessage(nyanMessages.noErrorMessage))
+const debugInfo = computed(() => rawError.value || 'No error message.')
 
 async function copyToClipboard(text: string) {
 	await navigator.clipboard.writeText(text)
@@ -75,27 +64,30 @@ async function copyToClipboard(text: string) {
 		copied.value = false
 	}, 3000)
 }
-
-const { formatMessage } = useVIntl()
 </script>
 
 <template>
-	<NewModal ref="modal" :header="formatMessage(nyanMessages.signInFailed)" :max-width="'548px'">
+	<NewModal ref="modal" header="Sign in Failed" :max-width="'548px'">
 		<div class="flex flex-col gap-6">
-			<Admonition type="warning" :body="formatMessage(nyanMessages.microsoftWarning)"> </Admonition>
+			<Admonition
+				type="warning"
+				body="	We couldn't sign you into your Microsoft account. This may be due to account restrictions or
+				regional limitations."
+			>
+			</Admonition>
 
 			<!-- Matched error details -->
 			<div class="bg-surface-2 rounded-2xl p-4 px-5 flex flex-col gap-3">
 				<template v-if="matchedError">
 					<div class="flex flex-col gap-1.5">
-						<h3 class="text-base font-bold m-0">{{ formatMessage(nyanMessages.whatHappened) }}</h3>
+						<h3 class="text-base font-bold m-0">What we think happened</h3>
 						<p class="text-sm text-secondary m-0">
 							{{ matchedError.whatHappened }}
 						</p>
 					</div>
 
 					<div class="flex flex-col gap-1.5">
-						<h3 class="text-base font-bold m-0">{{ formatMessage(nyanMessages.howToFix) }}</h3>
+						<h3 class="text-base font-bold m-0">How to fix it</h3>
 						<ol class="list-none flex flex-col gap-2 m-0 pl-0">
 							<li
 								v-for="(step, index) in matchedError.stepsToFix"
@@ -118,38 +110,37 @@ const { formatMessage } = useVIntl()
 				</template>
 				<template v-else>
 					<div class="flex flex-col gap-1.5">
-						<h3 class="text-base font-bold m-0">{{ formatMessage(nyanMessages.unknownError) }}</h3>
+						<h3 class="text-base font-bold m-0">Unknown error</h3>
 						<p class="text-sm text-secondary m-0">
-							{{ formatMessage(nyanMessages.unknownErrorBody) }}
+							We don’t recognize this error and can’t recommend specific steps to resolve it.
 						</p>
 						<p class="text-sm text-secondary m-0">
-							<IntlFormatted :message-id="nyanMessages.microsoftHelp">
-								<template #login="{ children }">
-									<a
-										class="text-info font-medium underline"
-										href="https://www.minecraft.net/en-us/login"
-										><component :is="() => children"
-									/></a>
-								</template>
-							</IntlFormatted>
+							Try visiting
+							<a
+								class="text-info font-medium underline hover:underline"
+								href="https://www.minecraft.net/en-us/login"
+								>Minecraft Login</a
+							>
+							and signing in, as it may prompt you with the necessary steps. You can also contact
+							support and we can look into it further.
 						</p>
 					</div>
 				</template>
 			</div>
 
 			<!-- Action buttons -->
-			<div class="flex items-center gap-2">
-				<ButtonLink href="https://support.modrinth.com" class="!w-full" @click="modal?.hide()">
-					<MessagesSquareIcon /> {{ formatMessage(nyanMessages.contactSupport) }}
+			<div class="flex items-center gap-1">
+				<ButtonLink href="https://support.modrinth.com" class="flex-1" @click="modal?.hide()">
+					<MessagesSquareIcon /> Contact support
 				</ButtonLink>
 				<Button
 					type="colored"
 					color="brand"
 					:disabled="loadingSignIn"
-					class="!w-full"
+					class="flex-1"
 					@click="signInAgain"
 				>
-					<LogInIcon /> {{ formatMessage(nyanMessages.signInAgain) }}
+					<LogInIcon /> Sign in again
 				</Button>
 			</div>
 
@@ -163,7 +154,8 @@ const { formatMessage } = useVIntl()
 						@click="debugCollapsed = !debugCollapsed"
 					>
 						<span class="flex items-center gap-2 text-contrast font-extrabold m-0">
-							<WrenchIcon class="h-4 w-4" /> {{ formatMessage(nyanMessages.debugInfo) }}
+							<WrenchIcon class="h-4 w-4" />
+							Debug information
 						</span>
 						<DropdownIcon
 							class="h-5 w-5 text-secondary transition-transform"
@@ -180,8 +172,8 @@ const { formatMessage } = useVIntl()
 								{{ debugInfo }}
 							</div>
 							<IconButton
-								v-tooltip="formatMessage(nyanMessages.copyDebug)"
-								:label="formatMessage(nyanMessages.copyDebug)"
+								v-tooltip="'Copy debug info'"
+								:label="'Copy debug info'"
 								:disabled="copied"
 								@click="copyToClipboard(debugInfo)"
 							>

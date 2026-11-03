@@ -18,6 +18,9 @@ pub enum ProjectDisclosure {
         note: Option<String>,
         uses: BTreeSet<AiUsages>,
     },
+    AiFunctionality {
+        note: Option<String>,
+    },
     Advertisements {
         note: Option<String>,
     },
@@ -111,8 +114,10 @@ impl DisclosureLockStatus {
 pub struct ProjectDisclosureData {
     #[serde(flatten)]
     pub disclosure: ProjectDisclosure,
-    pub set_by_moderator: bool,
-    pub lock_status: DisclosureLockStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub set_by_moderator: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lock_status: Option<DisclosureLockStatus>,
     pub updated_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_by: Option<UserId>,
@@ -124,16 +129,18 @@ impl ProjectDisclosureData {
     pub fn from_db(
         value: DBProjectDisclosure,
         viewer_is_moderator: bool,
+        viewer_is_member: bool,
     ) -> Self {
-        let updated_by = (!value.set_by_moderator || viewer_is_moderator)
-            .then_some(value.updated_by.into());
-
         Self {
             disclosure: value.disclosure,
-            set_by_moderator: value.set_by_moderator,
-            lock_status: value.lock_status,
+            set_by_moderator: (viewer_is_member || viewer_is_moderator)
+                .then_some(value.set_by_moderator),
+            lock_status: (viewer_is_member || viewer_is_moderator)
+                .then_some(value.lock_status),
             updated_at: value.updated_at,
-            updated_by,
+            updated_by: ((!value.set_by_moderator && viewer_is_member)
+                || viewer_is_moderator)
+                .then_some(value.updated_by.into()),
             deleted_at: value.deleted_at,
         }
     }
@@ -157,7 +164,6 @@ pub enum AiUsages {
     Code,
     Assets,
     Text,
-    Functionality,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, IntoStaticStr)]

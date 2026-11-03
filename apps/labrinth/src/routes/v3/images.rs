@@ -63,6 +63,22 @@ pub async fn images_add(
 ) -> Result<HttpResponse, ApiError> {
     let mut context = ImageContext::from_str(&data.context, None);
 
+    if matches!(&context, ImageContext::Project { .. })
+        && let Some(project_ref) = data.project_id.as_deref()
+        && let Some(response) = crate::routes::redirect_query_ref(
+            &req,
+            "project_id",
+            project_ref,
+            pool.as_ref(),
+            redis.as_ref(),
+            session_queue.as_ref(),
+            context.relevant_scope(),
+        )
+        .await?
+    {
+        return Ok(response);
+    }
+
     let user = get_user_from_headers(
         &req,
         &**pool,
@@ -82,7 +98,7 @@ pub async fn images_add(
                 let project =
                     project_item::DBProject::get(&id, &**pool, &redis)
                         .await
-                        .wrap_api_err("fetching project from database")?;
+                        .wrap_internal_err("fetching project from database")?;
                 if let Some(project) = project {
                     if is_team_member_project(
                         &project.inner,
@@ -204,8 +220,7 @@ pub async fn images_add(
         1_048_576,
         "Icons must be smaller than 1MiB",
     )
-    .await
-    .wrap_api_err("executing `read_limited_from_payload`")?;
+    .await?;
 
     let content_length = bytes.len();
     let upload_result = upload_image_optimized(

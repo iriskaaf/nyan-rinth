@@ -30,7 +30,6 @@
 			:regions="regions"
 			:refresh-payment-methods="fetchPaymentData"
 			:fetch-stock="fetchStock"
-			:affiliate-code="affiliateCode"
 			plan-stage
 			@purchase-success="handlePurchaseSuccess"
 			@hide="clearPurchaseIntent"
@@ -42,7 +41,12 @@
 			:site-url="props.siteUrl"
 			:products="props.products"
 		/>
-		<ResubscribeModal ref="resubscribeModal" @resubscribe="handleResubscribeConfirm" />
+		<ResubscribeModal
+			ref="resubscribeModal"
+			:payment-methods="paymentMethods"
+			:regions="regions"
+			@resubscribe="handleResubscribeConfirm"
+		/>
 
 		<div
 			v-if="hasError"
@@ -102,7 +106,7 @@
 					{{ formatMessage(messages.serversTitle) }}
 				</h1>
 				<div class="flex w-full flex-row items-center justify-end gap-2 md:mb-0">
-					<StyledInput
+					<Input
 						id="search"
 						v-model="searchInput"
 						:icon="SearchIcon"
@@ -179,6 +183,7 @@
 								v-for="server in ownedFilteredData.filter((s) => s.is_medal)"
 								:key="`owned-medal-${server.server_id}`"
 								v-bind="server"
+								:on-download-world="getWorldDownload(server.server_id, serverFullList)"
 								@upgrade="openMedalUpgradeModal"
 							/>
 							<ServerListing
@@ -188,7 +193,7 @@
 								:cancellation-date="serverBillingMap.get(server.server_id)?.cancellationDate"
 								:is-provisioning="serverBillingMap.get(server.server_id)?.isProvisioning"
 								:on-resubscribe="serverBillingMap.get(server.server_id)?.onResubscribe"
-								:on-download-backup="serverBillingMap.get(server.server_id)?.onDownloadBackup"
+								:on-download-world="getWorldDownload(server.server_id, serverFullList)"
 							/>
 						</TransitionGroup>
 						<div v-else class="text-secondary">
@@ -238,16 +243,18 @@ import { HammerIcon, LoaderCircleIcon, PlusIcon, SearchIcon } from '@modrinth/as
 import {
 	CopyCode,
 	defineMessages,
+	hasAvailableWorldDownload,
 	injectAuth,
 	injectModrinthClient,
 	injectNotificationManager,
+	Input,
 	IntlFormatted,
+	isWithinServerResubscribeWindow,
 	ModrinthServersPurchaseModal,
 	ResubscribeModal,
 	ServerListEmpty,
 	ServersGuestPlanModal,
-	StyledInput,
-	useServerBackupDownload,
+	useServerWorldDownload,
 	useVIntl,
 } from '@modrinth/ui'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
@@ -412,7 +419,6 @@ const purchaseModal = ref<InstanceType<typeof ModrinthServersPurchaseModal> | nu
 type UpgradeModalRef = ComponentPublicInstance<{ open: (id?: string) => void | Promise<void> }>
 const medalUpgradeModal = ref<UpgradeModalRef | null>(null)
 const resubscribeModal = ref<InstanceType<typeof ResubscribeModal> | null>(null)
-const affiliateCode = ref<string | null>(null)
 const selectedCurrency = ref<string>('USD')
 
 const pyroProducts = computed(() => {
@@ -458,12 +464,8 @@ async function fetchPaymentData() {
 	await Promise.all([refetchCustomer(), refetchPaymentMethods()])
 }
 
-async function fetchStock(
-	region: Archon.Servers.v1.Region,
-	request: Archon.Servers.v0.StockRequest,
-): Promise<number> {
-	const result = await client.archon.servers_v0.checkStock(region.shortcode, request)
-	return result.available
+function fetchStock(memoryMb: number[]): Promise<Archon.Servers.v1.StockResponse> {
+	return client.archon.servers_v1.getStock(memoryMb)
 }
 
 const {
@@ -561,14 +563,14 @@ function sortServers(array: Archon.Servers.v0.Server[]): Archon.Servers.v0.Serve
 	})
 }
 
-// files expire 30 days after cancellation
-function filesExpired(server: Archon.Servers.v0.Server): boolean {
-	if (server.status !== 'suspended' || server.suspension_reason !== 'cancelled') return false
+function shouldShowServer(server: Archon.Servers.v0.Server): boolean {
+	if (server.status !== 'suspended' || server.suspension_reason !== 'cancelled') return true
 	const cancellationDate = serverBillingMap.value.get(server.server_id)?.cancellationDate
-	if (!cancellationDate) return false
-	const cancellation = new Date(cancellationDate)
-	const thirtyDaysLater = new Date(cancellation.getTime() + 30 * 24 * 60 * 60 * 1000)
-	return new Date() > thirtyDaysLater
+	if (!cancellationDate || !serverFullList.value) return true
+	return (
+		isWithinServerResubscribeWindow(cancellationDate) ||
+		hasAvailableWorldDownload(server.server_id, serverFullList.value)
+	)
 }
 
 function isServerOwnedByCurrentUser(server: Archon.Servers.v0.Server): boolean {
@@ -586,11 +588,13 @@ function getServerOwner(server: Archon.Servers.v0.Server): ServerListingOwner | 
 }
 
 const ownedServerList = computed<ServerWithOwner[]>(() =>
-	serverList.value.filter((server) => !filesExpired(server) && isServerOwnedByCurrentUser(server)),
+	serverList.value.filter(
+		(server) => shouldShowServer(server) && isServerOwnedByCurrentUser(server),
+	),
 )
 const sharedServerList = computed<ServerWithOwner[]>(() =>
 	serverList.value
-		.filter((server) => !filesExpired(server) && !isServerOwnedByCurrentUser(server))
+		.filter((server) => shouldShowServer(server) && !isServerOwnedByCurrentUser(server))
 		.map((server) => ({
 			...server,
 			owner: getServerOwner(server),
@@ -636,7 +640,7 @@ watch(serverResponse, (response) => {
 
 const { addNotification } = injectNotificationManager()
 const queryClient = useQueryClient()
-const { getLatestBackupDownload } = useServerBackupDownload()
+const { getWorldDownload } = useServerWorldDownload()
 
 function handlePurchaseSuccess() {
 	startNewServerPolling(serverResponse.value?.servers ?? [])
@@ -776,7 +780,6 @@ type ServerBillingInfo = {
 	cancellationDate?: string | null
 	isProvisioning?: boolean
 	onResubscribe?: () => void
-	onDownloadBackup?: (() => void) | null
 }
 
 type ResubscribeRequest = {
@@ -793,88 +796,19 @@ function getProductFromPriceId(priceId: string | null | undefined) {
 	)
 }
 
-function getPlanName(product: Labrinth.Billing.Internal.Product | null): string {
-	if (!product) return 'Medium plan'
-	if (product.metadata.type !== 'pyro' && product.metadata.type !== 'medal') return 'Medium plan'
-
-	switch (product.metadata.ram) {
-		case 4096:
-			return 'Small plan'
-		case 6144:
-			return 'Medium plan'
-		case 8192:
-			return 'Large plan'
-		default:
-			return 'Custom plan'
-	}
-}
-
-function getRamGb(product: Labrinth.Billing.Internal.Product | null): number | undefined {
-	if (!product) return undefined
-	if (product.metadata.type !== 'pyro' && product.metadata.type !== 'medal') return undefined
-
-	return product.metadata.ram / 1024
-}
-
-function getStorageGb(product: Labrinth.Billing.Internal.Product | null): number | undefined {
-	if (!product) return undefined
-	if (product.metadata.type !== 'pyro' && product.metadata.type !== 'medal') return undefined
-
-	return product.metadata.storage / 1024
-}
-
-function getSharedCpus(product: Labrinth.Billing.Internal.Product | null): number | undefined {
-	if (!product) return undefined
-	if (product.metadata.type !== 'pyro' && product.metadata.type !== 'medal') return undefined
-
-	return product.metadata.cpu / 2
-}
-
-function getRecurringPrice(
-	product: Labrinth.Billing.Internal.Product | null,
-	interval: Labrinth.Billing.Internal.PriceDuration,
-	preferredCurrency?: string,
-): { amount: number; currencyCode: string } | null {
-	if (!product) return null
-
-	const recurringPrices = product.prices.filter((price) => price.prices.type === 'recurring')
-	const preferredPrice = preferredCurrency
-		? recurringPrices.find((price) => price.currency_code === preferredCurrency)
-		: undefined
-	const usdPrice = recurringPrices.find((price) => price.currency_code === 'USD')
-	const selectedPrice = preferredPrice ?? usdPrice ?? recurringPrices[0]
-
-	if (!selectedPrice || selectedPrice.prices.type !== 'recurring') return null
-
-	return {
-		amount: selectedPrice.prices.intervals[interval],
-		currencyCode: selectedPrice.currency_code,
-	}
-}
-
 function openResubscribeModal(
 	serverId: string,
 	subscription: Labrinth.Billing.Internal.UserSubscription,
 	charge?: Labrinth.Billing.Internal.Charge | null,
 ) {
-	const displayInterval = charge?.subscription_interval ?? subscription.interval
-	const displayPriceId = charge?.price_id ?? subscription.price_id
-	const product = getProductFromPriceId(displayPriceId)
-	const fallbackPrice = getRecurringPrice(product, displayInterval, charge?.currency_code)
-
 	resubscribeModal.value?.show({
 		subscriptionId: subscription.id,
 		wasSuspended: !!charge?.due && dayjs(charge.due).isBefore(dayjs()),
 		serverName:
 			serverList.value.find((server) => server.server_id === serverId)?.name ?? 'this server',
-		planName: getPlanName(product),
-		ramGb: getRamGb(product),
-		storageGb: getStorageGb(product),
-		sharedCpus: getSharedCpus(product),
-		priceCents: charge?.amount ?? fallbackPrice?.amount,
-		currencyCode: charge?.currency_code ?? fallbackPrice?.currencyCode,
-		interval: displayInterval,
-		nextChargeDate: charge?.due,
+		plan: getProductFromPriceId(charge?.price_id ?? subscription.price_id),
+		regionShortcode:
+			subscription.metadata?.type === 'pyro' ? subscription.metadata.region : undefined,
 	})
 }
 
@@ -928,12 +862,12 @@ const serverBillingMap = computed(() => {
 				(charge?.status === 'processing' || charge?.status === 'open'),
 		}
 
-		info.onDownloadBackup = getLatestBackupDownload(serverId, serverFullList.value)
-
 		if (charge?.status === 'cancelled') {
 			info.cancellationDate = charge.due
 
-			info.onResubscribe = () => openResubscribeModal(serverId, sub, charge)
+			if (isWithinServerResubscribeWindow(charge.due)) {
+				info.onResubscribe = () => openResubscribeModal(serverId, sub, charge)
+			}
 		}
 
 		map.set(serverId, info)

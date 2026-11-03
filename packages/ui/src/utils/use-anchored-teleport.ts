@@ -1,6 +1,8 @@
 import type { CSSProperties, Ref } from 'vue'
 import { nextTick, onUnmounted, ref, watch } from 'vue'
 
+import { dismissTooltip } from '../providers/tooltip'
+
 export type AnchoredTeleportPlacement =
 	| 'bottom-start'
 	| 'bottom-end'
@@ -14,15 +16,26 @@ export type AnchoredTeleportPlacement =
 	| 'left-end'
 export type AnchoredTeleportSide = 'top' | 'right' | 'bottom' | 'left'
 
+export interface AnchoredTeleportAnchor {
+	getBoundingClientRect(): DOMRect
+}
+
 const viewportPadding = 8
 const anchorPadding = 18
 const defaultDistance = ref(8)
+const defaultAlignOffset = ref(0)
+
+export function pointAnchor(x: number, y: number): AnchoredTeleportAnchor {
+	const rect = new DOMRect(x, y, 0, 0)
+	return { getBoundingClientRect: () => rect }
+}
 
 export function useAnchoredTeleport(
-	trigger: Readonly<Ref<HTMLElement | null>>,
+	trigger: Readonly<Ref<AnchoredTeleportAnchor | null>>,
 	panel: Readonly<Ref<HTMLElement | null>>,
 	placement: Readonly<Ref<AnchoredTeleportPlacement>>,
 	distance: Readonly<Ref<number>> = defaultDistance,
+	alignOffset: Readonly<Ref<number>> = defaultAlignOffset,
 ) {
 	const isOpen = ref(false)
 	const panelStyle = ref<CSSProperties>({
@@ -32,8 +45,13 @@ export function useAnchoredTeleport(
 	})
 	const anchorStyle = ref<CSSProperties>({})
 	const resolvedSide = ref<AnchoredTeleportSide>('bottom')
+	const expandOrigin = ref('top center')
 
 	let resizeObserver: ResizeObserver | undefined
+	let listenerDocument: Document | undefined
+	function ownerWindow() {
+		return panel.value?.ownerDocument.defaultView ?? window
+	}
 
 	function updatePosition() {
 		if (!isOpen.value || !trigger.value || !panel.value) return
@@ -52,20 +70,21 @@ export function useAnchoredTeleport(
 
 		if (isHorizontal) {
 			const prefersRight = placement.value.startsWith('right')
-			const spaceRight = window.innerWidth - triggerRect.right - viewportPadding
+			const spaceRight = ownerWindow().innerWidth - triggerRect.right - viewportPadding
 			const spaceLeft = triggerRect.left - viewportPadding
 			const opensRight = prefersRight
 				? panelRect.width + offset <= spaceRight || spaceRight > spaceLeft
 				: panelRect.width + offset > spaceLeft && spaceRight > spaceLeft
 
 			resolvedSide.value = opensRight ? 'right' : 'left'
-			idealTop = alignsEnd ? triggerRect.bottom - panelRect.height : triggerRect.top
+			idealTop =
+				(alignsEnd ? triggerRect.bottom - panelRect.height : triggerRect.top) + alignOffset.value
 			idealLeft = opensRight
 				? triggerRect.right + offset
 				: triggerRect.left - panelRect.width - offset
 		} else {
 			const prefersTop = placement.value.startsWith('top')
-			const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding
+			const spaceBelow = ownerWindow().innerHeight - triggerRect.bottom - viewportPadding
 			const spaceAbove = triggerRect.top - viewportPadding
 			const opensAbove = prefersTop
 				? panelRect.height + offset <= spaceAbove || spaceAbove > spaceBelow
@@ -83,21 +102,33 @@ export function useAnchoredTeleport(
 				const centered = triggerRect.left + triggerRect.width / 2 - panelRect.width / 2
 				if (centered < viewportPadding) {
 					idealLeft = triggerRect.left
-				} else if (centered + panelRect.width > window.innerWidth - viewportPadding) {
+				} else if (centered + panelRect.width > ownerWindow().innerWidth - viewportPadding) {
 					idealLeft = triggerRect.right - panelRect.width
 				} else {
 					idealLeft = centered
 				}
 			} else {
-				idealLeft = alignsEnd ? triggerRect.right - panelRect.width : triggerRect.left
+				idealLeft =
+					(alignsEnd ? triggerRect.right - panelRect.width : triggerRect.left) + alignOffset.value
 			}
 		}
 
 		const effectiveHeight = maxHeight ?? panelRect.height
-		const maxTop = Math.max(viewportPadding, window.innerHeight - effectiveHeight - viewportPadding)
-		const maxLeft = Math.max(viewportPadding, window.innerWidth - panelRect.width - viewportPadding)
+		const maxTop = Math.max(
+			viewportPadding,
+			ownerWindow().innerHeight - effectiveHeight - viewportPadding,
+		)
+		const maxLeft = Math.max(
+			viewportPadding,
+			ownerWindow().innerWidth - panelRect.width - viewportPadding,
+		)
 		const panelTop = Math.min(Math.max(idealTop, viewportPadding), maxTop)
 		const panelLeft = Math.min(Math.max(idealLeft, viewportPadding), maxLeft)
+		const originY = triggerRect.top + triggerRect.height / 2 - panelTop
+		const originX = isHorizontal
+			? (resolvedSide.value === 'right' ? triggerRect.right : triggerRect.left) - panelLeft
+			: triggerRect.left + triggerRect.width / 2 - panelLeft
+		expandOrigin.value = `${originX}px ${originY}px`
 
 		panelStyle.value = {
 			top: `${panelTop}px`,
@@ -120,32 +151,47 @@ export function useAnchoredTeleport(
 				}
 	}
 
+	function triggerElement() {
+		return trigger.value instanceof HTMLElement ? trigger.value : null
+	}
+
 	function handlePointerDown(event: PointerEvent) {
 		const target = event.target as Node | null
-		if (!target || trigger.value?.contains(target) || panel.value?.contains(target)) return
+		if (!target || triggerElement()?.contains(target) || panel.value?.contains(target)) return
+		if (panel.value?.ownerDocument.getElementById('teleports')?.contains(target)) return
+		close()
+	}
+
+	function handleWindowClose() {
 		close()
 	}
 
 	function addListeners() {
-		document.addEventListener('pointerdown', handlePointerDown)
-		window.addEventListener('resize', updatePosition)
-		window.addEventListener('scroll', updatePosition, true)
+		listenerDocument = panel.value?.ownerDocument ?? document
+		listenerDocument.addEventListener('pointerdown', handlePointerDown)
+		listenerDocument.defaultView?.addEventListener('resize', updatePosition)
+		listenerDocument.defaultView?.addEventListener('beforeunload', handleWindowClose)
+		listenerDocument.defaultView?.addEventListener('scroll', updatePosition, true)
 
 		resizeObserver = new ResizeObserver(updatePosition)
-		if (trigger.value) resizeObserver.observe(trigger.value)
+		const element = triggerElement()
+		if (element) resizeObserver.observe(element)
 		if (panel.value) resizeObserver.observe(panel.value)
 	}
 
 	function removeListeners() {
-		document.removeEventListener('pointerdown', handlePointerDown)
-		window.removeEventListener('resize', updatePosition)
-		window.removeEventListener('scroll', updatePosition, true)
+		listenerDocument?.removeEventListener('pointerdown', handlePointerDown)
+		listenerDocument?.defaultView?.removeEventListener('resize', updatePosition)
+		listenerDocument?.defaultView?.removeEventListener('beforeunload', handleWindowClose)
+		listenerDocument?.defaultView?.removeEventListener('scroll', updatePosition, true)
 		resizeObserver?.disconnect()
 		resizeObserver = undefined
+		listenerDocument = undefined
 	}
 
 	async function open() {
 		if (isOpen.value) return
+		dismissTooltip()
 		panelStyle.value = { top: '0px', left: '0px', visibility: 'hidden' }
 		isOpen.value = true
 		await nextTick()
@@ -157,14 +203,15 @@ export function useAnchoredTeleport(
 		if (!isOpen.value) return
 		isOpen.value = false
 		removeListeners()
-		if (restoreFocus) nextTick(() => trigger.value?.focus())
+		if (restoreFocus) nextTick(() => triggerElement()?.focus())
 	}
 
-	watch([placement, distance], updatePosition)
+	watch([placement, distance, alignOffset, trigger], updatePosition)
 	watch(panel, () => {
 		if (!isOpen.value) return
 		resizeObserver?.disconnect()
-		if (trigger.value) resizeObserver?.observe(trigger.value)
+		const element = triggerElement()
+		if (element) resizeObserver?.observe(element)
 		if (panel.value) resizeObserver?.observe(panel.value)
 		updatePosition()
 	})
@@ -176,7 +223,9 @@ export function useAnchoredTeleport(
 		panelStyle,
 		anchorStyle,
 		resolvedSide,
+		expandOrigin,
 		open,
 		close,
+		updatePosition,
 	}
 }
