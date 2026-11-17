@@ -1,7 +1,7 @@
 use super::{FriendPayload, LoadingBarId};
 #[cfg(feature = "tauri")]
 use crate::event::{
-    AppEvent, InfoPayload, InstanceGroupsChangedPayload, InstancePayload, LoadingPayload,
+    AppEvent, InstanceGroupsChangedPayload, InstancePayload, LoadingPayload,
     ProcessPayload, WarningPayload,
 };
 use crate::event::{
@@ -12,7 +12,7 @@ use crate::state::OnboardingChecklist;
 use futures::prelude::*;
 use serde_json::Value;
 #[cfg(feature = "tauri")]
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 use uuid::Uuid;
 
 #[cfg(feature = "cli")]
@@ -164,26 +164,6 @@ pub async fn emit_warning(message: &str) -> crate::Result<()> {
         }))?;
     }
     tracing::warn!("{}", message);
-    Ok(())
-}
-
-// This code is modified by AstralRinth
-// emit_info(message)
-pub async fn emit_info(message: &str) -> crate::Result<()> {
-    #[cfg(feature = "tauri")]
-    {
-        let event_state = crate::EventState::get();
-        event_state
-            .app
-            .emit(
-                "info",
-                InfoPayload {
-                    message: message.to_string(),
-                },
-            )
-            .map_err(EventError::from)?;
-    }
-    tracing::info!("{}", message);
     Ok(())
 }
 

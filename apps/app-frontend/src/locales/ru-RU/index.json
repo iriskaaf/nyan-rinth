@@ -2042,6 +2042,9 @@
 	"content.shared-instance.warning-header": {
 		"message": "Это часть сборки"
 	},
+	"creation-flow.modal.setup-type.option.import-file.title": {
+		"message": "Импорт из файла"
+	},
 	"friends.action.add-friend": {
 		"message": "Добавить в друзья"
 	},
@@ -2894,6 +2897,12 @@
 	"modal.modrinth-account-required.waiting-for-browser": {
 		"message": "Ожидание подтверждения браузера..."
 	},
+	"nyanrinth.about.title": {
+		"message": "О лаунчере"
+	},
+	"nyanrinth.account.title": {
+		"message": "Аккаунт"
+	},
 	"nyanrinth.appearance.accent": {
 		"message": "Акцентный цвет"
 	},
@@ -3098,6 +3107,15 @@
 	"nyanrinth.interface.whatHappened": {
 		"message": "Возможная причина"
 	},
+	"nyanrinth.welcome.sign-in": {
+		"message": "Войти в аккаунт"
+	},
+	"nyanrinth.welcome.sign-in-description": {
+		"message": "Добавьте игровой аккаунт, чтобы начать играть в NyanRinth."
+	},
+	"nyanrinth.welcome.sign-in-title": {
+		"message": "Войдите в аккаунт"
+	},
 	"onboarding-checklist.create-instance": {
 		"message": "Создать первую сборку"
 	},
@@ -3130,5 +3148,65 @@
 	},
 	"settings.sidebar.label.display": {
 		"message": "Отображение"
+	},
+	"nyanrinth.sync.title": {
+		"message": "Синхронизация настроек игры"
+	},
+	"nyanrinth.sync.description": {
+		"message": "Общие параметры Minecraft для ваших сборок. Изменения, сохранённые в игре, передаются в другие сборки."
+	},
+	"nyanrinth.sync.enabled": {
+		"message": "Синхронизировать настройки игры"
+	},
+	"nyanrinth.sync.source": {
+		"message": "Исходная сборка"
+	},
+	"nyanrinth.sync.choose": {
+		"message": "Выберите сборку"
+	},
+	"nyanrinth.sync.source-help": {
+		"message": "Используется при включении синхронизации или смене исходной сборки. Один раз запустите и закройте игру, чтобы она создала настройки."
+	},
+	"nyanrinth.sync.instances": {
+		"message": "Участвующие сборки"
+	},
+	"nyanrinth.sync.options": {
+		"message": "Отдельные параметры"
+	},
+	"nyanrinth.sync.search": {
+		"message": "Поиск по ключу параметра…"
+	},
+	"nyanrinth.sync.limits": {
+		"message": "Используется каталог параметров Modrinth 0.22.1. Снапшоты и неизвестные параметры модов остаются локальными. Полноэкранный режим и размер окна задаёт лаунчер. Список серверов, ресурспаки и панели быстрого доступа здесь не синхронизируются."
+	},
+	"nyanrinth.sync.backups": {
+		"message": "Исходные файлы сохраняются в game-settings-backups в каталоге приложения. Работающая игра получит изменения при следующем запуске."
+	},
+	"nyanrinth.sync.status.ready": {
+		"message": "Готова"
+	},
+	"nyanrinth.sync.status.waiting": {
+		"message": "Ожидание первого запуска игры"
+	},
+	"nyanrinth.sync.status.running": {
+		"message": "Игра запущена"
+	},
+	"nyanrinth.sync.status.unsupported": {
+		"message": "Версия игры не поддерживается"
+	},
+	"nyanrinth.sync.status.installing": {
+		"message": "Сборка ещё не готова"
+	},
+	"nyanrinth.sync.status.unreadable": {
+		"message": "Не удалось прочитать options.txt"
+	},
+	"nyanrinth.sync.save": {
+		"message": "Применить синхронизацию"
+	},
+	"nyanrinth.sync.empty": {
+		"message": "Сначала создайте или импортируйте сборку."
+	},
+	"creation-flow.modal.setup-type.option.import-instance.description": {
+		"message": "Копирование сборок из Prism, PineconeMC, Modrinth, AstralRinth и других лаунчеров."
 	}
 }

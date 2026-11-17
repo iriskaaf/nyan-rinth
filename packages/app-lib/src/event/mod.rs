@@ -354,13 +354,6 @@ pub struct WarningPayload {
     pub message: String,
 }
 
-// This code is modified by AstralRinth
-#[derive(Serialize, Clone)]
-#[cfg(feature = "tauri")]
-pub struct InfoPayload {
-    pub message: String,
-}
-
 #[derive(Serialize, Deserialize, Clone)]
 #[cfg_attr(
     feature = "export-ts",

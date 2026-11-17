@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { PlayIcon, PlusIcon } from '@modrinth/assets'
-import { defineMessages, injectNotificationManager, useVIntl } from '@modrinth/ui'
+import { LogInIcon, PlayIcon, PlusIcon } from '@modrinth/assets'
+import { Button, defineMessages, injectNotificationManager, useVIntl } from '@modrinth/ui'
 import dayjs from 'dayjs'
-import { computed, inject, onActivated, ref } from 'vue'
+import { computed, inject, onActivated, ref, type Ref } from 'vue'
 
+import { minecraftAccounts } from '@/composables/use-minecraft-accounts'
+import type AccountsCard from '@/components/ui/AccountsCard.vue'
 import ContextMenu from '@/components/ui/context-menu/index.vue'
 import LibrarySection from '@/components/ui/library/index.vue'
 import WelcomeScreen from '@/components/ui/WelcomeScreen.vue'
@@ -26,8 +28,24 @@ const { hasCreatedInstance, isReady } = injectOnboardingChecklist()
 const showCreationModal = inject<() => void>('showCreationModal')
 const pageOptions = ref<InstanceType<typeof ContextMenu>>()
 const appSettings = useAppSettings()
+const accountsCard = inject<Ref<InstanceType<typeof AccountsCard> | null>>('accountsCard')
+const needsAccount = computed(
+	() => minecraftAccounts.value !== null && minecraftAccounts.value.length === 0,
+)
 
 const messages = defineMessages({
+	signInTitle: {
+		id: 'nyanrinth.welcome.sign-in-title',
+		defaultMessage: 'Sign in',
+	},
+	signInDescription: {
+		id: 'nyanrinth.welcome.sign-in-description',
+		defaultMessage: 'Add a game account to start playing in NyanRinth.',
+	},
+	signIn: {
+		id: 'nyanrinth.welcome.sign-in',
+		defaultMessage: 'Sign in',
+	},
 	home: {
 		id: 'app.navigation.home',
 		defaultMessage: 'Home',
@@ -98,7 +116,23 @@ function handlePageOption({ option }: { option: string }) {
 </script>
 
 <template>
-	<WelcomeScreen v-if="isReady && !hasCreatedInstance" />
+	<div v-if="isReady && needsAccount" class="flex min-h-full items-center justify-center p-6">
+		<section
+			class="flex w-full max-w-md flex-col items-center gap-4 rounded-2xl border border-solid border-surface-5 bg-button-bg p-8 text-center"
+			aria-labelledby="welcome-sign-in-title"
+		>
+			<LogInIcon class="size-10 text-brand" aria-hidden="true" />
+			<h1 id="welcome-sign-in-title" class="m-0 text-2xl font-semibold text-contrast">
+				{{ formatMessage(messages.signInTitle) }}
+			</h1>
+			<p class="m-0 text-secondary">{{ formatMessage(messages.signInDescription) }}</p>
+			<Button type="colored" color="brand" size="lg" @click="accountsCard?.showAccountLoginModal()">
+				<LogInIcon />
+				{{ formatMessage(messages.signIn) }}
+			</Button>
+		</section>
+	</div>
+	<WelcomeScreen v-else-if="isReady && !hasCreatedInstance" />
 	<div
 		v-else-if="isReady"
 		data-library-page-background

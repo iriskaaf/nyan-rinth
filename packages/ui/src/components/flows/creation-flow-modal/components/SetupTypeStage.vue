@@ -51,6 +51,13 @@
 		<template v-if="ctx.flowType === 'instance'">
 			<div class="flex flex-col gap-3">
 				<BigOptionButton
+					:icon="UploadIcon"
+					:title="formatMessage(messages.uploadModpackTitle)"
+					:description="formatMessage(messages.uploadModpackDescription)"
+					@click="triggerFileInput"
+				/>
+				<div class="my-1 h-px bg-surface-5" />
+				<BigOptionButton
 					:icon="BoxesIcon"
 					:title="formatMessage(messages.customSetupTitle)"
 					:description="formatMessage(messages.customSetupDescription)"
@@ -61,12 +68,6 @@
 					:title="formatMessage(messages.modpackBaseTitle)"
 					:description="formatMessage(messages.modpackBaseDescription)"
 					@click="browseModpacks"
-				/>
-				<BigOptionButton
-					:icon="UploadIcon"
-					:title="formatMessage(messages.uploadModpackTitle)"
-					:description="formatMessage(messages.uploadModpackDescription)"
-					@click="triggerFileInput"
 				/>
 				<BigOptionButton
 					:icon="BoxImportIcon"
@@ -187,8 +188,8 @@ const messages = defineMessages({
 		defaultMessage: 'Choose a project and we’ll use its latest version.',
 	},
 	uploadModpackTitle: {
-		id: 'creation-flow.modal.setup-type.option.upload-modpack.title',
-		defaultMessage: 'Upload a modpack',
+		id: 'creation-flow.modal.setup-type.option.import-file.title',
+		defaultMessage: 'Import from file',
 	},
 	uploadModpackDescription: {
 		id: 'creation-flow.modal.setup-type.option.upload-modpack.description',
@@ -200,7 +201,7 @@ const messages = defineMessages({
 	},
 	importInstanceDescription: {
 		id: 'creation-flow.modal.setup-type.option.import-instance.description',
-		defaultMessage: 'Import an instance from Prism, CurseForge, or similar.',
+		defaultMessage: 'Copy instances from Prism, PineconeMC, Modrinth, AstralRinth and other launchers.',
 	},
 	vanillaMinecraftTitle: {
 		id: 'creation-flow.modal.setup-type.option.vanilla-minecraft.title',

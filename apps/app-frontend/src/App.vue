@@ -18,7 +18,7 @@ import {
 	PlusIcon,
 	RightArrowIcon,
 	SettingsIcon,
-	ShirtIcon,
+	ElyByIcon,
 	UserIcon,
 } from '@modrinth/assets'
 import {
@@ -176,7 +176,9 @@ const forceSidebar = computed(
 		route.path.startsWith('/user'),
 )
 const sidebarVisible = computed(
-	() => forceSidebar.value || (route.path === '/' && sidebarToggled.value),
+	() =>
+		(forceSidebar.value || (route.path === '/' && showFriendsList.value && !!credentials.value)) &&
+		sidebarToggled.value,
 )
 const hostingRouteActive = computed(() => route.path.startsWith('/hosting'))
 const hostingIntercomIdentityKey = computed(() => {
@@ -1328,7 +1330,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 				<CompassIcon />
 			</NavButton>
 			<NavButton v-tooltip.right="formatMessage(appMessages.skinSelectorLabel)" to="/skins">
-				<ShirtIcon />
+				<ElyByIcon />
 			</NavButton>
 			<suspense>
 				<QuickInstanceSwitcher />
@@ -1439,9 +1441,9 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			</div>
 			<section data-tauri-drag-region class="flex shrink-0 ml-auto items-center">
 				<IconButton
-					v-if="route.path === '/' && !forceSidebar && appSettings.toggleSidebar"
+					v-if="forceSidebar || (route.path === '/' && showFriendsList && credentials)"
 					:type="sidebarToggled ? 'base' : 'quiet'"
-					:label="formatMessage(messages.nextImage)"
+					:label="sidebarToggled ? 'Свернуть боковую панель' : 'Развернуть боковую панель'"
 					class="mr-3 transition-transform"
 					:class="{ 'rotate-180': !sidebarToggled }"
 					@click="sidebarToggled = !sidebarToggled"
@@ -1530,10 +1532,6 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 				:class="{ 'pb-12': !hasPlus }"
 				data-overlayscrollbars-initialize
 			>
-				<div class="border-0 border-b border-solid border-surface-5 p-4">
-					<h3 class="m-0 mb-3 text-base font-semibold text-contrast">Аккаунт Minecraft</h3>
-					<Suspense><AccountsCard ref="accounts" /></Suspense>
-				</div>
 				<div id="sidebar-teleport-target" class="sidebar-teleport-content"></div>
 				<div class="sidebar-default-content" :class="{ 'sidebar-enabled': sidebarVisible }">
 					<div
@@ -1549,6 +1547,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 		</div>
 	</div>
 	<I18nDebugPanel />
+	<Suspense><AccountsCard ref="accounts" hide-card /></Suspense>
 	<NotificationPanel :has-sidebar="sidebarVisible" />
 	<PopupNotificationPanel :has-sidebar="sidebarVisible" />
 	<ErrorModal ref="errorModal" />

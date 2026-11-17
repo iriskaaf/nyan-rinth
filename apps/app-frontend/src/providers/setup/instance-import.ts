@@ -9,16 +9,25 @@ import {
 } from '@/helpers/import.js'
 
 export function setupInstanceImportProvider(notificationManager: AbstractWebNotificationManager) {
-	const { handleError } = notificationManager
+	void notificationManager
 
 	provideInstanceImport({
 		async getDetectedLaunchers() {
-			const launcherNames = ['MultiMC', 'GDLauncher', 'ATLauncher', 'Curseforge', 'PrismLauncher']
+			const launcherNames = [
+				'PrismLauncher',
+				'PineconeMC',
+				'Modrinth',
+				'AstralRinth',
+				'MultiMC',
+				'GDLauncher',
+				'ATLauncher',
+				'Curseforge',
+			]
 			const launchers = []
 			for (const name of launcherNames) {
 				try {
 					const path = await get_default_launcher_path(name)
-					if (!path) continue
+					if (!path || launchers.some((launcher) => launcher.path === path)) continue
 					const instances = await get_importable_instances(name, path)
 					if (instances?.length > 0) {
 						launchers.push({ name, path, instances })
@@ -35,7 +44,7 @@ export function setupInstanceImportProvider(notificationManager: AbstractWebNoti
 		async importInstances(selections) {
 			for (const sel of selections) {
 				for (const instanceName of sel.instanceNames) {
-					await import_instance(sel.launcher, sel.path, instanceName).catch(handleError)
+					await import_instance(sel.launcher, sel.path, instanceName)
 				}
 			}
 		},

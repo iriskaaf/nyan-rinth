@@ -1043,8 +1043,11 @@
 	"creation-flow.modal.setup-type.option.custom-setup.title": {
 		"defaultMessage": "Custom setup"
 	},
+	"creation-flow.modal.setup-type.option.import-file.title": {
+		"defaultMessage": "Import from file"
+	},
 	"creation-flow.modal.setup-type.option.import-instance.description": {
-		"defaultMessage": "Import an instance from Prism, CurseForge, or similar."
+		"message": "Copy instances from Prism, PineconeMC, Modrinth, AstralRinth and other launchers."
 	},
 	"creation-flow.modal.setup-type.option.import-instance.title": {
 		"defaultMessage": "Import instance"
@@ -2917,6 +2920,21 @@
 	},
 	"notifications.server-invite.body": {
 		"defaultMessage": "<actor>{actor}</actor> invited you to manage the server <entity>{entity}</entity>."
+	},
+	"nyanrinth.about.title": {
+		"defaultMessage": "About launcher"
+	},
+	"nyanrinth.account.title": {
+		"defaultMessage": "Account"
+	},
+	"nyanrinth.welcome.sign-in": {
+		"defaultMessage": "Sign in"
+	},
+	"nyanrinth.welcome.sign-in-description": {
+		"defaultMessage": "Add a game account to start playing in NyanRinth."
+	},
+	"nyanrinth.welcome.sign-in-title": {
+		"defaultMessage": "Sign in"
 	},
 	"omorphia.component.badge.label.accepted": {
 		"defaultMessage": "Accepted"
@@ -6769,5 +6787,62 @@
 	},
 	"version.supplementary-resources.type": {
 		"defaultMessage": "Type"
+	},
+	"nyanrinth.sync.title": {
+		"message": "Game settings sync"
+	},
+	"nyanrinth.sync.description": {
+		"message": "Share selected game options between your instances. Changes saved in Minecraft become available in other instances."
+	},
+	"nyanrinth.sync.enabled": {
+		"message": "Sync game settings"
+	},
+	"nyanrinth.sync.source": {
+		"message": "Starting instance"
+	},
+	"nyanrinth.sync.choose": {
+		"message": "Choose an instance"
+	},
+	"nyanrinth.sync.source-help": {
+		"message": "Used when enabling sync or changing the starting instance. Launch and close the game once to create its settings."
+	},
+	"nyanrinth.sync.instances": {
+		"message": "Participating instances"
+	},
+	"nyanrinth.sync.options": {
+		"message": "Individual options"
+	},
+	"nyanrinth.sync.search": {
+		"message": "Search by option key…"
+	},
+	"nyanrinth.sync.limits": {
+		"message": "Uses the Modrinth 0.22.1 option catalogue. Snapshot versions and unknown mod options stay local. Fullscreen and window size remain controlled by the launcher. Server lists, resource packs and hotbars are not synced here."
+	},
+	"nyanrinth.sync.backups": {
+		"message": "Original files are backed up in game-settings-backups in the application directory. A running game receives updates on its next launch."
+	},
+	"nyanrinth.sync.status.ready": {
+		"message": "Ready"
+	},
+	"nyanrinth.sync.status.waiting": {
+		"message": "Waiting for first game launch"
+	},
+	"nyanrinth.sync.status.running": {
+		"message": "Game is running"
+	},
+	"nyanrinth.sync.status.unsupported": {
+		"message": "Unsupported game version"
+	},
+	"nyanrinth.sync.status.installing": {
+		"message": "Instance is not ready"
+	},
+	"nyanrinth.sync.status.unreadable": {
+		"message": "Cannot read options.txt"
+	},
+	"nyanrinth.sync.save": {
+		"message": "Apply sync settings"
+	},
+	"nyanrinth.sync.empty": {
+		"message": "Create or import an instance first."
 	}
 }

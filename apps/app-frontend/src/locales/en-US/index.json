@@ -2042,6 +2042,9 @@
 	"content.shared-instance.warning-header": {
 		"message": "This is part of the shared instance"
 	},
+	"creation-flow.modal.setup-type.option.import-file.title": {
+		"message": "Import from file"
+	},
 	"friends.action.add-friend": {
 		"message": "Add a friend"
 	},
@@ -2894,6 +2897,12 @@
 	"modal.modrinth-account-required.waiting-for-browser": {
 		"message": "Waiting for browser confirmation..."
 	},
+	"nyanrinth.about.title": {
+		"message": "About launcher"
+	},
+	"nyanrinth.account.title": {
+		"message": "Account"
+	},
 	"nyanrinth.appearance.accent": {
 		"message": "Accent color"
 	},
@@ -3098,6 +3107,15 @@
 	"nyanrinth.interface.whatHappened": {
 		"message": "What we think happened"
 	},
+	"nyanrinth.welcome.sign-in": {
+		"message": "Sign in"
+	},
+	"nyanrinth.welcome.sign-in-description": {
+		"message": "Add a game account to start playing in NyanRinth."
+	},
+	"nyanrinth.welcome.sign-in-title": {
+		"message": "Sign in"
+	},
 	"onboarding-checklist.create-instance": {
 		"message": "Create first instance"
 	},
@@ -3130,5 +3148,65 @@
 	},
 	"settings.sidebar.label.display": {
 		"message": "Display"
+	},
+	"nyanrinth.sync.title": {
+		"message": "Game settings sync"
+	},
+	"nyanrinth.sync.description": {
+		"message": "Share selected game options between your instances. Changes saved in Minecraft become available in other instances."
+	},
+	"nyanrinth.sync.enabled": {
+		"message": "Sync game settings"
+	},
+	"nyanrinth.sync.source": {
+		"message": "Starting instance"
+	},
+	"nyanrinth.sync.choose": {
+		"message": "Choose an instance"
+	},
+	"nyanrinth.sync.source-help": {
+		"message": "Used when enabling sync or changing the starting instance. Launch and close the game once to create its settings."
+	},
+	"nyanrinth.sync.instances": {
+		"message": "Participating instances"
+	},
+	"nyanrinth.sync.options": {
+		"message": "Individual options"
+	},
+	"nyanrinth.sync.search": {
+		"message": "Search by option key…"
+	},
+	"nyanrinth.sync.limits": {
+		"message": "Uses the Modrinth 0.22.1 option catalogue. Snapshot versions and unknown mod options stay local. Fullscreen and window size remain controlled by the launcher. Server lists, resource packs and hotbars are not synced here."
+	},
+	"nyanrinth.sync.backups": {
+		"message": "Original files are backed up in game-settings-backups in the application directory. A running game receives updates on its next launch."
+	},
+	"nyanrinth.sync.status.ready": {
+		"message": "Ready"
+	},
+	"nyanrinth.sync.status.waiting": {
+		"message": "Waiting for first game launch"
+	},
+	"nyanrinth.sync.status.running": {
+		"message": "Game is running"
+	},
+	"nyanrinth.sync.status.unsupported": {
+		"message": "Unsupported game version"
+	},
+	"nyanrinth.sync.status.installing": {
+		"message": "Instance is not ready"
+	},
+	"nyanrinth.sync.status.unreadable": {
+		"message": "Cannot read options.txt"
+	},
+	"nyanrinth.sync.save": {
+		"message": "Apply sync settings"
+	},
+	"nyanrinth.sync.empty": {
+		"message": "Create or import an instance first."
+	},
+	"creation-flow.modal.setup-type.option.import-instance.description": {
+		"message": "Copy instances from Prism, PineconeMC, Modrinth, AstralRinth and other launchers."
 	}
 }

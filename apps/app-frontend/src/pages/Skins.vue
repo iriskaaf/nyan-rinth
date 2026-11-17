@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button, DropdownSelect, SkinPreviewRenderer, useVIntl } from '@modrinth/ui'
-import { ShirtIcon } from '@modrinth/assets'
+import { ElyByIcon } from '@modrinth/assets'
 import { invoke } from '@tauri-apps/api/core'
 import { computed, inject, onMounted, ref, watch, type Ref } from 'vue'
 import AccountsCard from '@/components/ui/AccountsCard.vue'
@@ -17,7 +17,7 @@ useRootBreadcrumb({
 	id: 'skins',
 	label: () => formatMessage(appMessages.skinSelectorLabel),
 	to: '/skins',
-	visual: { type: 'icon', component: ShirtIcon },
+	visual: { type: 'icon', component: ElyByIcon },
 })
 
 type Skin = { id: number; skin_url: string; is_slim: boolean; tags: string[] }
@@ -39,6 +39,7 @@ const accounts = ref<MinecraftCredential[]>([])
 const headerAccountsCard = ref<InstanceType<typeof AccountsCard> | null>(null)
 const selected = ref('')
 const account = computed(() => accounts.value.find((a) => a.profile.id === selected.value))
+const supportsElySkins = computed(() => account.value?.account_type === 'elyby')
 const equipped = ref({ texture: '', variant: 'classic' })
 const pending = ref<Preview | null>(null)
 const previewTexture = computed(() => pending.value?.texture ?? equipped.value.texture)
@@ -72,6 +73,10 @@ function message(e: unknown) {
 		: ((e as { message?: string }).message ?? 'Не удалось выполнить запрос Ely.by.')
 }
 async function loadCatalog() {
+	if (!supportsElySkins.value) {
+		catalog.value = { items: [], current: 1, last: 1 }
+		return
+	}
 	const request = ++catalogRequest
 	loadingCatalog.value = true
 	catalogError.value = ''
@@ -114,7 +119,7 @@ async function refreshAccount() {
 	loadingCatalog.value = false
 	loadingSkin.value = false
 	equipped.value = { texture: '', variant: 'classic' }
-	if (!user || !account.value) return
+	if (!user || !supportsElySkins.value) return
 	checkingSession.value = true
 	const username = account.value.profile.name
 	const results = await Promise.allSettled([
@@ -128,16 +133,16 @@ async function refreshAccount() {
 	if (results[1].status === 'fulfilled') connected.value = results[1].value
 	else error.value = message(results[1].reason)
 	checkingSession.value = false
-	if (tab.value === 'Мои скины') void loadCatalog()
+	void loadCatalog()
 }
 async function loadAccounts(preferred?: string) {
 	const all = (await users()) as MinecraftCredential[]
-	accounts.value = all.filter((a) => a.account_type === 'elyby')
+	accounts.value = all
 	const active = preferred ?? (await get_default_user())
 	const next =
-		(active
-			? accounts.value.find((a) => a.profile.id === active)?.profile.id
-			: accounts.value[0]?.profile.id) ?? ''
+		accounts.value.find((a) => a.profile.id === active)?.profile.id ??
+		accounts.value[0]?.profile.id ??
+		''
 	if (next === selected.value) await refreshAccount()
 	else selected.value = next
 }
@@ -258,7 +263,6 @@ onMounted(() => {
 	void loadAccounts().catch((e) => {
 		error.value = message(e)
 	})
-	void loadCatalog()
 })
 </script>
 
@@ -267,7 +271,7 @@ onMounted(() => {
 		<div class="mb-6 flex shrink-0 flex-wrap items-center justify-between gap-4">
 			<div>
 				<div class="mb-2 text-sm font-semibold text-brand">NYANRINTH / ELY.BY</div>
-				<h1 class="m-0 text-3xl font-bold">Ваш скин. Во всех сборках.</h1>
+				<h1 class="m-0 text-3xl font-bold">Аккаунт</h1>
 			</div>
 			<div
 				class="skin-account-picker relative h-14 w-[280px] shrink-0"
@@ -276,12 +280,28 @@ onMounted(() => {
 			>
 				<div class="absolute inset-x-0 top-0 z-30">
 					<Suspense>
-						<AccountsCard ref="headerAccountsCard" compact @change="accountChanged" />
+						<AccountsCard ref="headerAccountsCard" :inert="busy" compact @change="accountChanged" />
 					</Suspense>
 				</div>
 			</div>
 		</div>
+		<div v-if="!supportsElySkins" class="flex grow items-center justify-center py-16">
+			<section class="max-w-lg rounded-2xl bg-surface-2 p-8 text-center">
+				<ElyByIcon class="mx-auto mb-4 size-12" aria-hidden="true" />
+				<h2 class="m-0 mb-3 text-xl font-semibold">Скины Ely.by</h2>
+				<p class="m-0 text-secondary">
+					{{
+						account?.account_type === 'offline'
+							? 'Офлайн-аккаунты не поддерживают смену скинов. В игре используется стандартный скин Minecraft.'
+							: account
+								? 'Для управления скинами Ely.by выберите или добавьте аккаунт Ely.by.'
+								: 'Добавьте игровой аккаунт, чтобы начать играть. Для смены скинов войдите в Ely.by.'
+					}}
+				</p>
+			</section>
+		</div>
 		<div
+			v-else
 			class="skins-layout grid items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]"
 		>
 			<div class="skin-preview-panel flex min-h-0 flex-col gap-3">
@@ -486,7 +506,7 @@ onMounted(() => {
 			</section>
 		</div>
 		<ElySkinConnectModal
-			v-if="account"
+			v-if="account && supportsElySkins"
 			:key="account.profile.id"
 			ref="connectModal"
 			:user="account.profile.id"

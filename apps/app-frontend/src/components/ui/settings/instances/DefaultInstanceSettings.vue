@@ -2,14 +2,12 @@
 import {
 	defineMessages,
 	injectNotificationManager,
-	Slider,
 	StyledInput,
 	Toggle,
 	useVIntl,
 } from '@modrinth/ui'
 import { ref, watch } from 'vue'
 
-import useMemorySlider from '@/composables/useMemorySlider'
 import { get, parseEnvVars, serializeEnvVars, set } from '@/helpers/settings.ts'
 
 const { handleError } = injectNotificationManager()
@@ -47,14 +45,6 @@ const messages = defineMessages({
 	heightPlaceholder: {
 		id: 'app.settings.default-instance-options.height.placeholder',
 		defaultMessage: 'Enter height...',
-	},
-	memoryAllocationTitle: {
-		id: 'app.settings.default-instance-options.memory-allocation.title',
-		defaultMessage: 'Memory allocation',
-	},
-	memoryAllocationDescription: {
-		id: 'app.settings.default-instance-options.memory-allocation.description',
-		defaultMessage: 'Maximum memory available to each instance.',
 	},
 	javaArgumentsTitle: {
 		id: 'app.settings.default-instance-options.java-arguments.title',
@@ -153,11 +143,6 @@ fetchSettings.envVars = serializeEnvVars(fetchSettings.custom_env_vars)
 
 const settings = ref(fetchSettings)
 
-const { maxMemory, snapPoints } = (await useMemorySlider().catch(handleError)) as unknown as {
-	maxMemory: number
-	snapPoints: number[]
-}
-
 watch(
 	settings,
 	async () => {
@@ -235,28 +220,7 @@ watch(
 			</div>
 		</div>
 
-		<hr class="my-6 bg-button-border border-none h-[1px]" />
-
 		<div class="flex flex-col gap-6">
-			<div class="flex flex-col gap-2.5">
-				<h2 class="m-0 text-lg font-semibold text-contrast">
-					{{ formatMessage(messages.memoryAllocationTitle) }}
-				</h2>
-				<Slider
-					id="max-memory"
-					v-model="settings.memory.maximum"
-					:min="512"
-					:max="maxMemory"
-					:step="64"
-					:snap-points="snapPoints"
-					:snap-range="512"
-					unit="MB"
-				/>
-				<p class="m-0 mt-1 leading-tight">
-					{{ formatMessage(messages.memoryAllocationDescription) }}
-				</p>
-			</div>
-
 			<div class="flex flex-col gap-2.5">
 				<h2 class="m-0 text-lg font-semibold text-contrast">
 					{{ formatMessage(messages.javaArgumentsTitle) }}

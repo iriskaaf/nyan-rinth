@@ -1,6 +1,6 @@
 <template>
 	<div
-		v-if="accounts.length === 0"
+		v-if="!hideCard && accounts.length === 0"
 		class="flex flex-col gap-3 bg-button-bg border border-solid border-surface-5 rounded-xl p-3"
 		:class="{ 'mt-2': !compact }"
 	>
@@ -15,7 +15,7 @@
 		<!-- END: This code block modified by AstralRinth -->
 	</div>
 	<Accordion
-		v-else
+		v-else-if="!hideCard"
 		ref="accountAccordion"
 		class="w-full bg-button-bg border border-solid border-surface-5 rounded-xl overflow-clip"
 		:class="{ 'mt-2': !compact }"
@@ -156,6 +156,7 @@ import ElyLoginModal from '@/components/ui/astralrinth/accounts/input/ElyLoginMo
 import type { ExternalAuthProvider } from '@/models/astralrinth/authentication'
 import AccountsErrorModals from '@/components/ui/astralrinth/accounts/error/AccountsErrorModals.vue'
 import AccountsInputModals from '@/components/ui/astralrinth/accounts/input/AccountsInputModals.vue'
+import { updateMinecraftAccounts } from '@/composables/use-minecraft-accounts'
 import { useAppEvent } from '@/composables/use-app-event'
 import { handleSevereError } from '@/composables/use-error.js'
 import { trackEvent } from '@/helpers/analytics'
@@ -181,7 +182,7 @@ import {
 
 const { formatMessage } = useVIntl()
 const { handleError } = injectNotificationManager()
-const props = defineProps<{ compact?: boolean }>()
+const props = defineProps<{ compact?: boolean; hideCard?: boolean }>()
 const accountAccordion = ref<InstanceType<typeof Accordion> | null>(null)
 
 const emit = defineEmits<{
@@ -320,6 +321,7 @@ async function refreshValues() {
 	const userList = await users().catch(handleError)
 	accounts.value = Array.isArray(userList) ? [...userList] : []
 	accounts.value.sort((a, b) => (a.profile?.name ?? '').localeCompare(b.profile?.name ?? ''))
+	updateMinecraftAccounts(accounts.value)
 
 	void Promise.allSettled(
 		accounts.value

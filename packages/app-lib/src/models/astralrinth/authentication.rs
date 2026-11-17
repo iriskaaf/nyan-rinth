@@ -1,4 +1,3 @@
-use crate::event::emit::emit_info;
 use crate::state::{Credentials, MinecraftProfile};
 use crate::util::astralrinth::utils::{
 	get_authlib_injector_library, install_authlib_injector_library,
@@ -700,7 +699,7 @@ pub async fn configure_minecraft_launch(
 	} else if let Some(provider) =
 		external_auth_provider(&credentials.account_type)
 	{
-		configure_external_launch(command, provider, credentials, version_jar)
+		configure_external_launch(command, provider, credentials)
 			.await?;
 	}
 
@@ -714,10 +713,6 @@ async fn configure_offline_launch(command: &mut Command, version_jar: &str) {
 	}
 
 	let invalid_url = "https://invalid.invalid";
-	let _ = emit_info(&format!(
-		"[AR] Detected launch of {version_jar} on the offline account. Applying vanilla 1.16.4/5 multiplayer fixes.",
-	))
-	.await;
 	command.arg("-Dminecraft.api.env=custom");
 	command.arg(format!("-Dminecraft.api.auth.host={invalid_url}"));
 	command.arg(format!("-Dminecraft.api.account.host={invalid_url}"));
@@ -730,7 +725,6 @@ async fn configure_external_launch(
 	command: &mut Command,
 	provider: ExternalAuthProvider,
 	credentials: &Credentials,
-	version_jar: &str,
 ) -> Result<()> {
 	let library = provider.library();
 	let path = match get_authlib_injector_library(
@@ -766,16 +760,6 @@ async fn configure_external_launch(
 		)));
 	}
 
-	let _ = emit_info(&format!(
-		"[AR] Detected launch of {version_jar} on the {} account. Loading provider library...",
-		provider.display_name,
-	))
-	.await;
-	let _ = emit_info(&format!(
-		"[AR] Launching Minecraft instance with {}",
-		path.display(),
-	))
-	.await;
 	command.arg(format!("-javaagent:{}={}", path.display(), library.server));
 
 	Ok(())

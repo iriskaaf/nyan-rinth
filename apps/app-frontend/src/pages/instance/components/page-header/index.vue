@@ -17,7 +17,7 @@
 				v-else
 				:tooltip="sharedInstanceTooltip"
 				aria-label="Shared instance information"
-				class="!border-blue !bg-highlight-blue !text-blue"
+				class="!border-brand !bg-brand-highlight !text-brand"
 			>
 				Shared
 				<UnknownIcon class="block size-4 shrink-0 text-current" aria-hidden="true" />
