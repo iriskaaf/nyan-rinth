@@ -2,6 +2,16 @@
 
 Selected releases are listed here. Dates for archived versions refer to the preserved source archives, not their later publication on GitHub. See [UPSTREAM.md](UPSTREAM.md) for the import details.
 
+## 0.2.0-alpha.9 — source update, 2026-11-17
+
+- Restores the six intermediate source archives: 1.0.1, 1.0.2, 1.0.3, 1.0.5, 1.0.6 and 1.0.7.
+- Preserves the first saved Modrinth v0.22.1 port as the 1.2.0-alpha.1 source checkpoint.
+- Connects the archived source sequence to the existing published release commits and current development.
+- Adds a source-history guide and descriptions of the intermediate changes.
+- Keeps machine-specific tool exclusions in local Git configuration.
+
+This update maintains the source repository. The current downloadable Windows preview is [0.2.0-alpha.8](https://github.com/iriskaaf/nyan-rinth/releases/tag/v0.2.0-alpha.8).
+
 ## 0.2.0-alpha.8 — 2026-11-17
 
 ### Platform
@@ -23,7 +33,7 @@ Selected releases are listed here. Dates for archived versions refer to the pres
 
 - Adds the public repository, English and Russian READMEs, build instructions, migration notes and contribution guidance.
 - Imports selected historical source snapshots and publishes matching archived installers.
-- Excludes local environment overrides, development reports, agent/editor settings and temporary build output.
+- Excludes local environment overrides, development reports, machine-specific settings and temporary build output.
 - Replaces the inherited API-documentation sample token with a placeholder and adds a secret-scanning configuration.
 
 ### Known issues
@@ -31,6 +41,16 @@ Selected releases are listed here. Dates for archived versions refer to the pres
 - Real PNG uploads to Ely.by remain an outstanding issue.
 - The complete real-account login/2FA/refresh and Minecraft-loader matrix, primary-profile migration and installation over an earlier version need further testing.
 - Automatic updates remain disabled; Windows x64 releases are installed manually.
+
+## 1.2.0-alpha.1 — preserved 2026-11-03
+
+- Ports NyanRinth to the official Modrinth v0.22.1 platform.
+- Reuses the upstream content store, installation jobs, runtime cache and synchronized options.
+- Carries over Ely.by authentication, native skins, DPAPI sessions and authlib-injector.
+- Adds a converter for the older database schema that retains the source database and snapshot.
+- Defers shared settings writes while Minecraft is running.
+
+This source checkpoint was preserved as a directory and has not been rebuilt for publication. Its tag is available for comparison; no additional binary release is attached.
 
 ## 1.1.0 Alpha — archived 2026-11-02
 
@@ -42,6 +62,26 @@ Selected releases are listed here. Dates for archived versions refer to the pres
 
 This is the final selected archive on the older platform and a migration step for earlier installations. It was labeled Alpha in its original distribution.
 
+## 1.0.7 — archived 2026-11-02
+
+- Adds pink, blue and green accent palettes and consistent focus/overlay colors.
+- Submits sign-in forms with Enter through their normal submit path.
+- Uses shared account selection on the skin page and hides Ely.by collections for other account types.
+- Expands Russian interface messages across installation management, settings, invitations and error dialogs.
+
+## 1.0.6 — archived 2026-11-02
+
+- Releases modal locks before closing successful Ely.by sign-in and skin-session forms.
+- Keeps preview controls visible at compact window sizes.
+- Separates catalog scrolling from the skin preview and improves the narrow-screen layout.
+
+## 1.0.5 — archived 2026-11-02
+
+- Opens uploaded skins by default and validates ownership in personal collections.
+- Refreshes the uploaded collection after PNG submission.
+- Connects skin management during game sign-in while credentials are still available in memory, then clears them.
+- Preserves successful game sign-in if connecting to the skin website fails.
+
 ## 1.0.4 — archived 2026-11-02
 
 - Introduces native Ely.by skin browsing, tag filtering, PNG uploads, Steve/Alex previews and skin application, replacing the embedded website flow.
@@ -51,6 +91,24 @@ This is the final selected archive on the older platform and a migration step fo
 - Corrects release-build settings after a skin-page runtime failure.
 
 This release includes changes from the smaller 1.0.1–1.0.3 updates.
+
+## 1.0.3 — archived 2026-11-02
+
+- Separates personal skin collections and the global catalog.
+- Refreshes account heads after skin application.
+- Improves preview sizing and scrolling in compact windows.
+
+## 1.0.2 — archived 2026-11-02
+
+- Replaces the embedded skin website with native catalog browsing, tag search, uploads, previews and skin application.
+- Keeps the skin-site session separate from the game token and protects it with Windows DPAPI.
+- Adds local session disconnection without removing the game account.
+
+## 1.0.1 — archived 2026-11-02
+
+- Corrects slim Alex previews and account-card presentation.
+- Reuses the Ely.by window during the initial website-based skin flow.
+- Simplifies primary navigation and fixes clipped settings headings.
 
 ## 1.0.0 — archived 2026-11-02
 
