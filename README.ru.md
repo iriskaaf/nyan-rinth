@@ -66,6 +66,8 @@ NyanRinth основан на лаунчере Modrinth. В нём доступ�
 
 Инструкция сборки находится в [docs/BUILDING.md](docs/BUILDING.md), правила участия — в [CONTRIBUTING.md](CONTRIBUTING.md).
 
+В [истории исходников](docs/HISTORY.md) собраны ссылки на сохранённые версии и описан переход с AstralRinth на Modrinth. Для небольших обновлений доступны теги исходников, для выбранных выпусков — установщики в Releases.
+
 Автор NyanRinth — [iriskaaf](https://github.com/iriskaaf). Основа текущей версии — [Modrinth v0.23.1](https://github.com/modrinth/code/tree/v0.23.1), прежних версий — [AstralRinth](https://github.com/42WASD/AstralRinth). Точные сведения и порядок импорта истории записаны в [UPSTREAM.md](UPSTREAM.md).
 
 Лицензии и авторские уведомления исходных пакетов сохранены; см. [COPYING.md](COPYING.md). Неизменённый authlib-injector 1.2.8 распространяется под AGPL-3.0, [его исходники доступны отдельно](https://github.com/yushijinhun/authlib-injector/tree/v1.2.8).

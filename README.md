@@ -88,6 +88,8 @@ The repository retains the upstream monorepo layout:
 
 Start with **[Building NyanRinth](docs/BUILDING.md)**. Contribution guidelines are in [CONTRIBUTING.md](CONTRIBUTING.md), and security-reporting guidance is in [SECURITY.md](SECURITY.md).
 
+The [source history guide](docs/HISTORY.md) links each preserved version and explains the AstralRinth-to-Modrinth transition. Smaller updates have source tags; selected versions also have downloadable releases.
+
 ## Credits and licenses
 
 NyanRinth is maintained by [iriskaaf](https://github.com/iriskaaf). It builds on [Modrinth](https://github.com/modrinth/code), with earlier releases based on [AstralRinth](https://github.com/42WASD/AstralRinth). The current upstream baseline is **Modrinth v0.23.1**. [UPSTREAM.md](UPSTREAM.md) records the exact base commit and the imported release history.
