@@ -2,6 +2,22 @@
 
 Selected releases are listed here. Dates for archived versions refer to the preserved source archives, not their later publication on GitHub. See [UPSTREAM.md](UPSTREAM.md) for the import details.
 
+## 0.2.0-beta.1 — 2026-11-17
+
+- Promotes the Modrinth v0.23.1 based NyanRinth series to Beta.
+- Checks GitHub Releases for updates at startup and every five minutes, including after a failed network request.
+- Downloads Windows x64 updates in the background on unmetered connections and offers an install/restart action.
+- Verifies every update using a dedicated signing key embedded in the launcher.
+- Adds a signed release manifest, installer signatures and SHA-256 checksums to releases.
+- Opens the NyanRinth GitHub changelog from update notifications.
+- Adds a release preparation command that verifies signatures before publication.
+
+Upgrade from earlier Alpha builds by installing this Beta once. Those builds have automatic updates disabled. The first signed Beta enables subsequent OTA updates. Updates download automatically and install when the launcher closes or the user requests a restart.
+
+GitHub marks this Beta as Latest. Its release metadata uses the normal-release flag so GitHub can serve the latest update manifest. The application version retains the Beta identifier.
+
+Known limitations remain in real-account Ely.by PNG upload behavior and the complete login/2FA/loader matrix. Updater signatures authenticate update packages. Windows Authenticode signing is separate and is not included in this release.
+
 ## 0.2.0-alpha.9 — source update, 2026-11-17
 
 - Restores the six intermediate source archives: 1.0.1, 1.0.2, 1.0.3, 1.0.5, 1.0.6 and 1.0.7.

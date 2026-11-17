@@ -12,4 +12,4 @@ Local environment overrides, signing keys, session files, databases and logs are
 
 Diagnostics filter known secrets and omit the raw account database, but logs can still contain personal paths and server addresses. Review an export before making it public.
 
-Archived releases do not receive backported fixes. The current alpha series is the active development line; no fixed security-response timeline is promised.
+Archived releases do not receive backported fixes. The current Beta series is the active development line; no fixed security-response timeline is promised.

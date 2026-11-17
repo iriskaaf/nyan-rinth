@@ -8,7 +8,7 @@
 
 <p align="center">
 	<a href="https://github.com/iriskaaf/nyan-rinth/releases"><img alt="Download" src="https://img.shields.io/badge/download-Windows_x64-f4a7c5?style=flat-square"></a>
-	<img alt="Development status" src="https://img.shields.io/badge/status-alpha-e9b86e?style=flat-square">
+	<img alt="Development status" src="https://img.shields.io/badge/status-beta-f472b6?style=flat-square">
 	<img alt="Built with" src="https://img.shields.io/badge/built_with-Rust_%2B_Vue-9dc7bd?style=flat-square">
 	<a href="COPYING.md"><img alt="Licenses" src="https://img.shields.io/badge/license-see_COPYING.md-b7a7e8?style=flat-square"></a>
 </p>
@@ -21,9 +21,9 @@
 	<a href="README.ru.md">Русский</a>
 </p>
 
-NyanRinth builds on the Modrinth launcher and adds Ely.by authentication, skin collections, local game-settings synchronization and configurable accent colors. Earlier releases used AstralRinth; the current alpha series uses the official Modrinth codebase directly.
+NyanRinth builds on the Modrinth launcher and adds Ely.by authentication, skin collections, local game-settings synchronization and configurable accent colors. Earlier releases used AstralRinth; the current Beta series uses the official Modrinth codebase directly.
 
-**Current preview: [0.2.0-alpha.8](https://github.com/iriskaaf/nyan-rinth/releases/tag/v0.2.0-alpha.8)** · [All releases and archives](https://github.com/iriskaaf/nyan-rinth/releases)
+**Current Beta: [0.2.0-beta.1](https://github.com/iriskaaf/nyan-rinth/releases/latest)** · [All releases and archives](https://github.com/iriskaaf/nyan-rinth/releases)
 
 ## Features
 
@@ -39,7 +39,7 @@ NyanRinth builds on the Modrinth launcher and adds Ely.by authentication, skin c
 
 ## Download and install
 
-Open **[Releases](https://github.com/iriskaaf/nyan-rinth/releases)** and choose a release. The current `0.2.0-alpha.*` series is a prerelease; `1.1.0` is the last archived release on the older AstralRinth platform and is also marked Alpha.
+Open **[Releases](https://github.com/iriskaaf/nyan-rinth/releases)** and choose a release. The current `0.2.0-beta.*` series is Beta; `1.1.0` is the last archived release on the older AstralRinth platform and is also marked Alpha.
 
 | File | Purpose |
 | --- | --- |
@@ -48,7 +48,7 @@ Open **[Releases](https://github.com/iriskaaf/nyan-rinth/releases)** and choose 
 | `SHA256SUMS.txt` | SHA-256 checksums for the downloadable binaries |
 | `Source code` | Source files matching the release tag |
 
-Windows x64 and Microsoft Edge WebView2 Runtime are required. Release binaries are not commercially code-signed. Automatic updates are disabled; install a newer release manually.
+Windows x64 and Microsoft Edge WebView2 Runtime are required. Release binaries are not commercially code-signed. From 0.2.0-beta.1, signed Windows updates download from GitHub Releases automatically. Earlier Alpha builds require one manual upgrade to Beta.
 
 1. Install NyanRinth and add an Ely.by or offline account.
 2. Create an installation, import an existing one or download a modpack.

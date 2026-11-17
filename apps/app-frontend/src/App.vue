@@ -71,6 +71,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 
 import { useRouteLoading } from '@/app/runtime/use-route-loading'
+import { useUpdateChecks } from '@/app/runtime/use-update-checks'
 import AppSidebar from '@/app/shell/sidebar/index.vue'
 import AppTitleBar from '@/app/shell/title-bar/index.vue'
 import { trackExternalFileDownload } from '@/components/ui/download-manager/external-file-downloads'
@@ -211,6 +212,7 @@ const appTheme = useTheme()
 const quickInstances = useQuickInstanceLimit()
 const router = useRouter()
 const route = useRoute()
+const startUpdateChecks = useUpdateChecks(checkUpdates)
 const { channel: appEventChannel, events: appEvents } = setupAppEventsProvider()
 useInstanceMetadataRefresh(appEvents)
 const breadcrumbManager = createBreadcrumbManager()
@@ -549,7 +551,7 @@ onMounted(async () => {
 	document.querySelector('body').addEventListener('contextmenu', handleContextMenu)
 	document.addEventListener('fullscreenchange', handleFullscreenChange)
 
-	checkUpdates()
+	startUpdateChecks()
 })
 
 onUnmounted(async () => {
@@ -1757,10 +1759,6 @@ async function checkUpdates() {
 		console.log('Skipping update check as updates are disabled in this build or environment')
 		updatesEnabled.value = false
 
-		if (os.value === 'Linux' && !isDevEnvironment.value) {
-			checkLinuxUpdates()
-			setInterval(checkLinuxUpdates, 5 * 60 * 1000)
-		}
 		return
 	}
 
@@ -1797,44 +1795,12 @@ async function checkUpdates() {
 			scheduleDelayedUpdatePopup()
 		}
 
-		getUpdateSize(update.rid).then((size) => (updateSize.value = size))
+		getUpdateSize(update.rid)
+			.then((size) => (updateSize.value = size))
+			.catch((error) => console.warn('Failed to read update size:', error))
 	}
 
 	await performCheck()
-	setTimeout(
-		() => {
-			checkUpdates()
-		},
-		5 /* min */ * 60 /* sec */ * 1000 /* ms */,
-	)
-}
-
-async function checkLinuxUpdates() {
-	try {
-		const [response, currentVersion] = await Promise.all([
-			fetch('https://launcher-files.modrinth.com/updates.json'),
-			getVersion(),
-		])
-		const updates = await response.json()
-		const latestVersion = updates?.version
-
-		if (latestVersion && latestVersion !== currentVersion) {
-			markAppUpdateActionable(latestVersion)
-			const nextPopupTime = getNextAppUpdatePopupTime(latestVersion)
-			if (nextPopupTime !== null && Date.now() >= nextPopupTime) {
-				addPopupNotification({
-					contentType: 'standard',
-					title: formatMessage(updatePopupMessages.updateAvailable),
-					text: formatMessage(updatePopupMessages.linuxBody, { version: latestVersion }),
-					type: 'info',
-					autoCloseMs: null,
-				})
-				markAppUpdatePopupShown(latestVersion)
-			}
-		}
-	} catch (e) {
-		console.error('Failed to check for updates:', e)
-	}
 }
 
 async function downloadAvailableUpdate() {
@@ -1901,7 +1867,7 @@ async function installUpdate() {
 setAppUpdateActions({
 	download: downloadAvailableUpdate,
 	install: installUpdate,
-	changelog: () => openUrl('https://modrinth.com/news/changelog?filter=app'),
+	changelog: () => openUrl('https://github.com/iriskaaf/nyan-rinth/releases/latest'),
 })
 
 async function openModrinthProjectLinkInApp(parsed) {

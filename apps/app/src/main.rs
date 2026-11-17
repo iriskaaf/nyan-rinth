@@ -76,7 +76,7 @@ fn is_dev() -> bool {
 
 #[tauri::command]
 fn are_updates_enabled() -> bool {
-    false
+	cfg!(all(feature = "updater", target_os = "windows"))
 }
 
 #[cfg(feature = "updater")]
