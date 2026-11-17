@@ -23,6 +23,8 @@
 
 NyanRinth builds on the Modrinth launcher and adds Ely.by authentication, skin collections, local game-settings synchronization and configurable accent colors. Earlier releases used AstralRinth; the current alpha series uses the official Modrinth codebase directly.
 
+**Current preview: [0.2.0-alpha.8](https://github.com/iriskaaf/nyan-rinth/releases/tag/v0.2.0-alpha.8)** · [All releases and archives](https://github.com/iriskaaf/nyan-rinth/releases)
+
 ## Features
 
 | | What you can do |
