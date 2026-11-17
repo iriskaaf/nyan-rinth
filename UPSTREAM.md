@@ -5,7 +5,8 @@
 - Project: [Modrinth monorepo](https://github.com/modrinth/code)
 - Baseline: [`v0.23.1`](https://github.com/modrinth/code/tree/v0.23.1)
 - Commit: `e949f1b2e73853e83ffdc9541bdb5aa5d5a660f1`
-- NyanRinth version: `0.2.0-alpha.8`
+- NyanRinth source version: `0.2.0-alpha.9`
+- Current Windows binary release: `0.2.0-alpha.8`
 
 NyanRinth retains the upstream content store, installation jobs, runtime cache, game-settings catalog and migration system. Its integrations include Ely.by authentication and skins, Windows DPAPI session storage, authlib-injector, offline accounts, launcher branding and deferred writes to game settings while Minecraft is running.
 
