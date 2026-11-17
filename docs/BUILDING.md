@@ -68,8 +68,8 @@ After building from the committed version, run the release command to verify the
 
 ```powershell
 node scripts/prepare-nyanrinth-release.mjs
-git tag v0.2.0-beta.1
-git push origin main v0.2.0-beta.1
+git tag v0.2.0-beta.2
+git push origin main v0.2.0-beta.2
 node scripts/prepare-nyanrinth-release.mjs --publish
 ```
 

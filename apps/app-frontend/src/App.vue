@@ -1763,7 +1763,10 @@ async function checkUpdates() {
 	}
 
 	async function performCheck() {
-		const update = await invoke('plugin:updater|check')
+		const update = await invoke('plugin:updater|check', {
+			headers: [['Accept', 'application/octet-stream']],
+			timeout: 30000,
+		})
 		if (!update) {
 			console.log('No update available')
 			return

@@ -2,6 +2,12 @@
 
 Selected releases are listed here. Dates for archived versions refer to the preserved source archives, not their later publication on GitHub. See [UPSTREAM.md](UPSTREAM.md) for the import details.
 
+## 0.2.0-beta.2 - 2026-11-17
+
+- Uses the GitHub asset download Accept header when checking the update manifest.
+- Bounds each update check to 30 seconds so network stalls can be retried.
+- Supersedes the withdrawn first Beta packaging attempt; native GitHub feed checks now pass.
+
 ## 0.2.0-beta.1 — 2026-11-17
 
 - Promotes the Modrinth v0.23.1 based NyanRinth series to Beta.
