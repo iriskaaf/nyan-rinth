@@ -5,10 +5,7 @@
 			class="flex flex-col gap-2"
 		>
 			<span class="font-semibold text-contrast">{{ formatMessage(messages.worldNameLabel) }}</span>
-			<StyledInput
-				v-model="worldName"
-				:placeholder="formatMessage(messages.worldNamePlaceholder)"
-			/>
+			<Input v-model="worldName" :placeholder="formatMessage(messages.worldNamePlaceholder)" />
 		</div>
 
 		<div v-if="ctx.setupType.value === 'vanilla'" class="flex flex-col gap-2">
@@ -69,10 +66,7 @@
 					</template>
 				</IntlFormatted>
 			</span>
-			<StyledInput
-				v-model="worldSeed"
-				:placeholder="formatMessage(messages.worldSeedPlaceholder)"
-			/>
+			<Input v-model="worldSeed" :placeholder="formatMessage(messages.worldSeedPlaceholder)" />
 			<span class="text-sm text-secondary">{{ formatMessage(messages.worldSeedDescription) }}</span>
 		</div>
 
@@ -95,7 +89,7 @@
 							{{ formatMessage(messages.generateStructuresDescription) }}
 						</span>
 					</div>
-					<Toggle v-model="generateStructures" small class="shrink-0" />
+					<Toggle v-model="generateStructures" class="shrink-0" />
 				</div>
 
 				<div class="flex flex-col gap-2">
@@ -107,10 +101,9 @@
 						:options="generatorSettingsOptions"
 						:placeholder="formatMessage(messages.generatorSettingsPlaceholder)"
 					/>
-					<StyledInput
+					<Textarea
 						v-if="generatorSettingsMode === 'custom'"
 						v-model="generatorSettingsCustom"
-						multiline
 						:rows="4"
 						:placeholder="formatMessage(messages.generatorSettingsJsonPlaceholder)"
 						input-class="font-mono"
@@ -123,7 +116,7 @@
 		</Accordion>
 
 		<InlineBackupCreator
-			v-if="ctx.flowType === 'reset-server'"
+			v-if="ctx.flowType === 'reset-server' && ctx.setupType.value !== 'curseforge'"
 			ref="backupCreator"
 			:backup-name="formatMessage(messages.beforeResetServerBackupName)"
 			hide-shift-click-hint
@@ -144,7 +137,8 @@ import { injectTags } from '../../../../providers'
 import Accordion from '../../../base/Accordion.vue'
 import Chips from '../../../base/Chips.vue'
 import Combobox, { type ComboboxOption } from '../../../base/Combobox.vue'
-import StyledInput from '../../../base/StyledInput.vue'
+import Input from '../../../base/inputs/Input.vue'
+import Textarea from '../../../base/inputs/Textarea.vue'
 import Toggle from '../../../base/Toggle.vue'
 import type { Difficulty, Gamemode, GeneratorSettingsMode } from '../creation-flow-context'
 import { injectCreationFlowContext } from '../creation-flow-context'

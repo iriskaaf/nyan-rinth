@@ -1,58 +1,24 @@
-// This code is modified by AstralRinth
-use std::{
-    sync::{atomic::AtomicBool, Arc},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::sync::{Arc, atomic::AtomicBool};
 
 use discord_rich_presence::{
-    activity::{Activity, Assets, Button, Timestamps}, // This code is modified by AstralRinth
     DiscordIpc, DiscordIpcClient,
+    activity::{Activity, Assets},
 };
-use rand::seq::SliceRandom; // This code is modified by AstralRinth
+use sqlx::SqlitePool;
 use tokio::sync::RwLock;
 
-use crate::util::astralrinth::utils;
-use crate::State;
+use crate::state::ProcessManager;
 
 pub struct DiscordGuard {
     client: Arc<RwLock<DiscordIpcClient>>,
     connected: Arc<AtomicBool>,
 }
 
-pub(crate) const ACTIVE_STATE: [&str; 12] = [
-    "Explores",
-    "Travels with",
-    "Pirating",
-    "Investigating the",
-    "Engaged in",
-    "Conducting",
-    "Charting",
-    "Raiding",
-    "Navigating through",
-    "Hunting treasures in",
-    "Mapping",
-    "Uncovering secrets of",
-];
-pub(crate) const INACTIVE_STATE: [&str; 12] = [
-    "Idling...",
-    "Waiting for the pirate team...",
-    "Taking a break...",
-    "Resting...",
-    "On standby...",
-    "In a holding pattern...",
-    "Watching the stars...",
-    "Sharpening the cutlass...",
-    "Checking the compass...",
-    "Planning the next voyage...",
-    "Guarding the treasure map...",
-    "Listening to sea shanties...",
-];
-
 impl DiscordGuard {
     /// Initialize discord IPC client, and attempt to connect to it
     /// If it fails, it will still return a DiscordGuard, but the client will be unconnected
     pub fn init() -> crate::Result<DiscordGuard> {
-        let dipc = DiscordIpcClient::new("1190718475832918136");
+        let dipc = DiscordIpcClient::new("1123683254248148992");
 
         Ok(DiscordGuard {
             client: Arc::new(RwLock::new(dipc)),
@@ -82,10 +48,10 @@ impl DiscordGuard {
         &self,
         msg: &str,
         reconnect_if_fail: bool,
+        pool: &SqlitePool,
     ) -> crate::Result<()> {
         // Check if discord is disabled, and if so, clear the activity instead
-        let state = State::get().await?;
-        let settings = crate::state::Settings::get(&state.pool).await?;
+        let settings = crate::state::Settings::get(pool).await?;
         if !settings.discord_rpc {
             Ok(self.clear_activity(true).await?)
         } else {
@@ -105,36 +71,11 @@ impl DiscordGuard {
             return Ok(());
         }
 
-        // let activity = Activity::new().state(msg).assets(
-        //     Assets::new()
-        //         .large_image("modrinth_simple")
-        //         .large_text("Modrinth Logo"),
-        // );
-
-        let launcher =
-            utils::read_package_json().expect("Failed to read package.json");
-
-        let build_info = format!("AR • v{}", launcher.version);
-
-        let time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Failed to get system time")
-            .as_secs() as i64;
-        let activity = Activity::new()
-            .state(msg)
-            .assets(
-                Assets::new()
-                    .large_image("astralrinth_logo")
-                    .large_text(&build_info),
-            )
-            .buttons(vec![Button::new(
-                "Get launcher",
-                "https://xorison.dev/product/astralrinth",
-            ), Button::new(
-				"Support",
-				"https://xorison.dev/product/astralrinth/support"
-			)])
-            .timestamps(Timestamps::new().start(time));
+        let activity = Activity::new().state(msg).assets(
+            Assets::new()
+                .large_image("modrinth_simple")
+                .large_text("Modrinth Logo"),
+        );
 
         // Attempt to set the activity
         // If the existing connection fails, attempt to reconnect and try again
@@ -184,19 +125,27 @@ impl DiscordGuard {
     pub async fn clear_to_default(
         &self,
         reconnect_if_fail: bool,
+        pool: &SqlitePool,
+        process_manager: &ProcessManager,
     ) -> crate::Result<()> {
-        let state = State::get().await?;
-
-        let settings = crate::state::Settings::get(&state.pool).await?;
+        let settings = crate::state::Settings::get(pool).await?;
         if !settings.discord_rpc {
             println!("Discord is disabled, clearing activity");
             return self.clear_activity(true).await;
         }
 
-        let selected_phrase =
-            INACTIVE_STATE.choose(&mut rand::thread_rng()).unwrap();
-        self.set_activity(&format!("{}", selected_phrase), reconnect_if_fail)
+        let running_instances = process_manager.get_all();
+        if let Some(existing_child) = running_instances.first() {
+            self.set_activity(
+                &format!("Playing {}", existing_child.instance_name),
+                reconnect_if_fail,
+                pool,
+            )
             .await?;
+        } else {
+            self.set_activity("Idling...", reconnect_if_fail, pool)
+                .await?;
+        }
         Ok(())
     }
 }

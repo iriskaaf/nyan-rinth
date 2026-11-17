@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Button, NewModal } from '@modrinth/ui'
+import { Button, NewModal, injectNotificationManager } from '@modrinth/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { nextTick, ref } from 'vue'
 
@@ -10,7 +10,7 @@ const login = ref('')
 const password = ref('')
 const totp = ref('')
 const busy = ref(false)
-const error = ref('')
+const { handleError } = injectNotificationManager()
 function clearSecrets() {
 	password.value = ''
 	totp.value = ''
@@ -18,14 +18,12 @@ function clearSecrets() {
 function show() {
 	clearSecrets()
 	login.value = props.username
-	error.value = ''
 	modal.value?.show()
 }
 async function connect() {
 	if (busy.value) return
 	const user = props.user
 	busy.value = true
-	error.value = ''
 	try {
 		await invoke('plugin:auth|ely_skins_connect', {
 			user,
@@ -39,11 +37,14 @@ async function connect() {
 		modal.value?.hide()
 		emit('connected')
 	} catch (e) {
-		error.value =
-			typeof e === 'string'
-				? e
-				: ((e as { message?: string }).message ??
-					'Не удалось подключить управление скинами Ely.by.')
+		handleError(
+			new Error(
+				typeof e === 'string'
+					? e
+					: ((e as { message?: string }).message ??
+							'Не удалось подключить управление скинами Ely.by.'),
+			),
+		)
 	} finally {
 		busy.value = false
 	}
@@ -91,7 +92,6 @@ defineExpose({ show })
 					maxlength="6"
 					:disabled="busy"
 			/></label>
-			<p v-if="error" role="alert" class="m-0 text-red">{{ error }}</p>
 			<p class="m-0 text-sm text-secondary">
 				Данные отправляются только Ely.by по HTTPS. Пароль не сохраняется. Сессия сайта хранится
 				зашифрованной средствами Windows и привязана к этому аккаунту.

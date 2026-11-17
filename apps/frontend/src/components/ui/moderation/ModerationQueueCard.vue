@@ -90,24 +90,41 @@
 			</div>
 
 			<div class="flex items-center gap-3">
-				<span
-					v-tooltip="`Since ${formatDateTimeFull(queuedDate.toDate())}`"
-					class="text-base text-secondary"
-					:class="{
-						'text-red': daysInQueue > 4,
-						'text-orange': daysInQueue > 2 && daysInQueue <= 4,
-					}"
-				>
-					{{ formattedDate }}
-				</span>
+				<div class="flex flex-col items-end">
+					<span
+						v-tooltip="`Since ${formatDateTimeFull(queuedDate.toDate())}`"
+						class="text-base text-secondary"
+						:class="{
+							'text-red': daysInQueue > 4,
+							'text-orange': daysInQueue > 2 && daysInQueue <= 4,
+						}"
+					>
+						{{ formattedDate }}
+					</span>
+					<span
+						v-if="initialQueuedDate"
+						v-tooltip="`First submitted ${formatDateTimeFull(initialQueuedDate.toDate())}`"
+						class="text-sm text-secondary"
+					>
+						First submitted {{ formatRelativeTime(initialQueuedDate.toISOString()) }}
+					</span>
+				</div>
 
 				<div class="flex items-center gap-2">
-					<IconButton v-tooltip="'Copy ID'" :label="'Copy ID'" @click="copyId">
-						<ClipboardCopyIcon />
-					</IconButton>
-					<IconButton v-tooltip="'Copy link'" :label="'Copy link'" @click="copyLink">
-						<LinkIcon />
-					</IconButton>
+					<CopyCode v-tooltip="'Copy project ID'" :text="queueEntry.project.id" />
+					<CopyLinkButton
+						v-tooltip="'Copy project link'"
+						:url="`https://modrinth.com/project/${queueEntry.project.id}`"
+					/>
+					<ButtonLink
+						v-tooltip="'Open moderation thread'"
+						:href="`/project/${queueEntry.project.id}/moderation`"
+						target="_blank"
+						circular
+						icon-only
+					>
+						<ExternalIcon />
+					</ButtonLink>
 					<IconButton
 						v-tooltip="'Begin review'"
 						type="colored"
@@ -124,13 +141,15 @@
 </template>
 
 <script setup lang="ts">
-import { ClipboardCopyIcon, FileIcon, LinkIcon, ScaleIcon } from '@modrinth/assets'
+import { ExternalIcon, FileIcon, ScaleIcon } from '@modrinth/assets'
 import {
 	Avatar,
 	Badge,
+	ButtonLink,
+	CopyCode,
+	CopyLinkButton,
 	getProjectTypeIcon,
 	IconButton,
-	injectNotificationManager,
 	useFormatDateTime,
 	useRelativeTime,
 } from '@modrinth/ui'
@@ -140,7 +159,6 @@ import { computed } from 'vue'
 
 import type { ModerationProject } from '~/helpers/moderation'
 
-const { addNotification } = injectNotificationManager()
 const formatRelativeTime = useRelativeTime()
 const formatDateTimeFull = useFormatDateTime({
 	weekday: 'short',
@@ -177,6 +195,14 @@ const queuedDate = computed(() => {
 	)
 })
 
+const initialQueuedDate = computed(() => {
+	const initialQueued = props.queueEntry.project.initial_queued
+	if (!initialQueued) return null
+
+	const date = dayjs(initialQueued)
+	return date.isBefore(queuedDate.value.subtract(1, 'minute')) ? date : null
+})
+
 const daysInQueue = computed(() => {
 	return getDaysQueued(queuedDate.value.toDate())
 })
@@ -198,28 +224,6 @@ const formattedDate = computed(() => {
 		return 'Unknown'
 	}
 })
-
-function copyLink() {
-	const base = window.location.origin
-	const projectUrl = `${base}/project/${projectRouteParam.value}`
-	navigator.clipboard.writeText(projectUrl).then(() => {
-		addNotification({
-			type: 'success',
-			title: 'Project link copied',
-			text: 'The link to this project has been copied to your clipboard.',
-		})
-	})
-}
-
-function copyId() {
-	navigator.clipboard.writeText(props.queueEntry.project.id).then(() => {
-		addNotification({
-			type: 'success',
-			title: 'Project ID copied',
-			text: 'The ID of this project has been copied to your clipboard.',
-		})
-	})
-}
 
 function openProjectForReview() {
 	emit('startFromProject', props.queueEntry.project.id)

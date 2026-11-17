@@ -83,7 +83,7 @@ const checkProcess = async () => {
 
 const play = async (e, context) => {
 	e?.stopPropagation()
-	if (props.instance.quarantined) return
+	if (props.instance.quarantined || installing.value || modLoading.value) return
 	loading.value = true
 	await run(props.instance.id)
 		.catch((err) => handleSevereError(err, { instanceId: props.instance.id }))
@@ -112,7 +112,7 @@ const stop = async (e, context) => {
 
 const repair = async (e) => {
 	e?.stopPropagation()
-	if (props.instance.quarantined) return
+	if (props.instance.quarantined || installing.value || modLoading.value) return
 
 	if (
 		props.instance.install_stage !== 'pack_installed' &&
@@ -135,7 +135,7 @@ const openFolder = async () => {
 }
 
 const addContent = async () => {
-	if (props.instance.quarantined) return
+	if (props.instance.quarantined || installing.value || modLoading.value) return
 	await router.push({
 		path: `/browse/${props.instance.loader === 'vanilla' ? 'datapack' : 'mod'}`,
 		query: { i: props.instance.id },
@@ -179,6 +179,7 @@ onMounted(() => {
 				:src="getInstanceIconUrl(instance.icon_path)"
 				:tint-by="instance.id"
 				:alt="formatMessage(messages.instanceIcon)"
+				pad-transparent-corners
 			/>
 			<div class="h-full flex items-center font-bold text-contrast leading-normal">
 				<span class="line-clamp-2">{{ instance.name }}</span>
@@ -244,6 +245,7 @@ onMounted(() => {
 					:tint-by="instance.id"
 					:alt="formatMessage(messages.instanceIcon)"
 					:class="`transition-all ${modLoading || installing ? `brightness-[0.25] scale-[0.85]` : `group-hover:brightness-75`}`"
+					pad-transparent-corners
 				/>
 				<div class="absolute inset-0 flex items-center justify-center">
 					<IconButton

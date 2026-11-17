@@ -1,15 +1,12 @@
-use super::content::get_projects;
+use crate::ErrorKind;
 use crate::server_address::ServerAddress;
 use crate::state::{
-    Credentials, InstanceLink, ProcessMetadata, Settings, State,
+    Credentials, ProcessMetadata, Settings, State,
+    game_options_sync_is_enabled, load_game_option_preferences,
 };
-use crate::util::fetch;
 use crate::util::io::IOError;
-use serde_json::json;
-use std::collections::HashMap;
-use std::time::Duration;
+use anyhow::{Context, bail};
 use tokio::process::Command;
-use tracing::{info, warn};
 
 #[derive(Debug, Clone)]
 pub enum QuickPlayType {
@@ -30,10 +27,9 @@ pub async fn run(
     )
     .await?
     {
-        return Err(crate::ErrorKind::InputError(
-            "This instance has been quarantined".to_string(),
-        )
-        .into());
+        bail!(ErrorKind::InputError(
+            "this instance has been quarantined".to_string(),
+        ));
     }
     super::shared::check_shared_instance_availability_before_launch(
         instance_id,
@@ -43,7 +39,7 @@ pub async fn run(
 
     let default_account = Credentials::get_default_credential(&state.pool)
         .await?
-        .ok_or_else(|| crate::ErrorKind::NoCredentialsError.as_error())?;
+        .ok_or(ErrorKind::NotLoggedIn)?;
 
     run_credentials(instance_id, &default_account, quick_play_type).await
 }
@@ -62,21 +58,31 @@ async fn run_credentials(
             &state.pool,
         )
         .await?
-        .ok_or_else(|| {
-            crate::ErrorKind::OtherError(format!(
-                "Tried to run a nonexistent instance {instance_id}!"
-            ))
-        })?;
+        .context(format!(
+            "tried to run a nonexistent instance {instance_id}"
+        ))?;
+    let instance_sync_preferences =
+        crate::state::instances::adapters::sqlite::instance_rows::get_instance_sync_preferences(
+            instance_id,
+            &state.pool,
+        )
+        .await?;
+    let fullscreen_is_shared = game_options_sync_is_enabled(&state.pool)
+        .await?
+        && instance_sync_preferences.game_options
+        && load_game_option_preferences(&state.pool)
+            .await?
+            .get("fullscreen")
+            .is_some_and(|preference| preference.enabled);
     if crate::state::instances::adapters::sqlite::instance_rows::is_instance_quarantined(
         instance_id,
         &state.pool,
     )
     .await?
     {
-        return Err(crate::ErrorKind::InputError(
-            "This instance has been quarantined".to_string(),
-        )
-        .into());
+        bail!(ErrorKind::InputError(
+            "this instance has been quarantined".to_string(),
+        ));
     }
 
     let pre_launch_hook = context
@@ -138,7 +144,7 @@ async fn run_credentials(
             .as_ref()
             .expect("hooked launches always resolve their instance path");
         let java_version =
-            crate::launcher::resolve_java_for_launch(&context).await?;
+            crate::launcher::resolve_java_for_launch(&context, &state).await?;
 
         Some(crate::launcher::hooks::HookEnvironment::from_current_env(
             &env_args,
@@ -168,11 +174,9 @@ async fn run_credentials(
     ) {
         let expanded_hook = hook_environment.expand(hook);
         let mut cmd = shlex::split(&expanded_hook)
-            .ok_or_else(|| {
-                crate::ErrorKind::LauncherError(format!(
-                    "Invalid pre-launch command: {hook}",
-                ))
-            })?
+            .ok_or(ErrorKind::LauncherError(format!(
+                "invalid pre-launch command {hook}",
+            )))?
             .into_iter();
 
         if let Some(command) = cmd.next() {
@@ -187,11 +191,10 @@ async fn run_credentials(
                 .map_err(IOError::from)?;
 
             if !result.success() {
-                return Err(crate::ErrorKind::LauncherError(format!(
-                    "Non-zero exit code for pre-launch hook: {}",
+                bail!(ErrorKind::LauncherError(format!(
+                    "non-zero exit code for pre-launch hook ({})",
                     result.code().unwrap_or(-1)
-                ))
-                .as_error());
+                )));
             }
         }
     }
@@ -214,57 +217,8 @@ async fn run_credentials(
     let mut mc_set_options: Vec<(String, String)> = vec![];
     if let Some(fullscreen) = context.launch_overrides.force_fullscreen {
         mc_set_options.push(("fullscreen".to_string(), fullscreen.to_string()));
-    } else if settings.force_fullscreen {
+    } else if settings.force_fullscreen && !fullscreen_is_shared {
         mc_set_options.push(("fullscreen".to_string(), "true".to_string()));
-    }
-
-    if let Some(project_id) = server_play_project_id(&context.link)
-        && !project_id.trim().is_empty()
-    {
-        let server_id = uuid::Uuid::new_v4().to_string();
-        let join_result = fetch::INSECURE_REQWEST_CLIENT
-			.post("https://sessionserver.mojang.com/session/minecraft/join")
-			.json(&json!({
-				"accessToken": &credentials.access_token,
-				"selectedProfile": credentials.offline_profile.id.simple().to_string(),
-				"serverId": &server_id,
-			}))
-			.timeout(Duration::from_secs(5))
-			.send()
-			.await;
-
-        match join_result {
-            Ok(resp) if resp.status().is_success() => {
-                let result = fetch::post_json(
-                    concat!(
-                        env!("MODRINTH_API_BASE_URL"),
-                        "analytics/minecraft-server-play"
-                    ),
-                    json!({
-                        "project_id": project_id,
-                        "username": &credentials.offline_profile.name,
-                        "server_id": &server_id,
-                    }),
-                    &state.api_semaphore,
-                    &state.pool,
-                )
-                .await;
-
-                match result {
-                    Ok(()) => {
-                        info!(
-                            "Tracked server play for '{project_id}' in analytics"
-                        )
-                    }
-                    Err(err) => warn!("Failed to report server play: {err:?}"),
-                }
-            }
-            Ok(resp) => warn!(
-                "Failed to join Mojang session server: HTTP {}",
-                resp.status()
-            ),
-            Err(err) => warn!("Failed to join Mojang session server: {err:?}"),
-        }
     }
 
     crate::minecraft_skins::flush_pending_skin_change().await?;
@@ -279,23 +233,9 @@ async fn run_credentials(
         post_exit_hook,
         &context,
         quick_play_type,
+        &state,
     )
     .await
-}
-
-fn server_play_project_id(link: &InstanceLink) -> Option<&String> {
-    match link {
-        InstanceLink::ServerProject { project_id }
-        | InstanceLink::ServerProjectModpack {
-            server_project_id: project_id,
-            ..
-        } => Some(project_id),
-        InstanceLink::Unmanaged
-        | InstanceLink::ModrinthModpack { .. }
-        | InstanceLink::ModrinthHosting { .. }
-        | InstanceLink::ImportedModpack { .. }
-        | InstanceLink::SharedInstance { .. } => None,
-    }
 }
 
 pub async fn kill(instance_id: &str) -> crate::Result<()> {
@@ -321,63 +261,16 @@ pub async fn try_update_playtime_by_instance_id(
             &state.pool,
         )
         .await?
-        .ok_or_else(|| {
-            crate::ErrorKind::OtherError(format!(
-                "Tried to update playtime for nonexistent instance {instance_id}!"
-            ))
-        })?;
+        .context(format!(
+            "tried to update playtime for nonexistent instance {instance_id}"
+        ))?;
     let updated_recent_playtime = context.instance.recent_time_played;
-    let res = if updated_recent_playtime > 0 {
-        let modrinth_pack_version_id = match &context.link {
-            InstanceLink::ModrinthModpack { version_id, .. }
-            | InstanceLink::ServerProjectModpack {
-                content_version_id: version_id,
-                ..
-            }
-            | InstanceLink::ImportedModpack {
-                version_id: Some(version_id),
-                ..
-            } => Some(version_id.clone()),
-            InstanceLink::Unmanaged
-            | InstanceLink::ServerProject { .. }
-            | InstanceLink::ModrinthHosting { .. }
-            | InstanceLink::ImportedModpack { .. }
-            | InstanceLink::SharedInstance { .. } => None,
-        };
-        let playtime_update_json = json!({
-            "seconds": updated_recent_playtime,
-            "loader": context.applied_content_set.loader.as_str(),
-            "game_version": &context.applied_content_set.game_version,
-            "parent": modrinth_pack_version_id,
-        });
-        let mut hashmap: HashMap<String, serde_json::Value> = HashMap::new();
 
-        for (_, project) in get_projects(instance_id, None).await? {
-            if let Some(metadata) = project.metadata {
-                hashmap
-                    .insert(metadata.version_id, playtime_update_json.clone());
-            }
-        }
-
-        fetch::post_json(
-            concat!(env!("MODRINTH_API_BASE_URL"), "analytics/playtime"),
-            serde_json::to_value(hashmap)?,
-            &state.api_semaphore,
-            &state.pool,
-        )
-        .await
-    } else {
-        Ok(())
-    };
-
-    if res.is_ok() {
-        crate::state::instances::commands::mark_instance_playtime_submitted(
-            &context.instance.id,
-            updated_recent_playtime,
-            &state.pool,
-        )
-        .await?;
-    }
-
-    res
+    crate::state::instances::commands::mark_instance_playtime_submitted(
+        &context.instance.id,
+        updated_recent_playtime,
+        &state.pool,
+    )
+    .await?;
+    Ok(())
 }

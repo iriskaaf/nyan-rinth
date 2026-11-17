@@ -2,6 +2,7 @@
 import {
 	ArrowLeftRightIcon,
 	DownloadIcon,
+	Link2Icon,
 	LockIcon,
 	MoreVerticalIcon,
 	SpinnerIcon,
@@ -17,22 +18,28 @@ import type { RouteLocationRaw } from 'vue-router'
 import AutoLink from '#ui/components/base/AutoLink.vue'
 import Avatar from '#ui/components/base/Avatar.vue'
 import BulletDivider from '#ui/components/base/BulletDivider.vue'
-import type { OverflowMenuOption } from '#ui/components/base/buttons'
+import type { ButtonMenuOption } from '#ui/components/base/buttons'
 import { IconButton, TeleportOverflowMenu } from '#ui/components/base/buttons'
 import Checkbox from '#ui/components/base/Checkbox.vue'
 import ProgressSpinner from '#ui/components/base/ProgressSpinner.vue'
 import Toggle from '#ui/components/base/Toggle.vue'
 import { defineMessages, useVIntl } from '#ui/composables/i18n'
-import { commonMessages } from '#ui/utils/common-messages'
+import { PROJECT_TYPE_ICONS } from '#ui/utils/auto-icons'
+import { commonMessages, getProjectTypeTitleMessage } from '#ui/utils/common-messages'
 import { truncatedTooltip } from '#ui/utils/truncate'
 
 import type {
 	ClientWarningType,
+	ContentCardEmbeddedIcon,
 	ContentCardProject,
 	ContentCardVersion,
+	ContentEnabledForState,
 	ContentOwner,
+	ContentSide,
 	ContentSource,
 } from '../types'
+import ContentCardItemIcon from './ContentCardItemIcon.vue'
+import ContentEnabledFor from './ContentEnabledFor.vue'
 
 const { formatMessage } = useVIntl()
 
@@ -42,23 +49,44 @@ const messages = defineMessages({
 		defaultMessage: 'Select {project}',
 	},
 	uploaded: {
-		id: 'content.card.uploaded',
-		defaultMessage: 'Uploaded',
+		id: 'content.card.uploaded-file',
+		defaultMessage: 'Uploaded file',
+	},
+	externalFile: {
+		id: 'content.card.external-file',
+		defaultMessage: 'External file',
+	},
+	overrideFile: {
+		id: 'content.card.override-file',
+		defaultMessage: 'Override file',
 	},
 	frozen: {
 		id: 'content.card.frozen',
 		defaultMessage: 'This project is locked to its current version until unfrozen.',
 	},
+	synced: {
+		id: 'content.card.synced',
+		defaultMessage: 'Synced across instances',
+	},
+	syncUpdatePending: {
+		id: 'content.card.sync-update-pending',
+		defaultMessage:
+			'Some synced copies are waiting for changes. An instance may be running, have a frozen or incompatible version, or already contain its own copy.',
+	},
 })
 
 interface Props {
 	project: ContentCardProject
+	projectType?: string
 	projectLink?: string | RouteLocationRaw
 	version?: ContentCardVersion
+	showVersion?: boolean
 	versionLink?: string | RouteLocationRaw
 	owner?: ContentOwner
 	source?: ContentSource
 	external?: boolean
+	externalFile?: boolean
+	overrideFile?: boolean
 	enabled?: boolean
 	locked?: boolean
 	installing?: boolean
@@ -66,8 +94,10 @@ interface Props {
 	hasUpdate?: boolean
 	isClientOnly?: boolean
 	clientWarning?: ClientWarningType | null
+	synced?: boolean
+	syncUpdatePending?: boolean
 	hideSwitchVersion?: boolean
-	overflowOptions?: OverflowMenuOption[]
+	overflowOptions?: ButtonMenuOption[]
 	disabled?: boolean
 	disabledTooltip?: string | null
 	toggleDisabled?: boolean
@@ -77,15 +107,23 @@ interface Props {
 	hideDelete?: boolean
 	hideActions?: boolean
 	inline?: boolean
+	tableLayout?: 'wide' | 'compact' | 'stacked' | 'narrow'
+	enabledForColumn?: boolean
+	enabledFor?: ContentEnabledForState
+	embeddedIcon?: ContentCardEmbeddedIcon
 }
 
 const props = withDefaults(defineProps<Props>(), {
+	projectType: undefined,
 	projectLink: undefined,
 	version: undefined,
+	showVersion: true,
 	versionLink: undefined,
 	owner: undefined,
 	source: undefined,
 	external: false,
+	externalFile: false,
+	overrideFile: false,
 	enabled: undefined,
 	locked: false,
 	installing: false,
@@ -93,6 +131,8 @@ const props = withDefaults(defineProps<Props>(), {
 	hasUpdate: false,
 	isClientOnly: false,
 	clientWarning: null,
+	synced: false,
+	syncUpdatePending: false,
 	hideSwitchVersion: false,
 	overflowOptions: undefined,
 	disabled: false,
@@ -104,12 +144,31 @@ const props = withDefaults(defineProps<Props>(), {
 	hideDelete: false,
 	hideActions: false,
 	inline: false,
+	tableLayout: undefined,
+	enabledForColumn: false,
+	enabledFor: undefined,
+	embeddedIcon: undefined,
 })
+
+const stacked = computed(() => props.tableLayout === 'stacked' || props.tableLayout === 'narrow')
+const separateVersion = computed(() => props.tableLayout === 'wide')
 
 const selected = defineModel<boolean>('selected')
 
+const projectTitle = computed(() => props.project.title.replace(/§[0-9a-fk-orx]/gi, ''))
+const projectTypeIcon = computed(() => {
+	const type = props.projectType === 'shaderpack' ? 'shader' : props.projectType
+	return type && type in PROJECT_TYPE_ICONS
+		? PROJECT_TYPE_ICONS[type as keyof typeof PROJECT_TYPE_ICONS]
+		: undefined
+})
+const projectTypeLabel = computed(() =>
+	formatMessage(getProjectTypeTitleMessage(props.projectType), { count: 1 }),
+)
+
 const emit = defineEmits<{
 	'update:enabled': [value: boolean]
+	'update:enabled-for': [side: ContentSide, value: boolean]
 	select: [value: boolean, event?: MouseEvent]
 	delete: [event: MouseEvent]
 	update: []
@@ -124,10 +183,19 @@ const hasSwitchVersionListener = computed(
 )
 
 const versionNumberRef = ref<HTMLElement | null>(null)
+const compactVersionNumberRef = ref<HTMLElement | null>(null)
 const fileNameRef = ref<HTMLElement | null>(null)
 
 const isDisabled = computed(() => props.disabled || props.installing)
 const isToggleDisabled = computed(() => isDisabled.value || props.toggleDisabled)
+const syncStatusLabel = computed(() =>
+	formatMessage(props.syncUpdatePending ? messages.syncUpdatePending : messages.synced),
+)
+const toggleTooltip = computed(() => {
+	if (!isToggleDisabled.value) return undefined
+	return props.toggleDisabledTooltip ?? props.disabledTooltip ?? undefined
+})
+const isContentDisabled = computed(() => props.enabled === false)
 
 const clientWarningMessage = computed(() => {
 	switch (props.clientWarning) {
@@ -152,24 +220,25 @@ const installTooltip = computed(() => {
 <template>
 	<div
 		role="row"
-		class="flex items-center justify-between"
-		:class="{
-			'h-[74px] gap-4 px-3': !inline,
-			'gap-3': inline,
-			'opacity-50 grayscale': disabled && !installing,
-			'opacity-50': installing,
-		}"
+		class="items-center"
+		:class="[
+			tableLayout
+				? [
+						'grid h-[var(--content-row-height)] grid-cols-[var(--content-columns)] gap-x-4 px-3',
+						stacked ? 'gap-y-2 py-3' : '',
+					]
+				: ['flex justify-between', inline ? 'gap-3' : 'h-[74px] gap-4 px-3'],
+			{ 'opacity-50 grayscale': disabled && !installing, 'opacity-50': installing },
+		]"
 	>
 		<div
 			class="flex min-w-0 items-center gap-4"
-			:class="
-				hideActions ? 'flex-1' : 'flex-1 @[800px]:w-[45%] @[800px]:shrink-0 @[800px]:flex-none'
-			"
+			:class="tableLayout ? { 'col-span-full': stacked } : 'flex-1'"
 		>
 			<Checkbox
 				v-if="showCheckbox"
 				:model-value="selected ?? false"
-				:aria-label="formatMessage(messages.selectProject, { project: project.title })"
+				:aria-label="formatMessage(messages.selectProject, { project: projectTitle })"
 				:disabled="isDisabled"
 				class="shrink-0"
 				@update:model-value="(value, event) => emit('select', value, event)"
@@ -177,15 +246,14 @@ const installTooltip = computed(() => {
 
 			<div
 				class="flex min-w-0 items-center gap-3 transition-[filter,opacity] duration-200"
-				:class="enabled === false && !disabled ? 'grayscale opacity-50' : ''"
+				:class="isContentDisabled && !disabled && !installing ? 'grayscale opacity-50' : ''"
 			>
 				<div v-tooltip="installTooltip" class="relative flex shrink-0 items-center">
-					<Avatar
+					<ContentCardItemIcon
 						:src="project.icon_url"
-						:alt="project.title"
-						size="3rem"
-						no-shadow
-						class="rounded-2xl border border-surface-5"
+						:alt="projectTitle"
+						:tint-by="project.id"
+						:embedded-icon="embeddedIcon"
 					/>
 					<div
 						v-if="installing"
@@ -209,12 +277,29 @@ const installTooltip = computed(() => {
 									: undefined
 							"
 							:to="projectLink"
-							class="truncate font-semibold leading-6 text-contrast !decoration-contrast"
+							class="inline-flex min-w-0 items-center gap-1 font-semibold leading-6 text-contrast !decoration-contrast"
 							:class="{ 'hover:underline': projectLink }"
 						>
-							{{ project.title }}
+							<component
+								:is="projectTypeIcon"
+								v-if="projectTypeIcon"
+								v-tooltip="projectTypeLabel"
+								class="mx-0.5 size-5 shrink-0 text-icon"
+								aria-hidden="true"
+							/>
+							<span v-if="projectTypeIcon" class="sr-only">{{ projectTypeLabel }}: </span>
+							<span class="min-w-0 truncate">{{ projectTitle }}</span>
 						</AutoLink>
 						<slot name="title-badges" />
+						<span
+							v-if="synced && hideActions"
+							v-tooltip="syncStatusLabel"
+							role="img"
+							class="inline-flex shrink-0 cursor-help items-center justify-center rounded-full border border-solid border-brand-blue bg-highlight-blue px-2.5 py-1 text-brand-blue"
+							tabindex="0"
+						>
+							<Link2Icon class="size-5" aria-hidden="true" />
+						</span>
 						<span
 							v-if="isClientOnly"
 							v-tooltip="formatMessage(clientWarningMessage)"
@@ -243,7 +328,7 @@ const installTooltip = computed(() => {
 									:tint-by="source.project.id"
 									size="1.25rem"
 									no-shadow
-									class="shrink-0 rounded-md"
+									class="mx-0.5 shrink-0 rounded-md"
 								/>
 								<span class="truncate text-sm leading-5 text-secondary">
 									{{ source.project.title }}
@@ -258,7 +343,7 @@ const installTooltip = computed(() => {
 									: undefined
 							"
 							:to="owner.link"
-							class="flex shrink-0 items-center gap-1 !decoration-secondary"
+							class="flex min-w-0 items-center gap-1 !decoration-secondary"
 							:class="{ 'hover:underline': owner.link }"
 						>
 							<Avatar
@@ -269,14 +354,25 @@ const installTooltip = computed(() => {
 								no-shadow
 								class="shrink-0"
 							/>
-							<span class="text-sm leading-5 text-secondary">{{ owner.name }}</span>
+							<span class="truncate text-sm leading-5 text-secondary">{{ owner.name }}</span>
 						</AutoLink>
 						<span v-else-if="external" class="flex items-center gap-1 text-secondary">
-							<UploadIcon class="size-4 shrink-0" />
-							<span class="text-sm leading-5">{{ formatMessage(messages.uploaded) }}</span>
+							<UploadIcon class="mx-1 size-4 shrink-0" />
+							<span class="text-sm leading-5">{{
+								formatMessage(
+									overrideFile
+										? messages.overrideFile
+										: externalFile
+											? messages.externalFile
+											: messages.uploaded,
+								)
+							}}</span>
 						</span>
-						<template v-if="version && !external">
-							<BulletDivider class="shrink-0 @[800px]:hidden" />
+						<template v-if="showVersion && version?.version_number && !external">
+							<BulletDivider
+								class="shrink-0"
+								:class="tableLayout ? { hidden: separateVersion } : '@[800px]:hidden'"
+							/>
 							<AutoLink
 								:target="
 									typeof versionLink === 'string' && versionLink.startsWith('http')
@@ -284,10 +380,19 @@ const installTooltip = computed(() => {
 										: undefined
 								"
 								:to="versionLink"
-								class="truncate text-sm leading-5 text-secondary !decoration-secondary @[800px]:hidden"
-								:class="{ 'hover:underline': versionLink }"
+								class="min-w-0 text-sm leading-5 text-secondary !decoration-secondary"
+								:class="[
+									tableLayout ? { hidden: separateVersion } : '@[800px]:hidden',
+									{ 'hover:underline': versionLink },
+								]"
 							>
-								{{ version.version_number }}
+								<span
+									ref="compactVersionNumberRef"
+									v-tooltip="truncatedTooltip(compactVersionNumberRef, version.version_number)"
+									class="block truncate"
+								>
+									{{ version.version_number }}
+								</span>
 							</AutoLink>
 						</template>
 					</div>
@@ -295,15 +400,29 @@ const installTooltip = computed(() => {
 			</div>
 		</div>
 
+		<div v-if="enabledForColumn || enabledFor" class="min-w-0">
+			<ContentEnabledFor
+				v-if="enabledFor"
+				:reserve-status-space="enabledForColumn"
+				:model-value="enabledFor"
+				:loading="installing"
+				:disabled="isDisabled"
+				:disabled-tooltip="isDisabled ? disabledTooltip : undefined"
+				@update:model-value="(side, value) => emit('update:enabled-for', side, value)"
+			/>
+		</div>
+
 		<div
-			class="hidden flex-col gap-0.5 transition-[filter,opacity] duration-200 @[800px]:flex"
+			v-if="showVersion"
+			class="min-w-0 flex-col gap-0.5 transition-[filter,opacity] duration-200"
 			:class="[
-				hideActions ? 'flex-1' : 'flex-1 min-w-0',
-				enabled === false && !disabled ? 'grayscale opacity-50' : '',
+				tableLayout ? (separateVersion ? 'flex' : 'hidden') : 'hidden flex-1 @[800px]:flex',
+				isContentDisabled && !disabled && !installing ? 'grayscale opacity-50' : '',
 			]"
 		>
 			<template v-if="version">
 				<AutoLink
+					v-if="version.version_number"
 					v-tooltip="truncatedTooltip(versionNumberRef, version.version_number)"
 					:target="
 						typeof versionLink === 'string' && versionLink.startsWith('http') ? '_blank' : undefined
@@ -312,10 +431,10 @@ const installTooltip = computed(() => {
 					class="inline-flex min-w-0 font-semibold leading-6 text-contrast !decoration-contrast"
 					:class="{ 'hover:underline': versionLink, 'cursor-pointer': versionLink }"
 				>
-					<span ref="versionNumberRef" class="truncate">{{
+					<span ref="versionNumberRef" class="min-w-0 truncate">{{
 						version.version_number.slice(0, Math.ceil(version.version_number.length / 2))
 					}}</span
-					><span class="shrink-0">{{
+					><span class="min-w-0 max-w-[50%] truncate">{{
 						version.version_number.slice(Math.ceil(version.version_number.length / 2))
 					}}</span>
 				</AutoLink>
@@ -323,10 +442,10 @@ const installTooltip = computed(() => {
 					v-tooltip="truncatedTooltip(fileNameRef, version.file_name)"
 					class="flex min-w-0 leading-6 text-secondary"
 				>
-					<span ref="fileNameRef" class="truncate">{{
+					<span ref="fileNameRef" class="min-w-0 truncate">{{
 						version.file_name.slice(0, Math.ceil(version.file_name.length / 2))
 					}}</span
-					><span class="shrink-0">{{
+					><span class="min-w-0 max-w-[50%] truncate">{{
 						version.file_name.slice(Math.ceil(version.file_name.length / 2))
 					}}</span>
 				</span>
@@ -335,9 +454,25 @@ const installTooltip = computed(() => {
 
 		<div
 			v-if="!hideActions"
-			class="flex min-w-[160px] shrink-0 items-center justify-end gap-2 transition-colors duration-200"
+			class="flex shrink-0 items-center justify-end gap-2 transition-colors duration-200"
+			:class="
+				tableLayout
+					? tableLayout === 'narrow'
+						? 'justify-self-start'
+						: 'justify-self-end'
+					: 'min-w-[160px]'
+			"
 		>
 			<slot name="additionalButtonsLeft" />
+			<span
+				v-if="synced"
+				v-tooltip="syncStatusLabel"
+				role="img"
+				tabindex="0"
+				class="inline-flex shrink-0 cursor-help items-center justify-center rounded-full border border-solid border-brand-blue bg-highlight-blue px-2.5 py-1 text-brand-blue focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-shadow"
+			>
+				<Link2Icon class="size-5" aria-hidden="true" />
+			</span>
 
 			<!-- Fixed width container to reserve space for update/switch version button -->
 			<div
@@ -346,7 +481,7 @@ const installTooltip = computed(() => {
 					(hasUpdateListener && hasUpdate) ||
 					(hasSwitchVersionListener && version && !hideSwitchVersion)
 				"
-				class="flex w-8 items-center justify-center"
+				class="flex w-9 shrink-0 items-center justify-center"
 			>
 				<IconButton
 					v-if="locked"
@@ -365,14 +500,14 @@ const installTooltip = computed(() => {
 							: formatMessage(commonMessages.updateAvailableLabel)
 					"
 					type="quiet"
-					color="green"
+					color="brand"
 					:label="
 						isDisabled && disabledTooltip
 							? disabledTooltip
 							: formatMessage(commonMessages.updateAvailableLabel)
 					"
 					:disabled="isDisabled"
-					class="hover:!bg-green focus-visible:!bg-green hover:!text-[var(--color-accent-contrast)] focus-visible:!text-[var(--color-accent-contrast)]"
+					class="hover:!bg-brand focus-visible:!bg-brand hover:!text-[var(--color-accent-contrast)] focus-visible:!text-[var(--color-accent-contrast)]"
 					@click="emit('update')"
 				>
 					<DownloadIcon class="size-5" />
@@ -399,14 +534,10 @@ const installTooltip = computed(() => {
 
 			<Toggle
 				v-if="enabled !== undefined && !hideToggle"
-				v-tooltip="
-					isToggleDisabled && (toggleDisabledTooltip || disabledTooltip)
-						? (toggleDisabledTooltip ?? disabledTooltip)
-						: undefined
-				"
-				:model-value="enabled"
+				v-tooltip="toggleTooltip"
+				:model-value="!isContentDisabled"
 				:disabled="isToggleDisabled"
-				:aria-label="project.title"
+				:aria-label="projectTitle"
 				class="my-auto"
 				@update:model-value="(val) => emit('update:enabled', val as boolean)"
 			/>

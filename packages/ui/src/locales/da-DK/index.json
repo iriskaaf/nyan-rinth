@@ -2,39 +2,6 @@
   "action.no-permission": {
     "defaultMessage": "Du har ikke tilladelse."
   },
-  "affiliate.create.button": {
-    "defaultMessage": "Opret affiliate link"
-  },
-  "affiliate.create.header": {
-    "defaultMessage": "Opretter et nyt affiliate kode"
-  },
-  "affiliate.create.title.description": {
-    "defaultMessage": "Giv dit affiliate link et navn så du ved hvor folk kommer fra!"
-  },
-  "affiliate.create.title.label": {
-    "defaultMessage": "Title af affiliate link"
-  },
-  "affiliate.create.title.placeholder": {
-    "defaultMessage": "f.eks. YouTube"
-  },
-  "affiliate.create.user.description": {
-    "defaultMessage": "Brugernavnet af brugeren for at lave en affiliate kode til"
-  },
-  "affiliate.create.user.placeholder": {
-    "defaultMessage": "Indtast brugernavn..."
-  },
-  "affiliate.createdBy": {
-    "defaultMessage": "Lavet af {user}"
-  },
-  "affiliate.creating.button": {
-    "defaultMessage": "Opretter affiliate link..."
-  },
-  "affiliate.revoke": {
-    "defaultMessage": "Fjern affiliate link"
-  },
-  "affiliate.viewAnalytics": {
-    "defaultMessage": "Se analyser"
-  },
   "app.server-settings.failed-to-load-server": {
     "defaultMessage": "Kunne ikke indlæse server indstillinger"
   },
@@ -53,26 +20,11 @@
   "billing.resubscribe-modal.cancel": {
     "defaultMessage": "Annuller"
   },
-  "billing.resubscribe-modal.cpus": {
-    "defaultMessage": "{sharedCpus} Delte CPU'er"
-  },
   "billing.resubscribe-modal.error.title": {
     "defaultMessage": "Fejl"
   },
-  "billing.resubscribe-modal.next-charge": {
-    "defaultMessage": "Din næste opkrævning vil være den <charge-date>{date}</charge-date>."
-  },
-  "billing.resubscribe-modal.plan-label": {
-    "defaultMessage": "Plan"
-  },
-  "billing.resubscribe-modal.ram": {
-    "defaultMessage": "{ramGb} GB RAM"
-  },
   "billing.resubscribe-modal.resubscribe": {
     "defaultMessage": "Genabonner"
-  },
-  "billing.resubscribe-modal.storage": {
-    "defaultMessage": "{storageGb} GB Lagerplads"
   },
   "browse.filter-results": {
     "defaultMessage": "Filtrer resultater..."
@@ -100,9 +52,6 @@
   },
   "button.add-server-to-instance": {
     "defaultMessage": "Tilføj server til instans"
-  },
-  "button.affiliate-links": {
-    "defaultMessage": "Affiliate links"
   },
   "button.analytics": {
     "defaultMessage": "Analytics"
@@ -395,6 +344,12 @@
   "content.page-layout.share.label": {
     "defaultMessage": "Del"
   },
+  "content.page-layout.sort.date-added-oldest": {
+    "defaultMessage": "Ældst først"
+  },
+  "content.page-layout.sort.label": {
+    "defaultMessage": "Sorter efter {mode}"
+  },
   "content.page-layout.update-all": {
     "defaultMessage": "Opdater alle"
   },
@@ -430,9 +385,6 @@
   },
   "creation-flow.button.setup-server": {
     "defaultMessage": "Opsæt server"
-  },
-  "creation-flow.modal.custom-setup.icon.select": {
-    "defaultMessage": "Vælg ikon"
   },
   "creation-flow.modal.custom-setup.name.label": {
     "defaultMessage": "Navn"
@@ -497,8 +449,11 @@
   "creation-flow.modal.import-instance.selection.clear-all": {
     "defaultMessage": "Ryd alle"
   },
-  "creation-flow.modal.setup-type.option.modpack-base.title": {
-    "defaultMessage": "Installer modpack"
+  "creation-flow.modal.modpack.search.no-results": {
+    "defaultMessage": "Ingen resultater fundet"
+  },
+  "creation-flow.modal.modpack.search.placeholder": {
+    "defaultMessage": "Søg efter modpack"
   },
   "external-files.permissions-card.add-files-to-group": {
     "defaultMessage": "Tilføj filer..."
@@ -517,9 +472,6 @@
   },
   "external-files.permissions-card.editor.proof-image-remove": {
     "defaultMessage": "Fjern billede"
-  },
-  "external-files.permissions-card.editor.select-license-label": {
-    "defaultMessage": "Vælg en licens..."
   },
   "external-files.permissions-card.reason.my-project": {
     "defaultMessage": "Mit projekt"
@@ -556,6 +508,9 @@
   },
   "files.editor.find-previous-match": {
     "defaultMessage": "Tidligere match"
+  },
+  "files.layout.unsaved-changes": {
+    "defaultMessage": "Du har ændringer, der ikke er gemt."
   },
   "files.navbar.new-file": {
     "defaultMessage": "Ny fil"
@@ -598,9 +553,6 @@
   },
   "files.zip-url-modal.install-button": {
     "defaultMessage": "Installer"
-  },
-  "files.zip-url-modal.step-select-title": {
-    "defaultMessage": "Vælg en version"
   },
   "form.label.address-line": {
     "defaultMessage": "Adresse"
@@ -1922,18 +1874,6 @@
   "servers.backups.item.auto": {
     "defaultMessage": "Automatisk"
   },
-  "servers.backups.item.backup-schedule": {
-    "defaultMessage": "Sikkerhedskopiering plan"
-  },
-  "servers.backups.item.manual-backup": {
-    "defaultMessage": "Manuel sikkerhedskopiering"
-  },
-  "servers.backups.item.rename": {
-    "defaultMessage": "Ændre navn"
-  },
-  "servers.backups.item.restore": {
-    "defaultMessage": "Genopret"
-  },
   "servers.grant-access-modal.header": {
     "defaultMessage": "Tilføj bruger"
   },
@@ -1967,8 +1907,8 @@
   "servers.list-empty.play-with-friends-title": {
     "defaultMessage": "Spil med venner"
   },
-  "servers.list-empty.sign-in-button": {
-    "defaultMessage": "Log ind"
+  "servers.list-empty.simple-setup-title": {
+    "defaultMessage": "Simpel opsætning"
   },
   "servers.notice.heading.info": {
     "defaultMessage": "Information"
@@ -1996,9 +1936,6 @@
   },
   "servers.purchase.step.payment.title": {
     "defaultMessage": "Betalingsmetode"
-  },
-  "servers.purchase.step.plan.billing-subtitle": {
-    "defaultMessage": "Tilgængelig i Nord Amerika, Europa og Sydøst Asien."
   },
   "servers.purchase.step.plan.custom.heading": {
     "defaultMessage": "Ved du lige hvad du har brug for?"
@@ -2068,9 +2005,6 @@
   },
   "settings.display.theme.dark": {
     "defaultMessage": "Mørk"
-  },
-  "settings.display.theme.description": {
-    "defaultMessage": "Vælg dit foretrukne farvetema til Modrinth på denne enhed."
   },
   "settings.display.theme.light": {
     "defaultMessage": "Lys"
@@ -2212,5 +2146,11 @@
   },
   "tag.loader.vanilla": {
     "defaultMessage": "Vanilla Shader"
+  },
+  "ui.component.unsaved-changes-popup.body": {
+    "defaultMessage": "Du har ændringer, der ikke er gemt."
+  },
+  "ui.confirm-leave-modal.header": {
+    "defaultMessage": "Du har ændringer, der ikke er gemt"
   }
 }

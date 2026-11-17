@@ -86,12 +86,19 @@
 										icon: ServerIcon,
 									}
 								: null,
-							isStaff(auth.user) ? { type: 'heading', label: 'Staff' } : null,
+							isStaff(auth.user) ? { type: 'heading', label: 'Moderation' } : null,
 							isStaff(auth.user)
 								? {
 										link: '/settings/moderation',
-										label: 'Moderation',
-										icon: ScaleIcon,
+										label: 'Settings',
+										icon: SettingsIcon,
+									}
+								: null,
+							isStaff(auth.user)
+								? {
+										link: '/settings/moderation/keybinds',
+										label: 'Keybinds',
+										icon: KeyboardIcon,
 									}
 								: null,
 						].filter(Boolean)
@@ -107,12 +114,13 @@ import {
 	CardIcon,
 	GridIcon,
 	HeartHandshakeIcon,
+	KeyboardIcon,
 	KeyIcon,
 	LanguagesIcon,
 	MonitorSmartphoneIcon,
 	PaintbrushIcon,
-	ScaleIcon,
 	ServerIcon,
+	SettingsIcon,
 	ShieldIcon,
 	ToggleRightIcon,
 	UserIcon,
@@ -149,6 +157,7 @@ const route = useNativeRoute()
 const auth = await useAuth()
 const flags = useFeatureFlags()
 
+useFavicon('settings')
 useSeoMeta({
 	robots: 'noindex',
 })

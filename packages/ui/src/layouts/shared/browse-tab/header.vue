@@ -11,14 +11,15 @@ import PageHeader from '#ui/components/base/page-header/index.vue'
 import PageHeaderMetadata from '#ui/components/base/page-header/metadata/index.vue'
 import PageHeaderMetadataItem from '#ui/components/base/page-header/metadata/page-header-metadata-item.vue'
 import TagIcon from '#ui/components/base/TagIcon.vue'
-import { useServerImage } from '#ui/composables/use-server-image'
+import { useGeneratedIconSrc } from '#ui/composables/use-generated-icon-src'
+import { useServerIcon } from '#ui/composables/use-server-icon'
 import { formatLoaderLabel } from '#ui/utils/loaders'
 
 import SelectedProjectsLeaveModal from './components/SelectedProjectsLeaveModal.vue'
 import { injectBrowseManager } from './providers/browse-manager'
 import type { BrowseInstallContext } from './types'
 
-const MEDAL_ICON_URL = 'https://cdn-raw.modrinth.com/medal_icon.webp'
+const MEDAL_ICON_URL = 'https://cdn.modrinth.com/medal_icon.webp'
 
 const router = useRouter()
 const props = defineProps<{
@@ -40,16 +41,18 @@ const installContext = computed(() => props.installContext ?? ctx?.installContex
 const selectedProjectsLeaveModal = ref<InstanceType<typeof SelectedProjectsLeaveModal>>()
 
 const serverId = computed(() => installContext.value?.serverId ?? '')
-const upstream = computed(() => installContext.value?.upstream ?? null)
-
-const { image: fetchedIcon } = useServerImage(serverId, upstream, {
+const { config: serverIconConfig, image: serverIconImage } = useServerIcon(serverId, {
 	enabled: computed(() => !!installContext.value?.serverId),
 })
+const serverIconGeneratedSrc = useGeneratedIconSrc(serverIconConfig)
+const fetchedIcon = computed(() => serverIconGeneratedSrc.value ?? serverIconImage.value)
 
 const iconSrc = computed(() => {
 	if (installContext.value?.isMedal) return MEDAL_ICON_URL
 	return fetchedIcon.value ?? installContext.value?.iconSrc ?? null
 })
+
+const isInstanceIcon = computed(() => !installContext.value?.serverId)
 
 const metadataItems = computed(() => {
 	const context = installContext.value
@@ -161,6 +164,7 @@ async function handleSelectedProjectsLeaveResult(
 					:alt="installContext.name"
 					size="48px"
 					class="shrink-0"
+					:pad-transparent-corners="isInstanceIcon"
 				/>
 			</template>
 

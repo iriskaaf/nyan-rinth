@@ -5,6 +5,9 @@ import { fileURLToPath } from 'url'
 import svgLoader from 'vite-svg-loader'
 
 import { GenericModrinthClient, type Labrinth } from '../../packages/api-client/src/index.ts'
+import moderationMessages, {
+	moderationMessagesDirectory,
+} from '../../packages/moderation/vite-plugin'
 
 const STAGING_API_URL = 'https://staging-api.modrinth.com/v2/'
 const STAGING_SHARED_INSTANCES_API_URL = 'https://staging-shared-instances.modrinth.com'
@@ -19,12 +22,6 @@ const preloadedFonts = [
 	'inter/Inter-Bold.woff2',
 ]
 
-const favicons = {
-	'(prefers-color-scheme:no-preference)': '/favicon-light.ico',
-	'(prefers-color-scheme:light)': '/favicon-light.ico',
-	'(prefers-color-scheme:dark)': '/favicon.ico',
-}
-
 const PROD_MODRINTH_URL = 'https://modrinth.com'
 const STAGING_MODRINTH_URL = 'https://staging.modrinth.com'
 
@@ -32,8 +29,10 @@ export default defineNuxtConfig({
 	srcDir: 'src/',
 	alias: {
 		'@modrinth/api-client': API_CLIENT_SOURCE,
+		'#messages': moderationMessagesDirectory,
 	},
 	app: {
+		buildAssetsDir: '/_assets/',
 		head: {
 			htmlAttrs: {
 				lang: 'en',
@@ -44,17 +43,11 @@ export default defineNuxtConfig({
 				...preloadedFonts.map((font): object => {
 					return {
 						rel: 'preload',
-						href: `https://cdn-raw.modrinth.com/fonts/${font}?v=3.19`,
+						href: `https://cdn.modrinth.com/fonts/${font}?v=3.19`,
 						as: 'font',
 						type: 'font/woff2',
 						crossorigin: 'anonymous',
 					}
-				}),
-				...Object.entries(favicons).map(([media, href]): object => {
-					return { rel: 'icon', type: 'image/x-icon', href, media }
-				}),
-				...Object.entries(favicons).map(([media, href]): object => {
-					return { rel: 'apple-touch-icon', type: 'image/x-icon', href, media, sizes: '64x64' }
 				}),
 				{
 					rel: 'search',
@@ -74,12 +67,8 @@ export default defineNuxtConfig({
 				},
 			},
 		},
-		ssr: {
-			// https://github.com/Akryum/floating-vue/issues/809#issuecomment-1002996240
-			noExternal: ['floating-vue', '@floating-ui/core', '@floating-ui/dom'],
-		},
 		optimizeDeps: {
-			include: ['vue-router', 'floating-vue', '@floating-ui/dom'],
+			include: ['vue-router'],
 		},
 		define: {
 			global: {},
@@ -97,6 +86,7 @@ export default defineNuxtConfig({
 			dedupe: ['vue'],
 		},
 		plugins: [
+			moderationMessages(),
 			svgLoader({
 				svgoConfig: {
 					plugins: [
@@ -247,11 +237,6 @@ export default defineNuxtConfig({
 			},
 		},
 	},
-	modules: [
-		'floating-vue/nuxt',
-		// Sentry causes rollup-plugin-inject errors in dev, only enable in production
-		...(isProduction() ? ['@sentry/nuxt/module'] : []),
-	],
 	floatingVue: {
 		themes: {
 			'ribbit-popout': {
@@ -276,10 +261,6 @@ export default defineNuxtConfig({
 		noExternals: getNoExternals(),
 		cloudflare: {
 			nodeCompat: true,
-		},
-		replace: {
-			__SENTRY_RELEASE__: JSON.stringify(process.env.CF_PAGES_COMMIT_SHA || 'unknown'),
-			__SENTRY_ENVIRONMENT__: JSON.stringify(process.env.BUILD_ENV || 'development'),
 		},
 	},
 	devtools: {
@@ -327,11 +308,6 @@ export default defineNuxtConfig({
 		asyncContext: true,
 	},
 	sourcemap: { client: 'hidden' },
-	sentry: {
-		sourcemaps: {
-			disable: true,
-		},
-	},
 })
 
 function getApiUrl() {

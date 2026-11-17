@@ -1,5 +1,13 @@
 <template>
-	<div class="flex flex-col gap-3 sm:gap-4">
+	<div ref="rootRef" class="flex flex-col gap-3 sm:gap-4">
+		<Admonition
+			v-if="blockedRegionName"
+			type="critical"
+			:header="formatMessage(messages.blockedRegionHeader)"
+		>
+			{{ formatMessage(messages.blockedRegionBody, { region: blockedRegionName }) }}
+		</Admonition>
+
 		<div class="flex flex-col gap-2.5">
 			<label>
 				<span class="text-md font-semibold text-contrast">
@@ -32,7 +40,7 @@
 						<span class="text-red">*</span>
 					</span>
 				</label>
-				<StyledInput
+				<Input
 					v-model="formData.businessName"
 					:placeholder="formatMessage(formFieldPlaceholders.businessNamePlaceholder)"
 					autocomplete="organization"
@@ -47,7 +55,7 @@
 						<span class="text-red">*</span>
 					</span>
 				</label>
-				<StyledInput
+				<Input
 					v-model="formData.email"
 					type="email"
 					:placeholder="formatMessage(formFieldPlaceholders.emailPlaceholder)"
@@ -65,7 +73,7 @@
 								<span class="text-red">*</span>
 							</span>
 						</label>
-						<StyledInput
+						<Input
 							v-model="formData.firstName"
 							:placeholder="formatMessage(formFieldPlaceholders.firstNamePlaceholder)"
 							autocomplete="given-name"
@@ -79,7 +87,7 @@
 								<span class="text-red">*</span>
 							</span>
 						</label>
-						<StyledInput
+						<Input
 							v-model="formData.lastName"
 							:placeholder="formatMessage(formFieldPlaceholders.lastNamePlaceholder)"
 							autocomplete="family-name"
@@ -112,7 +120,7 @@
 						<span class="text-red">*</span>
 					</span>
 				</label>
-				<StyledInput
+				<Input
 					v-model="formData.physicalAddress.address1"
 					:placeholder="formatMessage(formFieldPlaceholders.addressPlaceholder)"
 					autocomplete="address-line1"
@@ -126,7 +134,7 @@
 						{{ formatMessage(formFieldLabels.addressLine2) }}
 					</span>
 				</label>
-				<StyledInput
+				<Input
 					v-model="formData.physicalAddress.address2"
 					:placeholder="formatMessage(formFieldPlaceholders.address2Placeholder)"
 					autocomplete="address-line2"
@@ -142,7 +150,7 @@
 							<span class="text-red">*</span>
 						</span>
 					</label>
-					<StyledInput
+					<Input
 						v-model="formData.physicalAddress.city"
 						:placeholder="formatMessage(formFieldPlaceholders.cityPlaceholder)"
 						autocomplete="address-level2"
@@ -164,7 +172,7 @@
 						searchable
 						:search-placeholder="formatMessage(messages.searchSubdivisionsPlaceholder)"
 					/>
-					<StyledInput
+					<Input
 						v-else
 						v-model="formData.physicalAddress.state"
 						:placeholder="formatMessage(formFieldPlaceholders.statePlaceholder)"
@@ -182,7 +190,7 @@
 							<span class="text-red">*</span>
 						</span>
 					</label>
-					<StyledInput
+					<Input
 						v-model="formData.physicalAddress.zip"
 						:placeholder="formatMessage(formFieldPlaceholders.postalCodePlaceholder)"
 						autocomplete="postal-code"
@@ -211,13 +219,14 @@
 
 <script setup lang="ts">
 import {
+	Admonition,
 	Chips,
 	Combobox,
 	DatePicker,
 	defineMessages,
 	formFieldLabels,
 	formFieldPlaceholders,
-	StyledInput,
+	Input,
 	useVIntl,
 } from '@modrinth/ui'
 // TODO: Switch to using Muralpay's improved endpoint when it's available.
@@ -225,6 +234,7 @@ import iso3166 from 'iso-3166-2'
 
 import { useFormattedCountries } from '@/composables/country.ts'
 import { useWithdrawContext } from '@/providers/creator-withdraw.ts'
+import { getBlockedSubdivision, MURALPAY_BLOCKED_COUNTRIES } from '@/utils/muralpay-rails'
 
 const { withdrawData } = useWithdrawContext()
 const { formatMessage } = useVIntl()
@@ -278,6 +288,26 @@ const maxDate = computed(() => {
 })
 
 const countryOptions = useFormattedCountries()
+
+const blockedRegionName = computed(() => {
+	const { country, state } = formData.value.physicalAddress
+	if (!country) return null
+
+	if (MURALPAY_BLOCKED_COUNTRIES.includes(country)) {
+		return countryOptions.value.find((option) => option.value === country)?.label ?? country
+	}
+
+	const subdivision = getBlockedSubdivision(country, state)
+	return subdivision ? formatMessage(subdivision) : null
+})
+
+const rootRef = ref<HTMLElement | null>(null)
+
+watch(blockedRegionName, async (name, previous) => {
+	if (!name || previous) return
+	await nextTick()
+	rootRef.value?.closest('[data-modal-content]')?.scrollTo({ top: 0, behavior: 'smooth' })
+})
 
 const subdivisionOptions = computed(() => {
 	const selectedCountry = formData.value.physicalAddress.country
@@ -372,6 +402,14 @@ const messages = defineMessages({
 	searchCountriesPlaceholder: {
 		id: 'dashboard.creator-withdraw-modal.kyc.search-countries-placeholder',
 		defaultMessage: 'Search countries...',
+	},
+	blockedRegionHeader: {
+		id: 'dashboard.creator-withdraw-modal.kyc.blocked-region-header',
+		defaultMessage: 'Withdrawals are not supported for this region',
+	},
+	blockedRegionBody: {
+		id: 'dashboard.creator-withdraw-modal.kyc.blocked-region-body',
+		defaultMessage: 'Due to compliance restrictions, we can’t send money to {region}.',
 	},
 })
 </script>

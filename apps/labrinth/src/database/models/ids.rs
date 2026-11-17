@@ -1,16 +1,17 @@
-use super::DatabaseError;
 use crate::database::PgTransaction;
 use crate::models::ids::{
-    AffiliateCodeId, AnalyticsEventId, AttributionGroupId, CampaignDonationId,
-    ChargeId, CollectionId, FileId, ImageId, NotificationId,
+    AnalyticsEventId, AttributionGroupId, CampaignDonationId, ChargeId,
+    CollectionId, CopyrightArchiveId, FileId, ImageId, NotificationId,
     OAuthAccessTokenId, OAuthClientAuthorizationId, OAuthClientId,
     OAuthRedirectUriId, OrganizationId, PasskeyId, PatId, PayoutId, ProductId,
     ProductPriceId, ProjectId, ReportId, SessionId, TeamId, TeamMemberId,
-    ThreadId, ThreadMessageId, UserSubscriptionId, VersionId,
+    ThreadId, ThreadIssueFacetId, ThreadIssueId, ThreadMessageId,
+    UserSubscriptionId, VersionId,
 };
 use ariadne::ids::base62_impl::to_base62;
 use ariadne::ids::{UserId, random_base62_rng, random_base62_rng_range};
 use censor::Censor;
+use eyre::{Result, WrapErr};
 use paste::paste;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -23,8 +24,8 @@ macro_rules! generate_ids {
     ($function_name:ident, $return_type:ident, $select_stmnt:expr) => {
         pub async fn $function_name(
             con: &mut PgTransaction<'_>,
-        ) -> Result<$return_type, DatabaseError> {
-            let mut rng = ChaCha20Rng::from_entropy();
+        ) -> Result<$return_type> {
+            let mut rng = ChaCha20Rng::from_rng(&mut rand::rng());
             let length = 8;
             let mut id = random_base62_rng(&mut rng, length);
             let mut retry_count = 0;
@@ -34,7 +35,8 @@ macro_rules! generate_ids {
             loop {
                 let results = sqlx::query!($select_stmnt, id as i64)
                     .fetch_one(&mut *con)
-                    .await?;
+                    .await
+                    .wrap_err("checking generated ID uniqueness")?;
 
                 if results.exists.unwrap_or(true)
                     || censor.check(&*to_base62(id))
@@ -46,7 +48,9 @@ macro_rules! generate_ids {
 
                 retry_count += 1;
                 if retry_count > ID_RETRY_COUNT {
-                    return Err(DatabaseError::RandomId);
+                    return Err(eyre::eyre!(
+                        "failed to generate a unique random ID"
+                    ));
                 }
             }
 
@@ -60,7 +64,7 @@ macro_rules! generate_bulk_ids {
         pub async fn $function_name(
             count: usize,
             con: &mut PgTransaction<'_>,
-        ) -> Result<Vec<$return_type>, DatabaseError> {
+        ) -> Result<Vec<$return_type>> {
             let mut retry_count = 0;
 
             // Check if ID is unique
@@ -68,14 +72,14 @@ macro_rules! generate_bulk_ids {
                 // We re-acquire a thread-local RNG handle for each uniqueness loop for
                 // the bulk generator future to be `Send + Sync`.
                 let base =
-                    random_base62_rng_range(&mut rand::thread_rng(), 1, 10)
-                        as i64;
+                    random_base62_rng_range(&mut rand::rng(), 1, 10) as i64;
                 let ids =
                     (0..count).map(|x| base + x as i64).collect::<Vec<_>>();
 
                 let results = sqlx::query!($select_stmnt, &ids)
                     .fetch_one(&mut *con)
-                    .await?;
+                    .await
+                    .wrap_err("checking generated ID uniqueness")?;
 
                 if !results.exists.unwrap_or(true) {
                     return Ok(ids
@@ -86,7 +90,9 @@ macro_rules! generate_bulk_ids {
 
                 retry_count += 1;
                 if retry_count > ID_RETRY_COUNT {
-                    return Err(DatabaseError::RandomId);
+                    return Err(eyre::eyre!(
+                        "failed to generate unique random IDs"
+                    ));
                 }
             }
         }
@@ -250,6 +256,15 @@ db_id_interface!(
     generator: generate_thread_id @ "threads",
 );
 db_id_interface!(
+    ThreadIssueFacetId,
+    generator: generate_thread_issue_facet_id @ "threads_issue_facets",
+    bulk_generator: generate_many_thread_issue_facet_ids,
+);
+db_id_interface!(
+    ThreadIssueId,
+    generator: generate_thread_issue_id @ "threads_issues",
+);
+db_id_interface!(
     ThreadMessageId,
     generator: generate_thread_message_id @ "threads_messages",
 );
@@ -266,10 +281,6 @@ db_id_interface!(
     generator: generate_version_id @ "versions",
 );
 db_id_interface!(
-    AffiliateCodeId,
-    generator: generate_affiliate_code_id @ "affiliate_codes",
-);
-db_id_interface!(
     AnalyticsEventId,
     generator: generate_analytics_event_id @ "analytics_events",
 );
@@ -278,12 +289,13 @@ db_id_interface!(
     generator: generate_passkey_id @ "user_passkeys",
 );
 
+db_id_interface!(
+    CopyrightArchiveId,
+    generator: generate_copyright_archive_id @ "copyright_archives",
+);
+
 id_type!(CategoryId as i32);
-id_type!(GameId as i32);
-id_type!(LinkPlatformId as i32);
-id_type!(LoaderFieldEnumId as i32);
-id_type!(LoaderFieldEnumValueId as i32);
-id_type!(LoaderFieldId as i32);
+
 id_type!(LoaderId as i32);
 id_type!(NotificationActionId as i32);
 id_type!(ProjectTypeId as i32);
@@ -292,4 +304,5 @@ id_type!(StatusId as i32);
 id_type!(DelphiReportId as i64);
 id_type!(DelphiReportIssueId as i64);
 id_type!(DelphiReportIssueDetailsId as i64);
+id_type!(DelphiRuleId as i64);
 id_type!(SharedInstanceId as i64);

@@ -19,16 +19,15 @@ const validateValues = <K extends PropertyKey>(flags: Record<K, FlagValue>) => f
 export const DEFAULT_FEATURE_FLAGS = validateValues({
 	// Developer flags
 	developerMode: false,
+	showThreadIds: false,
 	demoMode: false,
 	showVersionFilesInTable: false,
 	showVersionEnvironmentColumn: false,
 	showAdsWithPlus: false,
-	alwaysShowChecklistAsPopup: true,
 	testTaxForm: false,
 
 	// Feature toggles
 	projectTypesPrimaryNav: false,
-	enableMedalPromotion: true,
 	hidePlusPromoInUserMenu: false,
 	projectBackground: false,
 	searchBackground: false,
@@ -52,6 +51,7 @@ export const DEFAULT_FEATURE_FLAGS = validateValues({
 	alwaysIgnoreErrorBanner: false,
 	showViewProdRouteBanner: false,
 	showModeratorProjectMemberUi: false,
+	alwaysShowPublishingChecklistForStaff: false,
 	archonApiStaging: false,
 	showHostingAccessInstanceAuditLog: false,
 	versionDevInfoCollapsed: true,

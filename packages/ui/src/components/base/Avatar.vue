@@ -1,22 +1,33 @@
 <template>
-	<img
-		v-if="src && !failed"
-		ref="img"
+	<FullImage
+		v-if="cachedSrc && !failed"
+		ref="imgComponent"
 		class="avatar shrink-0"
 		:style="`--_size: ${cssSize}`"
 		:class="{
 			circle: circle,
-			detecting: !hasDetectedCorners,
+			detecting: padTransparentCorners && !hasDetectedCorners,
 			'no-shadow': noShadow,
-			padded: hasTransparentCorners && !circle && !disableConditionalIconPadding,
+			padded: padTransparentCorners && hasTransparentCorners,
 			raised: raised,
 			pixelated: pixelated,
+			'fade-in': fadeIn,
+			'fade-in-pending': fadeIn && !imageLoaded,
 		}"
-		:src="src"
+		:src="cachedSrc"
+		:raw-src="rawSrc ?? (isCachedIcon ? src : undefined)"
+		:crossorigin="isCachedIcon ? 'anonymous' : undefined"
 		:alt="alt"
 		:loading="loading"
 		@load="onLoad"
 		@error="onError"
+	/>
+	<span
+		v-else-if="cachedIconPending"
+		class="avatar shrink-0 animate-pulse"
+		:style="`--_size: ${cssSize}`"
+		:class="{ circle: circle, 'no-shadow': noShadow, raised: raised }"
+		aria-hidden="true"
 	/>
 	<svg
 		v-else
@@ -50,10 +61,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
+import { useDebugLogger } from '../../composables'
+import { useCachedIcon } from '../../composables/use-cached-icon'
+import FullImage from './FullImage.vue'
+
+const debug = useDebugLogger('Avatar')
+
 const pixelated = ref(false)
 const hasTransparentCorners = ref(false)
 const hasDetectedCorners = ref(false)
-const img = useTemplateRef<HTMLImageElement>('img')
+const imgComponent = useTemplateRef<InstanceType<typeof FullImage>>('imgComponent')
+const img = computed(() => imgComponent.value?.img ?? null)
 const failed = ref(false)
 let detectionTimeout: number | undefined
 let detectingSource: string | undefined
@@ -68,25 +86,29 @@ defineExpose({
 const props = withDefaults(
 	defineProps<{
 		src?: string | null
+		rawSrc?: string | null
 		alt?: string
 		size?: string
 		circle?: boolean
 		noShadow?: boolean
-		disableConditionalIconPadding?: boolean
+		padTransparentCorners?: boolean
 		loading?: 'eager' | 'lazy'
 		raised?: boolean
 		tintBy?: string | null
+		cacheIcon?: boolean
 	}>(),
 	{
 		src: null,
+		rawSrc: null,
 		alt: '',
 		size: '2rem',
 		circle: false,
 		noShadow: false,
-		disableConditionalIconPadding: false,
+		padTransparentCorners: false,
 		loading: 'eager',
 		raised: false,
 		tintBy: null,
+		cacheIcon: false,
 	},
 )
 
@@ -99,17 +121,33 @@ const LEGACY_PRESETS: Record<string, string> = {
 }
 
 const cssSize = computed(() => LEGACY_PRESETS[props.size] ?? props.size)
+const { src: cachedIconSrc, pending: cachedIconPending } = useCachedIcon(() =>
+	props.cacheIcon ? props.src : null,
+)
+const cachedSrc = computed(() => (props.cacheIcon ? cachedIconSrc.value : (props.src ?? undefined)))
+const fadeIn = ref(false)
+const imageLoaded = ref(false)
 
 watch(
-	() => props.src,
-	() => {
-		clearDetectionTimeout()
-		detectingSource = undefined
-		failed.value = false
-		hasTransparentCorners.value = false
-		hasDetectedCorners.value = false
+	cachedIconPending,
+	(pending) => {
+		if (pending) fadeIn.value = true
 	},
+	{ immediate: true },
 )
+
+const isCachedIcon = computed(
+	() => props.cacheIcon && !!cachedSrc.value && cachedSrc.value !== props.src,
+)
+
+watch(cachedSrc, () => {
+	clearDetectionTimeout()
+	detectingSource = undefined
+	failed.value = false
+	imageLoaded.value = false
+	hasTransparentCorners.value = false
+	hasDetectedCorners.value = false
+})
 
 onMounted(() => {
 	const image = img.value
@@ -134,17 +172,16 @@ function clearDetectionTimeout() {
 function onError(e) {
 	clearDetectionTimeout()
 	detectingSource = undefined
-	console.log('Avatar image failed to load:', props.src, e)
+	debug('Avatar image failed to load:', props.src, e)
 	failed.value = true
 }
 
 function onLoad() {
 	const image = img.value
 	if (!image) return
+	imageLoaded.value = true
 	const source = image.currentSrc
 	if (detectingSource === source) return
-	detectingSource = source
-	clearDetectionTimeout()
 
 	if (image.naturalWidth && image.naturalWidth < 32) {
 		pixelated.value = true
@@ -152,7 +189,14 @@ function onLoad() {
 		pixelated.value = false
 	}
 
-	if (canReadImagePixels(source)) {
+	if (!props.padTransparentCorners) {
+		return
+	}
+
+	detectingSource = source
+	clearDetectionTimeout()
+
+	if (canReadImagePixels(source) || image.crossOrigin === 'anonymous') {
 		const transparentCorners = detectTransparentCorners(image)
 		if (transparentCorners !== null) {
 			detectingSource = undefined
@@ -293,6 +337,14 @@ function hash(str: string): number {
 
 	&.pixelated {
 		image-rendering: pixelated;
+	}
+
+	&.fade-in {
+		transition: opacity 0.2s ease-out;
+	}
+
+	&.fade-in-pending {
+		opacity: 0;
 	}
 
 	&.detecting {

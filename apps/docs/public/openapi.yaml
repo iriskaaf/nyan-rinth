@@ -436,7 +436,7 @@ components:
         - ai_content_code
         - ai_content_assets
         - ai_content_text
-        - ai_content_functionality
+        - ai_functionality
         - advertisements
         - epilepsy_triggers
         - system_interactions
@@ -612,7 +612,7 @@ components:
           type: array
           items:
             type: string
-          enum: [release, alpha, beta]
+            enum: [release, alpha, beta]
           example: [release]
       required:
         - loaders
@@ -661,7 +661,7 @@ components:
               type: array
               items:
                 type: string
-              enum: [release, alpha, beta]
+                enum: [release, alpha, beta]
               example: [release]
           required:
             - loaders
@@ -2202,7 +2202,7 @@ paths:
               - `ai_content_code`
               - `ai_content_assets`
               - `ai_content_text`
-              - `ai_content_functionality`
+              - `ai_functionality`
               - `advertisements`
               - `epilepsy_triggers`
               - `system_interactions`

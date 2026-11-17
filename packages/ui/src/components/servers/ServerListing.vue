@@ -25,7 +25,12 @@
 				v-if="hasIconOverlay"
 				class="flex size-16 items-center justify-center rounded-xl border-[1px] border-solid border-button-border bg-button-bg shadow-sm"
 			>
-				<ServerIcon :image="image ?? undefined" :disabled="isDisabled" class="!rounded-xl" />
+				<ServerIcon
+					:image="image"
+					:config="iconConfig"
+					:disabled="isDisabled"
+					class="!rounded-xl"
+				/>
 				<SpinnerIcon
 					v-if="isProvisioning || isUpgrading"
 					class="size-8 animate-spin absolute text-contrast"
@@ -33,7 +38,7 @@
 				/>
 				<LockIcon v-else class="size-8 absolute" :class="{ 'opacity-50': isDisabled }" />
 			</div>
-			<ServerIcon v-else :image="image ?? undefined" :disabled="isDisabled" />
+			<ServerIcon v-else :image="image" :config="iconConfig" :disabled="isDisabled" />
 			<div class="ml-4 flex flex-col gap-1.5">
 				<div class="flex flex-row items-center gap-2.5">
 					<h2 class="m-0 text-xl font-bold text-contrast" :class="{ 'opacity-50': isDisabled }">
@@ -182,17 +187,16 @@
 				{{ formatMessage(messages.suspendedNotice) }}
 			</div>
 
-			<div v-if="noticeButtons" class="flex gap-2">
-				<IconButton
-					v-if="noticeButtons.downloadBackup && onDownloadBackup && isBackupDownloadEnabled"
-					v-tooltip="formatMessage(messages.downloadLatestBackupTooltip)"
+			<div v-if="noticeButtons" class="flex flex-wrap gap-2">
+				<Button
+					v-if="noticeButtons.downloadWorld && onDownloadWorld"
 					type="outlined"
-					:label="formatMessage(messages.downloadLatestBackupTooltip)"
 					data-server-listing-button
-					@click="onDownloadBackup"
+					@click="onDownloadWorld"
 				>
 					<DownloadIcon />
-				</IconButton>
+					{{ formatMessage(commonMessages.downloadFilesButton) }}
+				</Button>
 				<Button
 					v-if="noticeButtons.copyId"
 					v-tooltip="formatMessage(messages.copyCodeToClipboardTooltip)"
@@ -272,7 +276,8 @@ import { useQuery } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { Button, ButtonLink, IconButton } from '#ui/components/base/buttons'
+import { Button, ButtonLink } from '#ui/components/base/buttons'
+import { commonMessages } from '#ui/utils/common-messages'
 
 import {
 	CardIcon,
@@ -282,6 +287,7 @@ import {
 } from '../../../../assets/generated-icons'
 import { useFormatDateTime } from '../../composables'
 import { defineMessages, useVIntl } from '../../composables/i18n'
+import { useServerIcon } from '../../composables/use-server-icon'
 import { injectModrinthClient } from '../../providers/api-client'
 import Avatar from '../base/Avatar.vue'
 import IntlFormatted from '../base/IntlFormatted.vue'
@@ -366,10 +372,6 @@ const messages = defineMessages({
 		defaultMessage:
 			'Your server has been suspended. Please contact Modrinth Support for more information.',
 	},
-	downloadLatestBackupTooltip: {
-		id: 'servers.listing.download-latest-backup-tooltip',
-		defaultMessage: 'Download latest backup',
-	},
 	copyCodeToClipboardTooltip: {
 		id: 'servers.listing.copy-code-tooltip',
 		defaultMessage: 'Copy code to clipboard',
@@ -424,6 +426,7 @@ type ServerListingProps = {
 	loader_version?: string | null
 	net?: Archon.Servers.v0.Net
 	upstream?: Archon.Servers.v0.Upstream | null
+	icon?: Archon.Icons.v1.ServerIcon | null
 	flows?: Archon.Servers.v0.Flows
 	pendingChange?: PendingChange
 	online?: boolean
@@ -434,16 +437,15 @@ type ServerListingProps = {
 	isProvisioning?: boolean
 	cancellationDate?: string | Date | null
 	onResubscribe?: (() => void) | null
-	onDownloadBackup?: (() => void) | null
+	onDownloadWorld?: (() => void) | null
 	owner?: ServerListingOwner
 }
 
 const props = defineProps<ServerListingProps>()
 const router = useRouter()
 
-const { archon, kyros, labrinth } = injectModrinthClient()
+const { labrinth } = injectModrinthClient()
 
-const isBackupDownloadEnabled = false
 const isConfiguring = computed(() => props.flows?.intro)
 const isUpgrading = computed(
 	() => props.status === 'suspended' && props.suspension_reason === 'upgrading',
@@ -493,7 +495,7 @@ const noticeType = computed<NoticeType | null>(() => {
 })
 
 type NoticeButtons = {
-	downloadBackup?: boolean
+	downloadWorld?: boolean
 	copyId?: boolean
 	support?: boolean
 	manageBilling?: boolean
@@ -504,12 +506,12 @@ const noticeButtons = computed<NoticeButtons | null>(() => {
 	switch (noticeType.value) {
 		case 'cancelled':
 		case 'setToCancel':
-			return { downloadBackup: true, copyId: true, support: true, resubscribe: true }
+			return { downloadWorld: true, copyId: true, support: true, resubscribe: true }
 		case 'paymentfailed':
-			return { downloadBackup: true, copyId: true, support: true, manageBilling: true }
+			return { downloadWorld: true, copyId: true, support: true, manageBilling: true }
 		case 'moderated':
 		case 'suspended':
-			return { downloadBackup: true, copyId: true, support: true }
+			return { downloadWorld: true, copyId: true, support: true }
 		default:
 			return null
 	}
@@ -532,86 +534,9 @@ const { data: projectData } = useQuery({
 
 const iconUrl = computed(() => projectData.value?.icon_url)
 
-async function processImageBlob(blob: Blob, size: number): Promise<string> {
-	return new Promise((resolve) => {
-		const canvas = document.createElement('canvas')
-		const ctx = canvas.getContext('2d')!
-		const img = new Image()
-		img.onload = () => {
-			canvas.width = size
-			canvas.height = size
-			ctx.drawImage(img, 0, 0, size, size)
-			const dataURL = canvas.toDataURL('image/png')
-			URL.revokeObjectURL(img.src)
-			resolve(dataURL)
-		}
-		img.src = URL.createObjectURL(blob)
-	})
-}
-
-async function dataURLToBlob(dataURL: string): Promise<Blob> {
-	const res = await fetch(dataURL)
-	return res.blob()
-}
-
-const { data: image } = useQuery({
-	queryKey: ['server-icon', props.server_id] as const,
-	queryFn: async (): Promise<string | null> => {
-		if (!props.server_id || props.status !== 'available') return null
-
-		try {
-			const fsAuth = await archon.servers_v0.getFilesystemAuth(props.server_id)
-
-			try {
-				const blob = await kyros.files_v0.downloadFileWithAuth(fsAuth, '/server-icon.png')
-				return await processImageBlob(blob, 64)
-			} catch (error) {
-				const statusCode = (error as { statusCode?: number })?.statusCode
-				if (statusCode != null && statusCode !== 404) {
-					throw error
-				}
-
-				try {
-					const originalBlob = await kyros.files_v0.downloadFileWithAuth(
-						fsAuth,
-						'/server-icon-original.png',
-					)
-					return await processImageBlob(originalBlob, 64)
-				} catch (originalError) {
-					const originalStatusCode = (originalError as { statusCode?: number })?.statusCode
-					if (originalStatusCode != null && originalStatusCode !== 404) {
-						throw originalError
-					}
-				}
-
-				const projectIcon = iconUrl.value
-				if (projectIcon) {
-					const response = await fetch(projectIcon)
-					const blob = await response.blob()
-
-					const scaledDataUrl = await processImageBlob(blob, 64)
-					const scaledBlob = await dataURLToBlob(scaledDataUrl)
-					const scaledFile = new File([scaledBlob], 'server-icon.png', { type: 'image/png' })
-
-					await kyros.files_v0.uploadFileWithAuth(fsAuth, '/server-icon.png', scaledFile).promise
-
-					const originalFile = new File([blob], 'server-icon-original.png', {
-						type: 'image/png',
-					})
-					await kyros.files_v0.uploadFileWithAuth(fsAuth, '/server-icon-original.png', originalFile)
-						.promise
-
-					return scaledDataUrl
-				}
-			}
-
-			return null
-		} catch (error) {
-			console.debug('Icon processing failed:', error)
-			return null
-		}
-	},
-	enabled: computed(() => !!props.server_id && props.status === 'available'),
+const { config: iconConfig, image } = useServerIcon(() => props.server_id, {
+	icon: () => props.icon,
+	enabled: computed(() => props.status === 'available'),
 })
 
 const copied = ref(false)

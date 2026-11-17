@@ -6,19 +6,23 @@ import { computed, ref, toValue } from 'vue'
 import Admonition from '#ui/components/base/Admonition.vue'
 import { Button, IconButton } from '#ui/components/base/buttons'
 import Combobox, { type ComboboxOption } from '#ui/components/base/Combobox.vue'
+import Input from '#ui/components/base/inputs/Input.vue'
 import LoadingIndicator from '#ui/components/base/LoadingIndicator.vue'
 import NavTabs from '#ui/components/base/NavTabs.vue'
 import Pagination from '#ui/components/base/Pagination.vue'
-import StyledInput from '#ui/components/base/StyledInput.vue'
 import ProjectCard from '#ui/components/project/card/ProjectCard.vue'
 import ProjectCardList from '#ui/components/project/ProjectCardList.vue'
 import SearchFilterControl from '#ui/components/search/SearchFilterControl.vue'
 import { defineMessages, useVIntl } from '#ui/composables/i18n'
 import { useStickyObserver } from '#ui/composables/sticky-observer'
 import { commonMessages, formatProjectTypeSentence } from '#ui/utils/common-messages'
-import type { SortType } from '#ui/utils/search'
+import type { FilterValue, SortType } from '#ui/utils/search'
 
 import SelectedProjectsFloatingBar from './components/SelectedProjectsFloatingBar.vue'
+import {
+	SERVER_ENVIRONMENT_FILTER_ID,
+	useServerEnvironmentFilter,
+} from './composables/use-server-environment-filter'
 import BrowseInstallHeader from './header.vue'
 import { injectBrowseManager } from './providers/browse-manager'
 import type { CardAction } from './types'
@@ -31,6 +35,27 @@ const { isStuck: isInstallHeaderStuck } = useStickyObserver(
 	stickyInstallHeaderRef,
 	'BrowseInstallHeader',
 )
+
+const { filterType: serverEnvironmentFilterType, selection: serverEnvironmentSelection } =
+	useServerEnvironmentFilter(ctx)
+
+const activeFilterTypes = computed(() => [
+	...(ctx.showServerEnvironment?.value ? [serverEnvironmentFilterType.value] : []),
+	...ctx.filters.value.filter(
+		(f) => f.display !== 'none' && !(ctx.hiddenFilterTypes?.value ?? []).includes(f.id),
+	),
+])
+
+const activeFilterSelection = computed<FilterValue[]>({
+	get: () => [...serverEnvironmentSelection.value, ...ctx.currentFilters.value],
+	set: (filters) => {
+		const environmentFilters = filters.filter((f) => f.type === SERVER_ENVIRONMENT_FILTER_ID)
+		if (environmentFilters.length !== serverEnvironmentSelection.value.length) {
+			serverEnvironmentSelection.value = environmentFilters
+		}
+		ctx.currentFilters.value = filters.filter((f) => f.type !== SERVER_ENVIRONMENT_FILTER_ID)
+	},
+})
 
 const sortOptions = computed<ComboboxOption<SortType>[]>(() =>
 	ctx.effectiveSortTypes.value.map((st) => ({
@@ -130,7 +155,7 @@ function getProjectCardTags(result: Labrinth.Search.v3.ResultSearchProject, disp
 	<template v-if="ctx.installContext?.value && ctx.variant !== 'web'">
 		<div
 			ref="stickyInstallHeaderRef"
-			class="sticky top-0 z-20 -mx-6 -mt-6 rounded-tl-[--radius-xl] border-0 border-b border-solid bg-surface-1 px-6 py-4 border-surface-5"
+			class="sticky top-0 z-20 -mx-6 -mt-6 mb-4 rounded-tl-[--radius-xl] border-0 border-b border-solid bg-surface-1 px-6 py-4 border-surface-5"
 			:class="[isInstallHeaderStuck ? 'border-t' : '']"
 		>
 			<BrowseInstallHeader />
@@ -142,9 +167,10 @@ function getProjectCardTags(result: Labrinth.Search.v3.ResultSearchProject, disp
 		v-if="ctx.showProjectTypeTabs.value"
 		:links="ctx.selectableProjectTypes.value"
 		:replace="ctx.variant === 'app'"
+		animate-collapse
 	/>
 
-	<StyledInput
+	<Input
 		v-model="ctx.query.value"
 		:icon="SearchIcon"
 		type="text"
@@ -156,7 +182,7 @@ function getProjectCardTags(result: Labrinth.Search.v3.ResultSearchProject, disp
 		"
 		clearable
 		wrapper-class="w-full"
-		:input-class="ctx.variant === 'web' ? '!h-12' : 'h-12'"
+		size="large"
 		@clear="ctx.clearSearch()"
 	/>
 
@@ -183,7 +209,7 @@ function getProjectCardTags(result: Labrinth.Search.v3.ResultSearchProject, disp
 			:class="
 				ctx.variant === 'web'
 					? '!w-[16rem] min-w-max max-w-full flex-grow md:flex-grow-0'
-					: '!w-[16rem] min-w-max max-w-full'
+					: '!w-[12rem] min-w-0 max-w-full'
 			"
 			@update:model-value="(val: SortType) => (ctx.effectiveCurrentSortType.value = val)"
 		>
@@ -201,13 +227,15 @@ function getProjectCardTags(result: Labrinth.Search.v3.ResultSearchProject, disp
 			:class="
 				ctx.variant === 'web'
 					? '!w-[9rem] min-w-max max-w-full flex-grow md:flex-grow-0'
-					: '!w-[9rem] min-w-max max-w-full'
+					: '!w-[6rem] min-w-0 max-w-full'
 			"
 			:placeholder="formatMessage(commonMessages.viewLabel)"
 			@update:model-value="(val: number) => (ctx.maxResults.value = val)"
 		>
 			<template #prefix>
-				<span class="font-semibold text-primary">{{ formatMessage(messages.viewPrefix) }}</span>
+				<span v-if="ctx.variant === 'web'" class="font-semibold text-primary">{{
+					formatMessage(messages.viewPrefix)
+				}}</span>
 			</template>
 		</Combobox>
 
@@ -225,12 +253,19 @@ function getProjectCardTags(result: Labrinth.Search.v3.ResultSearchProject, disp
 			<slot name="display-mode-icon" />
 		</IconButton>
 
-		<Pagination
-			:page="ctx.currentPage.value"
-			:count="ctx.pageCount.value"
-			:class="ctx.variant === 'web' ? 'mx-auto sm:ml-auto sm:mr-0' : 'ml-auto'"
-			@switch-page="ctx.setPage"
-		/>
+		<div
+			:class="
+				ctx.variant === 'web'
+					? 'mx-auto sm:ml-auto sm:mr-0'
+					: 'ml-auto flex max-w-full basis-[22rem] shrink-0 justify-end'
+			"
+		>
+			<Pagination
+				:page="ctx.currentPage.value"
+				:count="ctx.pageCount.value"
+				@switch-page="ctx.setPage"
+			/>
+		</div>
 	</div>
 
 	<SearchFilterControl
@@ -243,19 +278,15 @@ function getProjectCardTags(result: Labrinth.Search.v3.ResultSearchProject, disp
 	/>
 	<SearchFilterControl
 		v-else
-		v-model:selected-filters="ctx.currentFilters.value"
-		:filters="
-			ctx.filters.value.filter(
-				(f) => f.display !== 'none' && !(ctx.hiddenFilterTypes?.value ?? []).includes(f.id),
-			)
-		"
+		v-model:selected-filters="activeFilterSelection"
+		:filters="activeFilterTypes"
 		:project-type="ctx.projectType.value"
 		:provided-filters="ctx.providedFilters?.value ?? []"
 		:overridden-provided-filter-types="ctx.overriddenProvidedFilterTypes.value"
 		:provided-message="lockedMessages?.providedBy"
 	/>
 
-	<div class="search [overflow-anchor:none]">
+	<div class="search mt-1 [overflow-anchor:none]">
 		<section v-if="ctx.loading.value" class="offline">
 			<component :is="ctx.loadingComponent ?? LoadingIndicator" />
 		</section>
@@ -268,7 +299,7 @@ function getProjectCardTags(result: Labrinth.Search.v3.ResultSearchProject, disp
 					? ctx.serverHits.value.length === 0
 					: ctx.projectHits.value.length === 0
 			"
-			class="offline"
+			class="offline text-center"
 		>
 			<p>{{ formatMessage(messages.noResults) }}</p>
 		</section>

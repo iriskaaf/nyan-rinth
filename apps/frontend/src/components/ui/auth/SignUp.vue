@@ -7,21 +7,21 @@
 		</div>
 		<section class="flex flex-col gap-2.5">
 			<ButtonLink
-				:href="getAuthUrl('google', redirectTarget)"
+				:href="getAuthUrl('google', redirectTarget, requestsAppSession)"
 				@click="onOAuthProviderClick('google')"
 			>
 				<GoogleColorIcon />
 				<span>{{ formatMessage(messages.continueWithProvider, { provider: 'Google' }) }}</span>
 			</ButtonLink>
 			<ButtonLink
-				:href="getAuthUrl('microsoft', redirectTarget)"
+				:href="getAuthUrl('microsoft', redirectTarget, requestsAppSession)"
 				@click="onOAuthProviderClick('microsoft')"
 			>
 				<MicrosoftColorIcon />
 				<span>{{ formatMessage(messages.continueWithProvider, { provider: 'Microsoft' }) }}</span>
 			</ButtonLink>
 			<ButtonLink
-				:href="getAuthUrl('discord', redirectTarget)"
+				:href="getAuthUrl('discord', redirectTarget, requestsAppSession)"
 				@click="onOAuthProviderClick('discord')"
 			>
 				<DiscordColorIcon />
@@ -29,21 +29,21 @@
 			</ButtonLink>
 			<template v-if="showOtherOptions">
 				<ButtonLink
-					:href="getAuthUrl('github', redirectTarget)"
+					:href="getAuthUrl('github', redirectTarget, requestsAppSession)"
 					@click="onOAuthProviderClick('github')"
 				>
 					<GitHubColorIcon />
 					<span>{{ formatMessage(messages.continueWithProvider, { provider: 'GitHub' }) }}</span>
 				</ButtonLink>
 				<ButtonLink
-					:href="getAuthUrl('gitlab', redirectTarget)"
+					:href="getAuthUrl('gitlab', redirectTarget, requestsAppSession)"
 					@click="onOAuthProviderClick('gitlab')"
 				>
 					<GitLabColorIcon />
 					<span>{{ formatMessage(messages.continueWithProvider, { provider: 'GitLab' }) }}</span>
 				</ButtonLink>
 				<ButtonLink
-					:href="getAuthUrl('steam', redirectTarget)"
+					:href="getAuthUrl('steam', redirectTarget, requestsAppSession)"
 					@click="onOAuthProviderClick('steam')"
 				>
 					<SteamColorIcon />
@@ -66,7 +66,7 @@
 
 		<section class="flex flex-col gap-2.5">
 			<label for="email" hidden>{{ formatMessage(commonMessages.emailLabel) }}</label>
-			<StyledInput
+			<Input
 				id="email"
 				v-model="emailModel"
 				:icon="MailIcon"
@@ -77,7 +77,7 @@
 			/>
 
 			<label for="password" hidden>{{ formatMessage(commonMessages.passwordLabel) }}</label>
-			<StyledInput
+			<Input
 				id="password"
 				v-model="passwordModel"
 				:icon="KeyIcon"
@@ -145,14 +145,16 @@ import {
 	ButtonLink,
 	commonMessages,
 	defineMessages,
+	Input,
 	IntlFormatted,
-	StyledInput,
 	useVIntl,
 } from '@modrinth/ui'
 import { useStorage } from '@vueuse/core'
 import type { LocationQuery } from 'vue-router'
 
-import { getAuthUrl, PENDING_SIGN_IN_OAUTH_PROVIDER_STORAGE_KEY } from '@/composables/auth.ts'
+import { PENDING_SIGN_IN_OAUTH_PROVIDER_STORAGE_KEY } from '@/composables/accounts.ts'
+import { getAuthUrl } from '@/composables/auth.ts'
+import { isLauncherProtocolV2 } from '@/composables/launcher-auth.ts'
 
 type AuthProvider = 'discord' | 'google' | 'github' | 'gitlab' | 'steam' | 'microsoft'
 
@@ -174,6 +176,7 @@ const {
 
 const emailModel = defineModel<string>('email', { default: '' })
 const passwordModel = defineModel<string>('password', { default: '' })
+const requestsAppSession = computed(() => isLauncherProtocolV2({ query: routeQuery }))
 
 const pendingSignInOAuthProvider = useStorage<AuthProvider | null>(
 	PENDING_SIGN_IN_OAUTH_PROVIDER_STORAGE_KEY,

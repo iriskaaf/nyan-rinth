@@ -1,6 +1,6 @@
 <template>
 	<div class="relative overflow-hidden rounded-2xl">
-		<AnalyticsLoadingBar :loading="isDataLoading" />
+		<PageLoadingBar :loading="isDataLoading" />
 		<Table
 			v-model:selected-ids="tableSelectedGraphDatasetIds"
 			:sort-column="displayedSortColumn"
@@ -23,7 +23,7 @@
 					</div>
 
 					<div class="flex w-full flex-wrap items-center gap-2 md:w-auto">
-						<StyledInput
+						<Input
 							v-model="searchQuery"
 							:icon="SearchIcon"
 							:placeholder="formatMessage(analyticsTableMessages.searchPlaceholder)"
@@ -192,9 +192,10 @@
 import { DownloadIcon, DropdownIcon, SearchIcon, UserIcon } from '@modrinth/assets'
 import { TeleportOverflowMenu } from '@modrinth/ui'
 import {
-	type OverflowMenuOption,
+	type ButtonMenuOption,
+	Input,
+	PageLoadingBar,
 	Pagination,
-	StyledInput,
 	Table,
 	useFormatNumber,
 	useVIntl,
@@ -221,7 +222,6 @@ import {
 	analyticsMessages,
 	analyticsTableMessages,
 } from '../analytics-messages.ts'
-import AnalyticsLoadingBar from '../AnalyticsLoadingBar.vue'
 import {
 	isNoDependentAnalyticsBreakdownValue,
 	isUnknownAnalyticsBreakdownValue,
@@ -363,7 +363,7 @@ const displayedIncludeDateColumn = computed(() =>
 const groupByLabel = computed(() =>
 	getAnalyticsTableGroupByLabel(selectedGroupBy.value, formatMessage),
 )
-const csvExportOptions = computed<OverflowMenuOption[]>(() => {
+const csvExportOptions = computed<ButtonMenuOption[]>(() => {
 	if (showGraphDatasetSelection.value) {
 		return [
 			{

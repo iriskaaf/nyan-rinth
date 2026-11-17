@@ -44,6 +44,7 @@ import _FlathubIcon from './external/flathub.svg?component'
 import _GithubIcon from './external/github.svg?component'
 import _IntercomBubbleIcon from './external/illustrations/intercom_bubble_icon.png?url'
 import _MinecraftServerIcon from './external/illustrations/minecraft_server_icon.png?url'
+import _ServerInviteFriendsIllustration from './illustrations/server-invite-friends.png?url'
 import _InstagramIcon from './external/instagram.svg?component'
 import _KoFiIcon from './external/kofi.svg?component'
 import _MastodonIcon from './external/mastodon.svg?component'
@@ -138,19 +139,9 @@ export const USDCColorIcon = _USDCColorIcon
 export const VisaIcon = _VisaIcon
 export const IntercomBubbleIcon = _IntercomBubbleIcon
 export const MinecraftServerIcon = _MinecraftServerIcon
+export const ServerInviteFriendsIllustration = _ServerInviteFriendsIllustration
 export const LinuxIcon = _LinuxIcon
 
-// This code is modified by AstralRinth
-import _AstralRinthLogo from './icons/astralrinth/astralrinth-logo.svg?component'
-import _ElyByIcon from './icons/astralrinth/elyby-icon.svg?component'
-import _MicrosoftIcon from './icons/astralrinth/microsoft.svg?component'
-import _OfflineIcon from './icons/astralrinth/offline.svg?component'
-export const OfflineIcon = _OfflineIcon
-export const MicrosoftIcon = _MicrosoftIcon
-export const AstralRinthLogo = _AstralRinthLogo
-export const ElyByIcon = _ElyByIcon
-
-// Skin Models
 export * from './generated-icons'
 export { default as ClassicPlayerModel } from './models/classic-player.gltf?url'
 export { default as SlimPlayerModel } from './models/slim-player.gltf?url'
@@ -239,3 +230,10 @@ export const SERVER_CATEGORY_ICON_MAP: Record<string, string> = {
 	whitelisted: 'badge-check',
 	'world-resets': 'refresh-ccw',
 }
+
+import _ElyByIcon from './icons/astralrinth/elyby-icon.svg?component'
+import _MicrosoftIcon from './icons/astralrinth/microsoft.svg?component'
+import _OfflineIcon from './icons/astralrinth/offline.svg?component'
+export const ElyByIcon = _ElyByIcon
+export const MicrosoftIcon = _MicrosoftIcon
+export const OfflineIcon = _OfflineIcon

@@ -1,4 +1,20 @@
 import type { Labrinth } from '@modrinth/api-client'
+import { md } from '@modrinth/utils'
+
+import suggestionMessage from './data/messages/checklist/messages/text-suggestion.md'
+
+export function isValidProjectSlug(value: string) {
+	return /^[a-zA-Z0-9._-]{3,64}$/.test(value)
+}
+
+export function generateUrlSlug(value: string) {
+	return value
+		.trim()
+		.toLowerCase()
+		.replaceAll(' ', '-')
+		.replaceAll(/[^a-zA-Z0-9._-]/g, '')
+		.replaceAll(/--+/gm, '-')
+}
 
 export function expandVariables(
 	template: string,
@@ -17,23 +33,6 @@ export function expandVariables(
 		return result.replace(new RegExp(variable, 'g'), value)
 	}, template)
 }
-
-export const licensesNotRequiringSource: string[] = [
-	'LicenseRef-All-Rights-Reserved',
-	'Apache-2.0',
-	'BSD-2-Clause',
-	'BSD-3-Clause',
-	'CC0-1.0',
-	'CC-BY-4.0',
-	'CC-BY-SA-4.0',
-	'CC-BY-NC-4.0',
-	'CC-BY-NC-SA-4.0',
-	'CC-BY-ND-4.0',
-	'CC-BY-NC-ND-4.0',
-	'ISC',
-	'MIT',
-	'Zlib',
-]
 
 export const licensesRequiringSource: string[] = [
 	'GPL-2.0',
@@ -59,12 +58,6 @@ export const licensesRequiringSource: string[] = [
 	'MPL-2.0',
 ]
 
-export function licenseDoesNotRequireSource(licenseId: string): boolean {
-	return licensesNotRequiringSource.includes(licenseId)
-}
-export function licenseMayRequireSource(licenseId: string): boolean {
-	return !licensesNotRequiringSource.includes(licenseId)
-}
 export function licenseRequiresSource(licenseId: string): boolean {
 	return licensesRequiringSource.includes(licenseId)
 }
@@ -75,13 +68,6 @@ export function notSourceAsDistributed(projectTypes): boolean {
 
 export function promptSourceRequired(licenseId: string, projectTypes): boolean {
 	return licenseRequiresSource(licenseId) && notSourceAsDistributed(projectTypes)
-}
-
-export function kebabToTitleCase(input: string): string {
-	return input
-		.split('-')
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join(' ')
 }
 
 export function arrayOrNone(arr: string[]): string {
@@ -109,6 +95,67 @@ export function formatProjectTypes(type: string, lower: boolean = false) {
 
 export function requiresEnvironmentInfo(projectTypes): boolean {
 	return projectTypes.includes('mod') || projectTypes.includes('modpack')
+}
+
+export function isTempHostAddress(address: string): boolean {
+	return (
+		address.includes('aternos') ||
+		address.includes('minekeep') ||
+		address.includes('minehut') ||
+		address.includes('eagler')
+	)
+}
+
+export function anyDisclosureHasText(
+	disclosures: readonly Labrinth.Projects.v3.ProjectDisclosureData[],
+): boolean {
+	return disclosures.some((disclosure) => {
+		if (disclosure.deleted_at) return false
+		if ('note' in disclosure && disclosure.note?.trim()) return true
+
+		switch (disclosure.type) {
+			case 'derivative_work':
+				return disclosure.sources.some((source) =>
+					[source.label, source.link, source.note].some((text) => text?.trim()),
+				)
+			case 'telemetry':
+				return disclosure.data_collected.some((text) => text.trim())
+			case 'paid_features':
+				return disclosure.features.some((text) => text.trim())
+			case 'system_interactions':
+				return disclosure.interactions.some((text) => text.trim())
+			default:
+				return false
+		}
+	})
+}
+
+export function projectHasCustomServerModpack(projectV3: Labrinth.Projects.v3.Project): boolean {
+	return (
+		!!projectV3.minecraft_server &&
+		projectV3.minecraft_java_server?.content?.kind === 'modpack' &&
+		projectV3.minecraft_java_server.content.project_id === projectV3.id
+	)
+}
+
+const escapeHtml = md().utils.escapeHtml
+
+export function messageWithOptionalSuggestion(message, fieldType: string, suggestion: string) {
+	if (!suggestion.trim()) {
+		return message
+	} else {
+		return (
+			message +
+			`\n` +
+			suggestionMessage
+				.replaceAll('%FIELD_TYPE%', () => fieldType.toLowerCase())
+				.replaceAll(
+					'%SUGGESTION%',
+					() => `<copy-code>\n<pre>${escapeHtml(suggestion)}</pre>\n</copy-code>`,
+				)
+				.trim()
+		)
+	}
 }
 
 export function flattenStaticVariables(): Record<string, string> {
@@ -179,11 +226,40 @@ export function flattenStaticVariables(): Record<string, string> {
 	vars[`SUPPORT`] =
 		`please visit the [Modrinth Help Center](https://support.modrinth.com/) and click the blue bubble to contact support.`
 	vars[`MODPACK_PERMISSIONS_GUIDE`] =
-		`our guide to [Obtaining Modpack Permissions](https://support.modrinth.com/en/articles/8797527-obtaining-modpack-permissions)`
+		`our guide to [Obtaining Modpack Permissions](https://support.modrinth.com/en/articles/8797527)`
 	vars[`MODPACKS_ON_MODRINTH`] =
-		`[Modpacks on Modrinth](https://support.modrinth.com/en/articles/8802250-modpacks-on-modrinth)`
+		`[Modpacks on Modrinth](https://support.modrinth.com/en/articles/8802250)`
 	vars[`ADVANCED_MARKDOWN`] =
-		`[Markdown Formatting Guide](https://support.modrinth.com/en/articles/8801962-advanced-markdown-formatting)`
+		`[Markdown Formatting Guide](https://support.modrinth.com/en/articles/8801962)`
+	vars[`DISCLOSURES_FAQ_FLINK`] =
+		`[Content Disclosures FAQ](https://support.modrinth.com/en/articles/16567675)`
+	vars[`DISCLOSURES_FAQ_AI_CONTENT_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_ec72dfca13`
+	vars[`DISCLOSURES_FAQ_AI_CODE_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_281356a403`
+	vars[`DISCLOSURES_FAQ_AI_ASSETS_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_e5f38e66a1`
+	vars[`DISCLOSURES_FAQ_AI_TEXT_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_6e56d3fe64`
+	vars[`DISCLOSURES_FAQ_AI_FUNCTIONALITY_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_9be39a38e2`
+	vars[`DISCLOSURES_FAQ_ADS_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_d486036510`
+	vars[`DISCLOSURES_FAQ_PAID_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_37c3b31394`
+	vars[`DISCLOSURES_FAQ_TELEMETRY_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_490dcf364b`
+	vars[`DISCLOSURES_FAQ_TELEMETRY_CONSENT_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_d209c4c04c`
+	vars[`DISCLOSURES_FAQ_DERIVATIVE_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_6422cc821e`
+	vars[`DISCLOSURES_FAQ_PHOTOSENSITIVITY_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_22ffae0bb1`
+	vars[`DISCLOSURES_FAQ_EXTERNAL_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_4a6264f07c`
+	vars[`DISCLOSURES_FAQ_ARCHIVE_LINK`] =
+		`https://support.modrinth.com/en/articles/16567675#h_76b62c699c`
+	vars[`AI_USAGE_FLINK`] = `[AI Usage](https://support.modrinth.com/en/articles/16551575)`
 	vars[`LICENSING_GUIDE`] =
 		`our guide to [Licensing your Mods](https://modrinth.com/news/article/licensing-guide)`
 	vars[`NEW_ENVIRONMENTS_LINK`] = `https://modrinth.com/news/article/new-environments`

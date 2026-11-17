@@ -1,7 +1,13 @@
 <template>
 	<PageHeader :title="instance.name">
 		<template #leading>
-			<Avatar :src="iconSrc" :alt="instance.name" size="64px" :tint-by="instance.id" />
+			<Avatar
+				:src="iconSrc"
+				:alt="instance.name"
+				size="64px"
+				:tint-by="instance.id"
+				pad-transparent-corners
+			/>
 		</template>
 
 		<template v-if="instance.shared_instance || instance.quarantined" #badges>
@@ -17,7 +23,7 @@
 				v-else
 				:tooltip="sharedInstanceTooltip"
 				aria-label="Shared instance information"
-				class="!border-brand !bg-brand-highlight !text-brand"
+				class="!border-blue !bg-highlight-blue !text-blue"
 			>
 				Shared
 				<UnknownIcon class="block size-4 shrink-0 text-current" aria-hidden="true" />
@@ -30,6 +36,7 @@
 				:loading-server-ping="loadingServerPing"
 				:players-online="playersOnline"
 				:status-online="statusOnline"
+				:hosting-status="hostingStatus"
 				:ping="ping"
 				:minecraft-server="minecraftServer"
 				:show-instance-play-time="showInstancePlayTime"
@@ -65,17 +72,7 @@
 		<template #actions>
 			<PageHeaderActions>
 				<Button
-					v-if="isInstalling"
-					type="colored"
-					color="brand"
-					size="xl"
-					native-type="button"
-					disabled
-				>
-					{{ formatMessage(commonMessages.installingLabel) }}
-				</Button>
-				<Button
-					v-else-if="playing"
+					v-if="playing"
 					type="colored"
 					color="red"
 					size="xl"
@@ -87,6 +84,16 @@
 					{{
 						stopping ? formatMessage(messages.stopping) : formatMessage(commonMessages.stopButton)
 					}}
+				</Button>
+				<Button
+					v-else-if="isInstalling"
+					type="colored"
+					color="brand"
+					size="xl"
+					native-type="button"
+					disabled
+				>
+					{{ formatMessage(commonMessages.installingLabel) }}
 				</Button>
 				<Button
 					v-else-if="instance.quarantined"
@@ -147,7 +154,17 @@
 				>
 					<SettingsIcon />
 				</IconButton>
+				<IconButton
+					v-tooltip="formatMessage(messages.openFolder)"
+					size="xl"
+					:label="formatMessage(messages.openFolder)"
+					native-type="button"
+					@click="emit('openFolder')"
+				>
+					<FolderOpenIcon />
+				</IconButton>
 				<TeleportOverflowMenu
+					v-if="moreActions.length"
 					type="quiet"
 					size="xl"
 					:label="formatMessage(messages.moreActions)"
@@ -162,11 +179,13 @@
 </template>
 
 <script setup lang="ts">
-import type { Labrinth } from '@modrinth/api-client'
+import type { Labrinth, SharedInstances } from '@modrinth/api-client'
 import {
 	ClockIcon,
 	DownloadIcon,
 	ExternalIcon,
+	EyeIcon,
+	EyeOffIcon,
 	FolderOpenIcon,
 	LockIcon,
 	MoreVerticalIcon,
@@ -181,10 +200,10 @@ import {
 import { Button, IconButton, SplitButton, TeleportOverflowMenu } from '@modrinth/ui'
 import {
 	Avatar,
+	type ButtonMenuOption,
 	commonMessages,
 	defineMessages,
 	formatLoaderLabel,
-	type OverflowMenuOption,
 	PageHeader,
 	PageHeaderActions,
 	PageHeaderBadgeItem,
@@ -197,6 +216,7 @@ import {
 } from '@modrinth/ui'
 import { computed } from 'vue'
 
+import { libraryInstanceMessages } from '@/features/library/messages'
 import type { GameInstance } from '@/helpers/types'
 
 import InstanceHeaderServerMetadata from './instance-page-header-server-metadata.vue'
@@ -272,9 +292,12 @@ const props = withDefaults(
 		stopping?: boolean
 		loadingServerPing?: boolean
 		playersOnline?: number
+		hostingStatus?: SharedInstances.Instances.v1.OnlineStatus
 		statusOnline?: boolean
 		ping?: number
 		minecraftServer?: Labrinth.Projects.v3.Project['minecraft_server']
+		canHideFromLibrary?: boolean
+		hiddenFromLibrary?: boolean
 	}>(),
 	{
 		iconSrc: null,
@@ -287,8 +310,11 @@ const props = withDefaults(
 		loadingServerPing: false,
 		playersOnline: undefined,
 		statusOnline: false,
+		hostingStatus: undefined,
 		ping: undefined,
 		minecraftServer: undefined,
+		canHideFromLibrary: false,
+		hiddenFromLibrary: false,
 	},
 )
 
@@ -301,20 +327,16 @@ const emit = defineEmits<{
 	openFolder: []
 	export: []
 	createShortcut: []
+	toggleHidden: []
 	report: [event?: MouseEvent]
 }>()
 
-const installingStages = [
-	'installing',
-	'pack_installing',
-	'pack_installed',
-	'not_installed',
-	'minecraft_installing',
-]
+const installingStages = ['installing', 'pack_installing', 'minecraft_installing']
 
 const { formatMessage } = useVIntl()
 
 const isInstalling = computed(() => installingStages.includes(props.instance.install_stage))
+
 const loaderDisplayName = computed(() => formatLoaderLabel(props.instance.loader) as ServerLoader)
 const loaderLabel = computed(() =>
 	[loaderDisplayName.value, props.instance.game_version].filter(Boolean).join(' '),
@@ -344,7 +366,7 @@ const playtimeLabel = computed(() => {
 
 	return `${seconds} second${seconds === 1 ? '' : 's'}`
 })
-const serverPlayOptions = computed<OverflowMenuOption[]>(() => [
+const serverPlayOptions = computed<ButtonMenuOption[]>(() => [
 	{
 		id: 'launch_instance',
 		label: formatMessage(messages.launchInstance),
@@ -352,15 +374,8 @@ const serverPlayOptions = computed<OverflowMenuOption[]>(() => [
 		action: () => emit('play'),
 	},
 ])
-const moreActions = computed<OverflowMenuOption[]>(() => {
-	const actions: OverflowMenuOption[] = [
-		{
-			id: 'open-folder',
-			label: formatMessage(messages.openFolder),
-			icon: FolderOpenIcon,
-			action: () => emit('openFolder'),
-		},
-	]
+const moreActions = computed<ButtonMenuOption[]>(() => {
+	const actions: ButtonMenuOption[] = []
 
 	if (!props.instance.quarantined) {
 		actions.push(
@@ -376,6 +391,24 @@ const moreActions = computed<OverflowMenuOption[]>(() => {
 				icon: ExternalIcon,
 				action: () => emit('createShortcut'),
 			},
+		)
+	}
+
+	if (props.canHideFromLibrary) {
+		actions.push(
+			props.hiddenFromLibrary
+				? {
+						id: 'show-in-library',
+						label: formatMessage(libraryInstanceMessages.showInLibrary),
+						icon: EyeIcon,
+						action: () => emit('toggleHidden'),
+					}
+				: {
+						id: 'hide-from-library',
+						label: formatMessage(libraryInstanceMessages.hideFromLibrary),
+						icon: EyeOffIcon,
+						action: () => emit('toggleHidden'),
+					},
 		)
 	}
 

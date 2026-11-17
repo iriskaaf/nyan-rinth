@@ -45,7 +45,7 @@
 			<label class="text-md font-semibold text-contrast" for="create-account-username">
 				{{ formatMessage(messages.usernameOptionalLabel) }}
 			</label>
-			<StyledInput
+			<Input
 				id="create-account-username"
 				v-model="usernameModel"
 				type="text"
@@ -58,7 +58,7 @@
 			<label class="text-md font-semibold text-contrast">{{
 				formatMessage(messages.securityCheckLabel)
 			}}</label>
-			<HCaptcha v-if="globals?.captcha_enabled" :ref="onSetCaptchaRef" v-model="tokenModel" />
+			<Turnstile v-if="globals?.captcha_enabled" :ref="onSetCaptchaRef" v-model="tokenModel" />
 		</section>
 
 		<div
@@ -106,12 +106,12 @@ import {
 	DatePicker,
 	defineMessages,
 	injectNotificationManager,
-	StyledInput,
+	Input,
 	useVIntl,
 } from '@modrinth/ui'
 import { computed, ref } from 'vue'
 
-import HCaptcha from '@/components/ui/auth/HCaptcha.vue'
+import Turnstile from '@/components/ui/auth/Turnstile.vue'
 
 interface AuthGlobals {
 	captcha_enabled?: boolean
@@ -244,7 +244,7 @@ const messages = defineMessages({
 		defaultMessage: 'Please enter a valid date of birth. Year cannot be 0000.',
 	},
 	under13HelperText: {
-		id: 'auth.create-account.date-of-birth.under13-helper',
+		id: 'auth.create-account.date-of-birth.not-meet-age-requirement',
 		defaultMessage: 'You do not meet the age requirement to create an account at Modrinth.',
 	},
 	ageRequirementWarningTitle: {

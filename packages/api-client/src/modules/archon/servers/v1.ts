@@ -31,6 +31,24 @@ export class ArchonServersV1Module extends AbstractModule {
 	}
 
 	/**
+	 * Select the best currently available download method for a world
+	 * GET /v1/servers/:server_id/worlds/:world_id/select-download
+	 */
+	public async selectWorldDownload(
+		serverId: string,
+		worldId: string,
+	): Promise<Archon.Servers.v1.WorldDownloadMethod> {
+		return this.client.request<Archon.Servers.v1.WorldDownloadMethod>(
+			`/servers/${serverId}/worlds/${worldId}/select-download`,
+			{
+				api: 'archon',
+				version: 1,
+				method: 'GET',
+			},
+		)
+	}
+
+	/**
 	 * Get available regions
 	 * GET /v1/regions
 	 */
@@ -41,6 +59,39 @@ export class ArchonServersV1Module extends AbstractModule {
 			method: 'GET',
 			skipAuth: true,
 		})
+	}
+
+	/**
+	 * Get how many servers of each memory size fit in every public region
+	 * GET /v1/stock
+	 */
+	public async getStock(memoryMb: number[]): Promise<Archon.Servers.v1.StockResponse> {
+		return this.client.request<Archon.Servers.v1.StockResponse>('/stock', {
+			api: 'archon',
+			version: 1,
+			method: 'GET',
+			params: { memory_mb: memoryMb.join(',') },
+			skipAuth: true,
+		})
+	}
+
+	/**
+	 * Get how many servers of each memory size fit in every public region when upgrading a server
+	 * GET /v1/servers/:server_id/upgrade-stock
+	 */
+	public async getUpgradeStock(
+		serverId: string,
+		memoryMb: number[],
+	): Promise<Archon.Servers.v1.StockResponse> {
+		return this.client.request<Archon.Servers.v1.StockResponse>(
+			`/servers/${serverId}/upgrade-stock`,
+			{
+				api: 'archon',
+				version: 1,
+				method: 'GET',
+				params: { memory_mb: memoryMb.join(',') },
+			},
+		)
 	}
 
 	/**
@@ -65,5 +116,37 @@ export class ArchonServersV1Module extends AbstractModule {
 			version: 1,
 			method: 'POST',
 		})
+	}
+
+	/**
+	 * Modify a world
+	 * PATCH /v1/servers/:server_id/worlds/:world_id
+	 */
+	public async patchWorld(
+		serverId: string,
+		worldId: string,
+		body: Archon.Servers.v1.PatchWorld,
+	): Promise<void> {
+		await this.client.request(`/servers/${serverId}/worlds/${worldId}`, {
+			api: 'archon',
+			version: 1,
+			method: 'PATCH',
+			body,
+		})
+	}
+
+	/**
+	 * Roll SFTP credentials for a server
+	 * POST /v1/servers/:server_id/sftp/roll
+	 */
+	public async rollSftp(serverId: string): Promise<Archon.Servers.v1.SftpCredentials> {
+		return this.client.request<Archon.Servers.v1.SftpCredentials>(
+			`/servers/${serverId}/sftp/roll`,
+			{
+				api: 'archon',
+				version: 1,
+				method: 'POST',
+			},
+		)
 	}
 }

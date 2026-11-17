@@ -19,7 +19,8 @@ import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import { Collapsible, ConfirmModal } from '#ui/components'
-import type { OverflowMenuOption } from '#ui/components/base'
+import type { ButtonMenuOption } from '#ui/components/base'
+import { CopyCode } from '#ui/components/base'
 import { Button, IconButton, TeleportOverflowMenu } from '#ui/components/base/buttons'
 import { commonMessages } from '#ui/utils'
 
@@ -31,7 +32,7 @@ import {
 	injectProjectPageContext,
 } from '../../providers'
 import type { QuickReply } from '../../providers/attribution-moderation'
-import StyledInput from '../base/StyledInput.vue'
+import Textarea from '../base/inputs/Textarea.vue'
 import AddFilesToAttributionGroupModal from './AddFilesToAttributionGroupModal.vue'
 import AddToExistingExternalProjectModal from './AddToExistingExternalProjectModal.vue'
 import AddToGlobalPermissionsDatabaseModal from './AddToGlobalPermissionsDatabaseModal.vue'
@@ -51,10 +52,13 @@ const props = withDefaults(
 	defineProps<{
 		projectId: string
 		group: Labrinth.Attribution.Internal.AttributionGroup
+		members?: Labrinth.Projects.v3.TeamMember[]
 		isModerator?: boolean
+		pixelated?: boolean
 	}>(),
 	{
 		isModerator: false,
+		pixelated: undefined,
 	},
 )
 
@@ -86,7 +90,8 @@ const { formatMessage } = useVIntl()
 const client = injectModrinthClient()
 const queryClient = useQueryClient()
 const { addNotification } = injectNotificationManager()
-const { allMembers } = injectProjectPageContext()
+const projectContext = injectProjectPageContext(null)
+const allMembers = computed(() => props.members ?? projectContext?.allMembers.value ?? [])
 const attributionModeration = injectAttributionModeration(null)
 
 const attributorMember = computed(() => {
@@ -125,6 +130,10 @@ const messages = defineMessages({
 	includedFiles: {
 		id: 'external-files.permissions-card.included-files',
 		defaultMessage: 'Included files:',
+	},
+	fileDatabaseId: {
+		id: 'external-files.permissions-card.file-database-id',
+		defaultMessage: 'Database ID',
 	},
 	notUsedInVersions: {
 		id: 'external-files.permissions-card.not-used-in-versions',
@@ -485,7 +494,7 @@ async function handleQuickReply(reply: QuickReply) {
 	reviewReasonInput.value = message
 }
 
-const visibleQuickReplies = computed<OverflowMenuOption[]>(() => {
+const visibleQuickReplies = computed<ButtonMenuOption[]>(() => {
 	const replies = attributionModeration?.attributionQuickReplies
 
 	if (!replies) return []
@@ -501,7 +510,7 @@ const visibleQuickReplies = computed<OverflowMenuOption[]>(() => {
 					id: reply.label,
 					label: reply.label,
 					action: () => handleQuickReply(reply),
-				}) as OverflowMenuOption,
+				}) as ButtonMenuOption,
 		)
 })
 </script>
@@ -573,10 +582,21 @@ const visibleQuickReplies = computed<OverflowMenuOption[]>(() => {
 						}"
 					>
 						<FileIcon class="size-4 shrink-0 mt-2.5" />
-						<div class="max-w-[22rem] min-w-0 flex flex-col gap-1 py-2">
+						<div class="min-w-0 flex flex-col gap-1 py-2">
 							<span class="truncate">
 								{{ file.name.split('/').pop() }}
 							</span>
+							<div
+								v-if="isModerator"
+								class="grid grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-xs"
+							>
+								<span class="text-secondary">SHA-1</span>
+								<CopyCode :text="file.sha1" class="max-w-full break-all" />
+								<template v-if="file.moderation_external_license_id != null">
+									<span class="text-secondary">{{ formatMessage(messages.fileDatabaseId) }}</span>
+									<CopyCode :text="String(file.moderation_external_license_id)" />
+								</template>
+							</div>
 						</div>
 						<div class="flex items-center gap-1 my-auto">
 							<IconButton
@@ -637,7 +657,11 @@ const visibleQuickReplies = computed<OverflowMenuOption[]>(() => {
 					:attributor-label="attributorLabel"
 					:attributor-avatar-url="attributorMember?.user.avatar_url"
 					:moderator="isModerator"
+					:pixelated="pixelated"
 				>
+					<template #image-viewer-actions="slotProps">
+						<slot name="image-viewer-actions" v-bind="slotProps" />
+					</template>
 					<template
 						v-if="
 							group.attribution?.kind !== 'globally_allowed' &&
@@ -706,9 +730,10 @@ const visibleQuickReplies = computed<OverflowMenuOption[]>(() => {
 										</div>
 									</template>
 									<template v-else>
-										<StyledInput
+										<Textarea
 											v-model="reviewReasonInput"
-											multiline
+											resize="vertical"
+											:rows="7"
 											placeholder="Explanation of review (optional)"
 											class="mt-3"
 										/>

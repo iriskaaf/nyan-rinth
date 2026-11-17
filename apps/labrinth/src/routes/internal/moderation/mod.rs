@@ -2,12 +2,16 @@ use super::ApiError;
 use crate::auth::get_user_from_headers;
 use crate::database;
 use crate::database::PgPool;
-use crate::database::models::DBModerationLock;
 use crate::database::models::moderation_external_item;
+use crate::database::models::{
+    DBModerationLock, DBOrganization, DBOrganizationId, DBProject, DBProjectId,
+};
 use crate::models::ids::{OrganizationId, ProjectId};
 use crate::models::projects::{ProjectStatus, VersionStatus};
 use crate::queue::moderation::{ApprovalType, IdentifiedFile, MissingMetadata};
 use crate::queue::session::AuthQueue;
+use crate::routes::v3::organizations::OrganizationIds;
+use crate::routes::v3::users::UserIds;
 use crate::util::error::ApiContext as _;
 use crate::util::error::Context;
 use crate::{
@@ -18,16 +22,21 @@ use actix_web::{HttpRequest, delete, get, post, web};
 use ariadne::ids::{UserId, random_base62};
 use chrono::{DateTime, Utc};
 use eyre::eyre;
+use futures_util::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use xredis::RedisPool;
 
+pub mod copyright_archives;
 pub mod external_license;
 mod ownership;
 pub mod tech_review;
+pub mod user_restrictions;
 
 pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
-    cfg.service(get_projects)
+    cfg.configure(user_restrictions::config)
+        .configure(copyright_archives::config)
+        .service(get_projects)
         .service(get_project_ids)
         .service(get_project_meta)
         .service(set_project_meta)
@@ -37,6 +46,10 @@ pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
         .service(release_lock)
         .service(release_lock_beacon)
         .service(delete_all_locks)
+        .service(get_user_project_by_status)
+        .service(get_users_project_by_status)
+        .service(get_organization_project_by_status)
+        .service(get_organizations_project_by_status)
         .service(web::scope("/tech-review").configure(tech_review::config))
         .service(
             web::scope("/external-license").configure(external_license::config),
@@ -82,6 +95,7 @@ pub enum ModerationProjectsSort {
     #[default]
     Oldest,
     Newest,
+    OldestInitial,
     MostExternalDeps,
     LeastExternalDeps,
 }
@@ -91,6 +105,7 @@ impl ModerationProjectsSort {
         match self {
             Self::Oldest => "oldest",
             Self::Newest => "newest",
+            Self::OldestInitial => "oldest_initial",
             Self::MostExternalDeps => "most_external_deps",
             Self::LeastExternalDeps => "least_external_deps",
         }
@@ -119,6 +134,7 @@ pub struct ModerationQueueProject {
     pub status: ProjectStatus,
     pub requested_status: Option<ProjectStatus>,
     pub queued: Option<DateTime<Utc>>,
+    pub initial_queued: Option<DateTime<Utc>>,
     pub published: DateTime<Utc>,
     pub updated: DateTime<Utc>,
     pub project_types: Vec<String>,
@@ -215,7 +231,7 @@ pub struct DeleteAllLocksResponse {
     pub deleted_count: u64,
 }
 
-/// List projects in the moderation queue.  
+/// List projects in the moderation queue.
 #[utoipa::path(
 	context_path = "/moderation",
 	tag = "moderation",
@@ -283,6 +299,7 @@ pub async fn get_projects_internal(
                     m.summary,
                     m.description,
                     m.queued,
+                    m.initial_queued,
                     m.published,
                     m.organization_id,
                     m.team_id,
@@ -294,9 +311,8 @@ pub async fn get_projects_internal(
                         $9::boolean = false
                         OR NOT EXISTS (
                             SELECT 1
-                            FROM delphi_issue_details_with_statuses didws
-                            WHERE didws.project_id = m.id
-                                AND didws.status = 'pending'
+                            FROM delphi_tech_review_queue trq
+                            WHERE trq.project_id = m.id
                         )
                     )
             ),
@@ -331,6 +347,7 @@ pub async fn get_projects_internal(
                     mp.summary,
                     mp.description,
                     mp.queued,
+                    mp.initial_queued,
                     mp.published,
                     search_organization.name AS organization_name,
                     search_owner.username AS owner_name,
@@ -368,6 +385,7 @@ pub async fn get_projects_internal(
                 SELECT
                     id,
                     queued,
+                    initial_queued,
                     published,
                     project_types,
                     external_dependencies_count
@@ -404,6 +422,7 @@ pub async fn get_projects_internal(
                 SELECT
                     id,
                     queued,
+                    initial_queued,
                     published,
                     project_types,
                     external_dependencies_count
@@ -412,6 +431,7 @@ pub async fn get_projects_internal(
                     CASE WHEN $8 = 'most_external_deps' THEN external_dependencies_count END DESC,
                     CASE WHEN $8 = 'least_external_deps' THEN external_dependencies_count END ASC,
                     CASE WHEN $8 = 'newest' THEN COALESCE(queued, published) END DESC NULLS LAST,
+                    CASE WHEN $8 = 'oldest_initial' THEN COALESCE(initial_queued, published) END ASC NULLS LAST,
                     CASE WHEN $8 IN ('oldest', 'most_external_deps', 'least_external_deps') THEN COALESCE(queued, published) END ASC NULLS LAST,
                     id ASC
                 OFFSET $7
@@ -427,6 +447,7 @@ pub async fn get_projects_internal(
                     m.status,
                     m.requested_status,
                     m.queued,
+                    m.initial_queued,
                     m.published,
                     m.updated,
                     m.organization_id,
@@ -464,6 +485,7 @@ pub async fn get_projects_internal(
                 page_projects.status AS "status?",
                 page_projects.requested_status AS "requested_status?",
                 page_projects.queued AS "queued?",
+                page_projects.initial_queued AS "initial_queued?",
                 page_projects.published AS "published?",
                 page_projects.updated AS "updated?",
                 page_projects.organization_id AS "organization_id?",
@@ -480,6 +502,7 @@ pub async fn get_projects_internal(
                 CASE WHEN $8 = 'most_external_deps' THEN page_projects.external_dependencies_count END DESC,
                 CASE WHEN $8 = 'least_external_deps' THEN page_projects.external_dependencies_count END ASC,
                 CASE WHEN $8 = 'newest' THEN COALESCE(page_projects.queued, page_projects.published) END DESC NULLS LAST,
+                CASE WHEN $8 = 'oldest_initial' THEN COALESCE(page_projects.initial_queued, page_projects.published) END ASC NULLS LAST,
                 CASE WHEN $8 IN ('oldest', 'most_external_deps', 'least_external_deps') THEN COALESCE(page_projects.queued, page_projects.published) END ASC NULLS LAST,
                 page_projects.id ASC
             "#,
@@ -510,6 +533,7 @@ pub async fn get_projects_internal(
                 row.status,
                 row.requested_status,
                 row.queued,
+                row.initial_queued,
                 row.published,
                 row.updated,
                 row.organization_id,
@@ -535,6 +559,7 @@ pub async fn get_projects_internal(
                 SELECT
                     m.id,
                     m.queued,
+                    m.initial_queued,
                     m.published
                 FROM mods m
                 WHERE
@@ -543,9 +568,8 @@ pub async fn get_projects_internal(
                         $6::boolean = false
                         OR NOT EXISTS (
                             SELECT 1
-                            FROM delphi_issue_details_with_statuses didws
-                            WHERE didws.project_id = m.id
-                                AND didws.status = 'pending'
+                            FROM delphi_tech_review_queue trq
+                            WHERE trq.project_id = m.id
                         )
                     )
             ),
@@ -556,10 +580,12 @@ pub async fn get_projects_internal(
                 SELECT
                     id,
                     queued,
+                    initial_queued,
                     published
                 FROM filtered_projects
                 ORDER BY
                     CASE WHEN $5 = 'newest' THEN COALESCE(queued, published) END DESC NULLS LAST,
+                    CASE WHEN $5 = 'oldest_initial' THEN COALESCE(initial_queued, published) END ASC NULLS LAST,
                     CASE WHEN $5 = 'oldest' THEN COALESCE(queued, published) END ASC NULLS LAST,
                     id ASC
                 OFFSET $4
@@ -598,6 +624,7 @@ pub async fn get_projects_internal(
                     m.status,
                     m.requested_status,
                     m.queued,
+                    m.initial_queued,
                     m.published,
                     m.updated,
                     m.organization_id,
@@ -646,6 +673,7 @@ pub async fn get_projects_internal(
                 page_projects.status AS "status?",
                 page_projects.requested_status AS "requested_status?",
                 page_projects.queued AS "queued?",
+                page_projects.initial_queued AS "initial_queued?",
                 page_projects.published AS "published?",
                 page_projects.updated AS "updated?",
                 page_projects.organization_id AS "organization_id?",
@@ -660,6 +688,7 @@ pub async fn get_projects_internal(
             LEFT JOIN page_projects ON true
             ORDER BY
                 CASE WHEN $5 = 'newest' THEN COALESCE(page_projects.queued, page_projects.published) END DESC NULLS LAST,
+                CASE WHEN $5 = 'oldest_initial' THEN COALESCE(page_projects.initial_queued, page_projects.published) END ASC NULLS LAST,
                 CASE WHEN $5 = 'oldest' THEN COALESCE(page_projects.queued, page_projects.published) END ASC NULLS LAST,
                 page_projects.id ASC
             "#,
@@ -687,6 +716,7 @@ pub async fn get_projects_internal(
                 row.status,
                 row.requested_status,
                 row.queued,
+                row.initial_queued,
                 row.published,
                 row.updated,
                 row.organization_id,
@@ -763,6 +793,7 @@ pub async fn get_project_ids(
                     m.summary,
                     m.description,
                     m.queued,
+                    m.initial_queued,
                     m.published,
                     m.organization_id,
                     m.team_id,
@@ -774,9 +805,8 @@ pub async fn get_project_ids(
                         $7::boolean = false
                         OR NOT EXISTS (
                             SELECT 1
-                            FROM delphi_issue_details_with_statuses didws
-                            WHERE didws.project_id = m.id
-                                AND didws.status = 'pending'
+                            FROM delphi_tech_review_queue trq
+                            WHERE trq.project_id = m.id
                         )
                     )
             ),
@@ -811,6 +841,7 @@ pub async fn get_project_ids(
                     mp.summary,
                     mp.description,
                     mp.queued,
+                    mp.initial_queued,
                     mp.published,
                     search_organization.name AS organization_name,
                     search_owner.username AS owner_name,
@@ -872,6 +903,7 @@ pub async fn get_project_ids(
                 CASE WHEN $6 = 'most_external_deps' THEN external_dependencies_count END DESC,
                 CASE WHEN $6 = 'least_external_deps' THEN external_dependencies_count END ASC,
                 CASE WHEN $6 = 'newest' THEN COALESCE(queued, published) END DESC NULLS LAST,
+                CASE WHEN $6 = 'oldest_initial' THEN COALESCE(initial_queued, published) END ASC NULLS LAST,
                 CASE WHEN $6 IN ('oldest', 'most_external_deps', 'least_external_deps') THEN COALESCE(queued, published) END ASC NULLS LAST,
                 id ASC
             "#,
@@ -902,13 +934,13 @@ pub async fn get_project_ids(
                     $3::boolean = false
                     OR NOT EXISTS (
                         SELECT 1
-                        FROM delphi_issue_details_with_statuses didws
-                        WHERE didws.project_id = mods.id
-                            AND didws.status = 'pending'
+                        FROM delphi_tech_review_queue trq
+                        WHERE trq.project_id = mods.id
                     )
                 )
             ORDER BY
                 CASE WHEN $2 = 'newest' THEN COALESCE(queued, published) END DESC NULLS LAST,
+                CASE WHEN $2 = 'oldest_initial' THEN COALESCE(initial_queued, published) END ASC NULLS LAST,
                 CASE WHEN $2 = 'oldest' THEN COALESCE(queued, published) END ASC NULLS LAST,
                 id ASC
             "#,
@@ -938,6 +970,7 @@ fn row_to_queue_project(
     status: Option<String>,
     requested_status: Option<String>,
     queued: Option<DateTime<Utc>>,
+    initial_queued: Option<DateTime<Utc>>,
     published: Option<DateTime<Utc>>,
     updated: Option<DateTime<Utc>>,
     organization_id: Option<i64>,
@@ -999,6 +1032,7 @@ fn row_to_queue_project(
             .as_deref()
             .map(ProjectStatus::from_string),
         queued,
+        initial_queued,
         published,
         updated,
         project_types: project_types.unwrap_or_default(),
@@ -1063,7 +1097,7 @@ fn row_to_ownership(
     })
 }
 
-/// Get project moderation metadata.  
+/// Get project moderation metadata.
 #[utoipa::path(
 	context_path = "/moderation",
 	tag = "moderation",
@@ -1091,7 +1125,7 @@ pub async fn get_project_meta(
     let project =
         database::models::DBProject::get(&project_id, &**pool, &redis)
             .await
-            .wrap_api_err("fetching project from database")?;
+            .wrap_internal_err("fetching project from database")?;
 
     if let Some(project) = project {
         let rows = sqlx::query!(
@@ -1226,7 +1260,7 @@ pub enum Judgement {
     },
 }
 
-/// Update project moderation judgements.  
+/// Update project moderation judgements.
 #[utoipa::path(
 	context_path = "/moderation",
 	tag = "moderation",
@@ -1328,7 +1362,7 @@ pub async fn set_project_meta(
     Ok(())
 }
 
-/// Acquire a moderation lock.  
+/// Acquire a moderation lock.
 /// Returns success if acquired, or info about who holds the lock if blocked.
 #[utoipa::path(
 	context_path = "/moderation",
@@ -1360,7 +1394,7 @@ pub async fn acquire_lock(
     let project =
         database::models::DBProject::get(&project_id_str, &**pool, &redis)
             .await
-            .wrap_api_err("fetching project from database")?
+            .wrap_internal_err("fetching project from database")?
             .wrap_not_found_err("resource not found")?;
 
     let db_project_id = project.inner.id;
@@ -1393,7 +1427,7 @@ pub async fn acquire_lock(
     }
 }
 
-/// Override a moderation lock.  
+/// Override a moderation lock.
 #[utoipa::path(
 	context_path = "/moderation",
 	tag = "moderation",
@@ -1424,7 +1458,7 @@ pub async fn override_lock(
     let project =
         database::models::DBProject::get(&project_id_str, &**pool, &redis)
             .await
-            .wrap_api_err("fetching project from database")?
+            .wrap_internal_err("fetching project from database")?
             .wrap_not_found_err("resource not found")?;
 
     let db_project_id = project.inner.id;
@@ -1444,7 +1478,7 @@ pub async fn override_lock(
     }))
 }
 
-/// Get moderation lock status.  
+/// Get moderation lock status.
 #[utoipa::path(
 	context_path = "/moderation",
 	tag = "moderation",
@@ -1475,7 +1509,7 @@ pub async fn get_lock_status(
     let project =
         database::models::DBProject::get(&project_id_str, &**pool, &redis)
             .await
-            .wrap_api_err("fetching project from database")?
+            .wrap_internal_err("fetching project from database")?
             .wrap_not_found_err("resource not found")?;
 
     let db_project_id = project.inner.id;
@@ -1511,7 +1545,7 @@ pub async fn get_lock_status(
     }
 }
 
-/// Release a moderation lock.  
+/// Release a moderation lock.
 #[utoipa::path(
 	context_path = "/moderation",
 	tag = "moderation",
@@ -1542,7 +1576,7 @@ pub async fn release_lock(
     let project =
         database::models::DBProject::get(&project_id_str, &**pool, &redis)
             .await
-            .wrap_api_err("fetching project from database")?
+            .wrap_internal_err("fetching project from database")?
             .wrap_not_found_err("resource not found")?;
 
     let db_project_id = project.inner.id;
@@ -1557,7 +1591,7 @@ pub async fn release_lock(
     Ok(web::Json(LockReleaseResponse { success: released }))
 }
 
-/// Release a moderation lock by beacon.  
+/// Release a moderation lock by beacon.
 ///
 /// For use with `navigator.sendBeacon`, which cannot set `Authorization` or send `DELETE`.
 /// The body must be `text/plain` containing the same token value as the `Authorization` header
@@ -1618,7 +1652,7 @@ pub async fn release_lock_beacon(
     let project =
         database::models::DBProject::get(&project_id_str, &**pool, &redis)
             .await
-            .wrap_api_err("fetching project from database")?
+            .wrap_internal_err("fetching project from database")?
             .wrap_not_found_err("resource not found")?;
 
     let db_project_id = project.inner.id;
@@ -1633,7 +1667,7 @@ pub async fn release_lock_beacon(
     Ok(web::Json(LockReleaseResponse { success: released }))
 }
 
-/// Delete all moderation locks.  
+/// Delete all moderation locks.
 #[utoipa::path(
 	context_path = "/moderation",
 	tag = "moderation",
@@ -1671,4 +1705,284 @@ pub async fn delete_all_locks(
         .wrap_internal_err("deleting moderation locks from database")?;
 
     Ok(web::Json(DeleteAllLocksResponse { deleted_count }))
+}
+
+/// Get project id's for a given user with them grouped by their `ProjectStatus`.
+///
+/// Only statuses with at least one project are present in the map.
+#[utoipa::path(
+    context_path = "/moderation",
+    tag = "moderation",
+    security(("bearer_auth" = [])),
+    responses((status = OK, body = HashMap<ProjectStatus, Vec<ProjectId>>))
+)]
+#[get("/user/{user_id}/all-projects-by-status")]
+pub async fn get_user_project_by_status(
+    req: HttpRequest,
+    info: web::Path<(String,)>,
+    pool: web::Data<PgPool>,
+    redis: web::Data<RedisPool>,
+    session_queue: web::Data<AuthQueue>,
+) -> Result<web::Json<HashMap<ProjectStatus, Vec<ProjectId>>>, ApiError> {
+    check_is_moderator_from_headers(
+        &req,
+        &**pool,
+        &redis,
+        &session_queue,
+        Scopes::PROJECT_READ,
+    )
+    .await
+    .wrap_auth_err("authenticating API request")?;
+
+    let target_user =
+        database::models::DBUser::get(&info.into_inner().0, &**pool, &redis)
+            .await
+            .wrap_internal_err("fetching user from database")?
+            .wrap_not_found_err("resource not found")?;
+
+    let counts =
+        user_projects_by_status(target_user.id, &**pool, &redis).await?;
+
+    Ok(web::Json(counts))
+}
+
+/// Get project id's for a list of user's with them grouped by their `ProjectStatus`.
+///
+/// Users that don't exist are silently omitted from the response; users
+/// that exist but have no projects are included with an empty map.
+#[utoipa::path(
+    context_path = "/moderation",
+    tag = "moderation",
+    security(("bearer_auth" = [])),
+    params(("ids" = String, Query)),
+    responses((status = OK, body = HashMap<UserId, HashMap<ProjectStatus, Vec<ProjectId>>>))
+)]
+#[get("/users/all-projects-by-status")]
+pub async fn get_users_project_by_status(
+    req: HttpRequest,
+    ids: web::Query<UserIds>,
+    pool: web::Data<PgPool>,
+    redis: web::Data<RedisPool>,
+    session_queue: web::Data<AuthQueue>,
+) -> Result<
+    web::Json<HashMap<UserId, HashMap<ProjectStatus, Vec<ProjectId>>>>,
+    ApiError,
+> {
+    check_is_moderator_from_headers(
+        &req,
+        &**pool,
+        &redis,
+        &session_queue,
+        Scopes::PROJECT_READ,
+    )
+    .await
+    .wrap_auth_err("authenticating API request")?;
+
+    let user_ids = serde_json::from_str::<Vec<String>>(&ids.ids)
+        .wrap_request_err("deserializing JSON data")?;
+
+    if user_ids.is_empty() {
+        return Ok(web::Json(HashMap::new()));
+    }
+
+    let target_users =
+        database::models::DBUser::get_many(&user_ids, &**pool, &redis)
+            .await
+            .wrap_internal_err("fetching users from database")?;
+
+    let pool_ref = &**pool;
+    let redis_ref = &*redis;
+
+    let grouped_projects_by_user =
+        try_join_all(target_users.into_iter().map(|target_user| async move {
+            let counts =
+                user_projects_by_status(target_user.id, pool_ref, redis_ref)
+                    .await?;
+
+            Ok::<_, ApiError>((UserId::from(target_user.id), counts))
+        }))
+        .await?
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+
+    Ok(web::Json(grouped_projects_by_user))
+}
+
+/// Get project id's for a given organization with them grouped by their `ProjectStatus`.
+///
+/// Only statuses with at least one project are present in the map.
+#[utoipa::path(
+    context_path = "/moderation",
+    tag = "moderation",
+    security(("bearer_auth" = [])),
+    responses((status = OK, body = HashMap<ProjectStatus, Vec<ProjectId>>))
+)]
+#[get("/organization/{organization_id}/all-projects-by-status")]
+pub async fn get_organization_project_by_status(
+    req: HttpRequest,
+    info: web::Path<(String,)>,
+    pool: web::Data<PgPool>,
+    redis: web::Data<RedisPool>,
+    session_queue: web::Data<AuthQueue>,
+) -> Result<web::Json<HashMap<ProjectStatus, Vec<ProjectId>>>, ApiError> {
+    check_is_moderator_from_headers(
+        &req,
+        &**pool,
+        &redis,
+        &session_queue,
+        Scopes::PROJECT_READ,
+    )
+    .await
+    .wrap_auth_err("authenticating API request")?;
+
+    let target_org = database::models::DBOrganization::get(
+        &info.into_inner().0,
+        &**pool,
+        &redis,
+    )
+    .await
+    .wrap_internal_err("fetching organization from database")?
+    .wrap_not_found_err("resource not found")?;
+
+    let grouped_projects =
+        organization_projects_by_status(target_org.id, &**pool, &redis).await?;
+
+    Ok(web::Json(grouped_projects))
+}
+
+/// Get project id's for a list of organization's with them grouped by their `ProjectStatus`.
+///
+/// Organizations that don't exist are silently omitted from the
+/// response; organizations that exist but have no projects are included
+/// with an empty map.
+#[utoipa::path(
+    context_path = "/moderation",
+    tag = "moderation",
+    security(("bearer_auth" = [])),
+    params(("ids" = String, Query)),
+    responses((status = OK, body = HashMap<OrganizationId, HashMap<ProjectStatus, Vec<ProjectId>>>))
+)]
+#[get("/organizations/all-projects-by-status")]
+pub async fn get_organizations_project_by_status(
+    req: HttpRequest,
+    ids: web::Query<OrganizationIds>,
+    pool: web::Data<PgPool>,
+    redis: web::Data<RedisPool>,
+    session_queue: web::Data<AuthQueue>,
+) -> Result<
+    web::Json<HashMap<OrganizationId, HashMap<ProjectStatus, Vec<ProjectId>>>>,
+    ApiError,
+> {
+    check_is_moderator_from_headers(
+        &req,
+        &**pool,
+        &redis,
+        &session_queue,
+        Scopes::PROJECT_READ,
+    )
+    .await
+    .wrap_auth_err("authenticating API request")?;
+
+    let organization_ids = serde_json::from_str::<Vec<String>>(&ids.ids)
+        .wrap_request_err("deserializing JSON data")?;
+
+    if organization_ids.is_empty() {
+        return Ok(web::Json(HashMap::new()));
+    }
+
+    let target_orgs = database::models::DBOrganization::get_many(
+        &organization_ids,
+        &**pool,
+        &redis,
+    )
+    .await
+    .wrap_internal_err("fetching organizations from database")?;
+
+    let pool_ref = &**pool;
+    let redis_ref = &*redis;
+
+    let grouped_projects_by_org =
+        try_join_all(target_orgs.into_iter().map(|target_org| async move {
+            let counts = organization_projects_by_status(
+                target_org.id,
+                pool_ref,
+                redis_ref,
+            )
+            .await?;
+
+            Ok::<_, ApiError>((OrganizationId::from(target_org.id), counts))
+        }))
+        .await?
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+
+    Ok(web::Json(grouped_projects_by_org))
+}
+
+/// Groups the given User projects by their `ProjectStatus`.
+async fn user_projects_by_status<'a, E>(
+    user_id: database::models::DBUserId,
+    pool: E,
+    redis: &RedisPool,
+) -> Result<HashMap<ProjectStatus, Vec<ProjectId>>, ApiError>
+where
+    E: database::Executor<'a, Database = sqlx::Postgres>
+        + database::Acquire<'a, Database = sqlx::Postgres>
+        + Copy,
+{
+    let project_ids =
+        database::models::DBUser::get_projects(user_id, pool, redis)
+            .await
+            .wrap_internal_err("fetching user's projects from database")?;
+
+    group_projects_by_status(&project_ids, pool, redis).await
+}
+
+/// Groups the given Organization projects by their `ProjectStatus`.
+async fn organization_projects_by_status<'a, E>(
+    organization_id: DBOrganizationId,
+    pool: E,
+    redis: &RedisPool,
+) -> Result<HashMap<ProjectStatus, Vec<ProjectId>>, ApiError>
+where
+    E: database::Executor<'a, Database = sqlx::Postgres>
+        + database::Acquire<'a, Database = sqlx::Postgres>
+        + Copy,
+{
+    let project_ids = DBOrganization::get_projects(organization_id, pool)
+        .await
+        .wrap_internal_err("fetching project IDs from database")?;
+
+    group_projects_by_status(&project_ids, pool, redis).await
+}
+
+/// Groups the given input Projects by their `ProjectStatus`.
+async fn group_projects_by_status<'a, E>(
+    project_ids: &[DBProjectId],
+    pool: E,
+    redis: &RedisPool,
+) -> Result<HashMap<ProjectStatus, Vec<ProjectId>>, ApiError>
+where
+    E: database::Executor<'a, Database = sqlx::Postgres>
+        + database::Acquire<'a, Database = sqlx::Postgres>
+        + Copy,
+{
+    if project_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let projects = DBProject::get_many_ids(project_ids, pool, redis)
+        .await
+        .wrap_internal_err("fetching projects from database")?;
+
+    let mut grouped_projects: HashMap<ProjectStatus, Vec<ProjectId>> =
+        HashMap::new();
+    for project in &projects {
+        grouped_projects
+            .entry(project.inner.status)
+            .or_default()
+            .push(project.inner.id.into());
+    }
+
+    Ok(grouped_projects)
 }

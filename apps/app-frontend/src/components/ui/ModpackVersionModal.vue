@@ -1,7 +1,4 @@
 <script setup>
-import { nyanMessages } from '@/helpers/ui-messages'
-import { useVIntl } from '@modrinth/ui'
-
 import { CheckIcon } from '@modrinth/assets'
 import { Badge, IconButton } from '@modrinth/ui'
 import { computed, ref } from 'vue'
@@ -52,15 +49,13 @@ const onHide = () => {
 		emit('finish-install')
 	}
 }
-
-const { formatMessage } = useVIntl()
 </script>
 
 <template>
 	<ModalWrapper
 		ref="modpackVersionModal"
 		class="modpack-version-modal"
-		:header="formatMessage(nyanMessages.changeModpack)"
+		header="Change modpack version"
 		:on-hide="onHide"
 	>
 		<div class="modal-body">
@@ -68,10 +63,8 @@ const { formatMessage } = useVIntl()
 				<div class="table">
 					<div class="table-row with-columns table-head">
 						<div class="table-cell table-text download-cell" />
-						<div class="name-cell table-cell table-text">
-							{{ formatMessage(nyanMessages.name) }}
-						</div>
-						<div class="table-cell table-text">{{ formatMessage(nyanMessages.supports) }}</div>
+						<div class="name-cell table-cell table-text">Name</div>
+						<div class="table-cell table-text">Supports</div>
 					</div>
 					<div class="scrollable">
 						<div
@@ -84,7 +77,7 @@ const { formatMessage } = useVIntl()
 								<IconButton
 									:type="version.id === installedVersion ? 'base' : 'colored'"
 									:color="version.id === installedVersion ? undefined : 'brand'"
-									:label="formatMessage(nyanMessages.switchVersion)"
+									label="Switch version"
 									:disabled="inProgress || installing || version.id === installedVersion"
 									@click.stop="() => switchVersion(version.id)"
 								>

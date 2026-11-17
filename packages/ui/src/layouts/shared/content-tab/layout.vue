@@ -1,9 +1,6 @@
 <script setup lang="ts">
+import type { Labrinth } from '@modrinth/api-client'
 import {
-	ArrowDownAZIcon,
-	ArrowUpZAIcon,
-	ClockArrowDownIcon,
-	ClockArrowUpIcon,
 	CodeIcon,
 	CompassIcon,
 	DownloadIcon,
@@ -11,51 +8,59 @@ import {
 	FileIcon,
 	FolderOpenIcon,
 	LinkIcon,
-	OrganizationIcon,
 	RefreshCwIcon,
 	SearchIcon,
 	ShareIcon,
 	TextCursorInputIcon,
 	TrashIcon,
-	UserIcon,
 } from '@modrinth/assets'
-import { useSessionStorage } from '@vueuse/core'
+import { useQueryClient } from '@tanstack/vue-query'
+import { chunk } from 'es-toolkit'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-import Avatar from '#ui/components/base/Avatar.vue'
-import { Button, type OverflowMenuOption, TeleportOverflowMenu } from '#ui/components/base/buttons'
+import { Button, TeleportOverflowMenu } from '#ui/components/base/buttons'
 import DropdownFilterBar from '#ui/components/base/DropdownFilterBar.vue'
 import EmptyState from '#ui/components/base/EmptyState.vue'
 import FilterPills from '#ui/components/base/FilterPills.vue'
-import StyledInput from '#ui/components/base/StyledInput.vue'
+import Input from '#ui/components/base/inputs/Input.vue'
+import UpdateAllModal from '#ui/components/modal/update-all-modal/index.vue'
+import type {
+	UpdateAllItem,
+	UpdateAllSelection,
+} from '#ui/components/modal/update-all-modal/update-all-modal-types'
 import { useDebugLogger } from '#ui/composables/debug-logger'
 import { defineMessages, useVIntl } from '#ui/composables/i18n'
-import { commonMessages, formatContentTypeSentence } from '#ui/utils/common-messages'
+import { injectModrinthClient } from '#ui/providers/api-client'
+import { injectNotificationManager } from '#ui/providers/web-notifications'
+import {
+	commonMessages,
+	formatContentTypeSentence,
+	normalizeProjectType,
+} from '#ui/utils/common-messages'
+import { versionMatchesCompatibilityTarget } from '#ui/utils/version-compatibility'
 
 import ContentCardTable from './components/ContentCardTable.vue'
 import ContentSelectionBar from './components/ContentSelectionBar.vue'
+import ContentSortMenu from './components/ContentSortMenu.vue'
 import ManagedContentCard from './components/managed-content-card/index.vue'
-import ConfirmBulkUpdateModal from './components/modals/ConfirmBulkUpdateModal.vue'
 import ConfirmDeletionModal from './components/modals/ConfirmDeletionModal.vue'
 import ConfirmDisableModal from './components/modals/ConfirmDisableModal.vue'
 import ConfirmUnlinkModal from './components/modals/ConfirmUnlinkModal.vue'
 import ContentDependencyWarningModal from './components/modals/ContentDependencyWarningModal.vue'
 import {
+	type ContentMetadataFilterValue,
 	getClientWarningType,
+	getContentWarningType,
 	useBulkOperation,
 	useChangingItems,
 	useContentFilters,
 	useContentMetadataFilters,
 	useContentSearch,
 	useContentSelection,
+	useContentSort,
 } from './composables'
 import { injectContentManager } from './providers/content-manager'
-import type {
-	BulkOperationStatus,
-	ContentActionWarning,
-	ContentCardTableItem,
-	ContentItem,
-} from './types'
+import type { ContentActionWarning, ContentCardTableItem, ContentItem } from './types'
 
 const { formatMessage } = useVIntl()
 const debug = useDebugLogger('ContentPageLayout')
@@ -63,6 +68,7 @@ const debug = useDebugLogger('ContentPageLayout')
 const props = withDefaults(
 	defineProps<{
 		bottomPadding?: boolean
+		highlightedItemId?: string
 	}>(),
 	{
 		bottomPadding: true,
@@ -94,29 +100,9 @@ const messages = defineMessages({
 		id: 'content.page-layout.upload-files',
 		defaultMessage: 'Upload files',
 	},
-	sortAlphabeticalAscending: {
-		id: 'content.page-layout.sort.alphabetical-ascending',
-		defaultMessage: 'Name (A-Z)',
-	},
-	sortAlphabeticalDescending: {
-		id: 'content.page-layout.sort.alphabetical-descending',
-		defaultMessage: 'Name (Z-A)',
-	},
-	sortDateAddedNewest: {
-		id: 'content.page-layout.sort.date-added-newest',
-		defaultMessage: 'Newest first',
-	},
-	sortDateAddedOldest: {
-		id: 'content.page-layout.sort.date-added-oldest',
-		defaultMessage: 'Oldest first',
-	},
 	filter: {
 		id: 'content.page-layout.filter.add',
 		defaultMessage: 'Filter',
-	},
-	authorCount: {
-		id: 'content.page-layout.filter.author-count',
-		defaultMessage: '{count, plural, one {# author} other {# authors}}',
 	},
 	updateAll: {
 		id: 'content.page-layout.update-all',
@@ -162,13 +148,17 @@ const messages = defineMessages({
 		id: 'content.page-layout.share.label',
 		defaultMessage: 'Share',
 	},
-	sortByLabel: {
-		id: 'content.page-layout.sort.label',
-		defaultMessage: 'Sort by {mode}',
-	},
 	pleaseWait: {
 		id: 'content.page-layout.please-wait',
 		defaultMessage: 'Please wait',
+	},
+	failedToLoadUpdates: {
+		id: 'content.page-layout.failed-to-load-updates',
+		defaultMessage: 'Failed to load available updates',
+	},
+	failedToLoadChangelog: {
+		id: 'content.page-layout.failed-to-load-changelog',
+		defaultMessage: 'Failed to load changelog',
 	},
 })
 
@@ -179,95 +169,24 @@ function getItemId(item: ContentItem) {
 	return ctx.getItemId?.(item) ?? item.file_path ?? item.file_name ?? item.id
 }
 
-type SortMode = 'alphabetical-asc' | 'alphabetical-desc' | 'date-added-newest' | 'date-added-oldest'
-const sortMode = ctx.filterPersistKey
-	? useSessionStorage<SortMode>(`content-sort:${ctx.filterPersistKey}`, 'alphabetical-asc')
-	: ref<SortMode>('alphabetical-asc')
+const { sortMode, sortedItems } = useContentSort(ctx.items, ctx.filterPersistKey)
 
-const sortLabels: Record<SortMode, () => string> = {
-	'alphabetical-asc': () => formatMessage(messages.sortAlphabeticalAscending),
-	'alphabetical-desc': () => formatMessage(messages.sortAlphabeticalDescending),
-	'date-added-newest': () => formatMessage(messages.sortDateAddedNewest),
-	'date-added-oldest': () => formatMessage(messages.sortDateAddedOldest),
-}
+const { searchQuery, search } = useContentSearch(
+	sortedItems,
+	['project.title', 'owner.name', 'file_name'],
+	{ queryParam: ctx.searchQueryParam },
+)
 
-const sortOptions = computed<OverflowMenuOption[]>(() => [
-	{
-		id: 'alphabetical-asc',
-		label: formatMessage(messages.sortAlphabeticalAscending),
-		icon: ArrowDownAZIcon,
-		action: () => (sortMode.value = 'alphabetical-asc'),
-	},
-	{
-		id: 'alphabetical-desc',
-		label: formatMessage(messages.sortAlphabeticalDescending),
-		icon: ArrowUpZAIcon,
-		action: () => (sortMode.value = 'alphabetical-desc'),
-	},
-	{
-		id: 'date-added-newest',
-		label: formatMessage(messages.sortDateAddedNewest),
-		icon: ClockArrowDownIcon,
-		action: () => (sortMode.value = 'date-added-newest'),
-	},
-	{
-		id: 'date-added-oldest',
-		label: formatMessage(messages.sortDateAddedOldest),
-		icon: ClockArrowUpIcon,
-		action: () => (sortMode.value = 'date-added-oldest'),
-	},
-])
-
-const sortedItems = computed(() => {
-	const items = [...ctx.items.value]
-	switch (sortMode.value) {
-		case 'alphabetical-desc':
-			return items.sort((a, b) => {
-				const nameA = a.project?.title ?? a.file_name
-				const nameB = b.project?.title ?? b.file_name
-				return (
-					nameB.toLowerCase().localeCompare(nameA.toLowerCase()) ||
-					a.file_name.localeCompare(b.file_name)
-				)
-			})
-		case 'date-added-newest':
-			return items.sort((a, b) => {
-				const dateA = a.date_added ?? ''
-				const dateB = b.date_added ?? ''
-				return dateB.localeCompare(dateA) || a.file_name.localeCompare(b.file_name)
-			})
-		case 'date-added-oldest':
-			return items.sort((a, b) => {
-				const dateA = a.date_added ?? ''
-				const dateB = b.date_added ?? ''
-				return dateA.localeCompare(dateB) || a.file_name.localeCompare(b.file_name)
-			})
-		default:
-			return items.sort((a, b) => {
-				const nameA = a.project?.title ?? a.file_name
-				const nameB = b.project?.title ?? b.file_name
-				return (
-					nameA.toLowerCase().localeCompare(nameB.toLowerCase()) ||
-					a.file_name.localeCompare(b.file_name)
-				)
-			})
-	}
-})
-
-const { searchQuery, search } = useContentSearch(sortedItems, [
-	'project.title',
-	'owner.name',
-	'file_name',
-])
-
+const retainedRowIds = ref(new Set<string>())
 const { selectedFilters, filterOptions, toggleFilter, applyFilters } = useContentFilters(
 	ctx.items,
 	{
 		showTypeFilters: true,
 		showUpdateFilter: false,
-		showWarningsFilter: false,
+		showWarningsFilter: true,
 		showStatusFilters: false,
 		showEnvironmentWarnings: ctx.showEnvironmentWarnings,
+		retainSelectedWarnings: computed(() => retainedRowIds.value.size > 0),
 		isPackLocked: ctx.isPackLocked,
 		persistKey: ctx.filterPersistKey,
 	},
@@ -276,56 +195,60 @@ const { selectedFilters, filterOptions, toggleFilter, applyFilters } = useConten
 const { selectedMetadataFilters, metadataFilterCategories, applyMetadataFilters } =
 	useContentMetadataFilters(ctx.items, ctx.filterPersistKey, {
 		showSharedContent: ctx.showSharedContentFilter,
+		showEnabledFor: !!ctx.setEnabledFor,
 		showEnvironmentWarnings: ctx.showEnvironmentWarnings,
 	})
 
-const metadataFilterAuthors = computed(() => {
-	const authors = new Map<string, NonNullable<ContentItem['owner']>>()
+const visibleFilterOptions = computed(() => {
+	const metadataMatches = applyMetadataFilters(ctx.items.value)
+	const warningMatches = metadataMatches.filter(
+		(item) => getContentWarningType(item, ctx.showEnvironmentWarnings) !== null,
+	)
+	const availableTypes = new Set(
+		(selectedFilters.value.includes('warnings') ? warningMatches : metadataMatches).map((item) =>
+			normalizeProjectType(item.project_type),
+		),
+	)
 	for (const item of ctx.items.value) {
-		if (!item.owner) continue
-		authors.set(`${item.owner.type}:${item.owner.id}`, item.owner)
+		if (retainedRowIds.value.has(getItemId(item))) {
+			availableTypes.add(normalizeProjectType(item.project_type))
+		}
 	}
-	return authors
+	return filterOptions.value.filter((option) =>
+		option.id === 'warnings'
+			? warningMatches.length > 0 ||
+				(selectedFilters.value.includes('warnings') && retainedRowIds.value.size > 0)
+			: availableTypes.has(option.id),
+	)
 })
 
-function getMetadataFilterAuthor(value: string) {
-	return metadataFilterAuthors.value.get(value)
+watch(
+	visibleFilterOptions,
+	(options) => {
+		const availableTypes = new Set(options.map((option) => option.id))
+		const validFilters = selectedFilters.value.filter((filter) => availableTypes.has(filter))
+		if (validFilters.length !== selectedFilters.value.length) selectedFilters.value = validFilters
+	},
+	{ immediate: true },
+)
+
+watch(searchQuery, () => retainedRowIds.value.clear())
+
+function updateMetadataFilters(filters: ContentMetadataFilterValue) {
+	retainedRowIds.value.clear()
+	selectedMetadataFilters.value = filters
 }
 
-function getMetadataFilterPreviewAuthor(selectedValues: string[]) {
-	const [selectedValue] = selectedValues
-	return selectedValues.length === 1 && selectedValue
-		? getMetadataFilterAuthor(selectedValue)
-		: undefined
-}
-
-const metadataFilterPreviewAuthorLimit = 3
-const metadataFilterPreviewAuthorSize = 20
-const metadataFilterPreviewAuthorOffset = 14
-
-function getMetadataFilterPreviewAuthorValues(selectedValues: string[]) {
-	return selectedValues.slice(0, metadataFilterPreviewAuthorLimit)
-}
-
-function getMetadataFilterPreviewAuthorOverflow(selectedValues: string[]) {
-	return Math.max(0, selectedValues.length - metadataFilterPreviewAuthorLimit)
-}
-
-function getMetadataFilterPreviewAuthorStackWidth(selectedValues: string[]) {
-	const visibleCount = Math.min(selectedValues.length, metadataFilterPreviewAuthorLimit)
-	if (visibleCount === 0) return 0
-	return (
-		metadataFilterPreviewAuthorSize +
-		(visibleCount - 1 + (selectedValues.length > metadataFilterPreviewAuthorLimit ? 1 : 0)) *
-			metadataFilterPreviewAuthorOffset
-	)
-}
-
-function isMetadataFilterOrganization(value: string) {
-	return (
-		getMetadataFilterAuthor(value)?.type === 'organization' || value.startsWith('organization:')
-	)
-}
+watch(
+	() => props.highlightedItemId,
+	(id) => {
+		if (!id) return
+		searchQuery.value = ''
+		selectedFilters.value = []
+		selectedMetadataFilters.value = {}
+	},
+	{ immediate: true },
+)
 
 const metadataFilterTriggerClass =
 	'!h-[34px] !rounded-xl !border !border-solid !border-surface-5 !bg-transparent !px-3 !text-sm !font-medium !text-primary !shadow-[0_1px_1.5px_rgba(0,0,0,0.15)] transition-all duration-100 active:scale-[0.97] hover:!bg-surface-3 focus-visible:!outline-none focus-visible:!ring-4 focus-visible:!ring-brand-shadow [&>svg]:!size-5'
@@ -333,37 +256,40 @@ const metadataFilterPreviewTriggerClass =
 	'!h-[34px] !rounded-xl !border !border-solid !border-brand !bg-brand-highlight !px-3 !text-sm !font-medium !text-brand !shadow-[0_1px_1.5px_rgba(0,0,0,0.15)] transition-all duration-100 active:scale-[0.97] hover:!bg-brand-highlight focus-visible:!outline-none focus-visible:!ring-4 focus-visible:!ring-brand-shadow [&>svg]:!size-5 [&>svg]:!text-brand'
 
 const filterControlsRef = ref<HTMLElement | null>(null)
-const projectTypeFiltersRef = ref<HTMLElement | null>(null)
+const filterPillsRef = ref<HTMLElement | null>(null)
 const metadataFiltersRef = ref<HTMLElement | null>(null)
+const filterPillsWrapped = ref(false)
 const metadataFiltersWrapped = ref(false)
 let filterControlsResizeObserver: ResizeObserver | null = null
 
-function updateMetadataFiltersWrapped() {
-	metadataFiltersWrapped.value =
-		!!projectTypeFiltersRef.value &&
-		!!metadataFiltersRef.value &&
-		metadataFiltersRef.value.offsetTop > projectTypeFiltersRef.value.offsetTop
+function isAtLineStart(element: HTMLElement | null) {
+	return (
+		!!filterControlsRef.value &&
+		!!element &&
+		element.offsetLeft <= filterControlsRef.value.offsetLeft
+	)
+}
+
+function updateFiltersWrapped() {
+	filterPillsWrapped.value = isAtLineStart(filterPillsRef.value)
+	metadataFiltersWrapped.value = isAtLineStart(metadataFiltersRef.value)
 }
 
 function observeFilterControls() {
 	filterControlsResizeObserver?.disconnect()
-	for (const element of [
-		filterControlsRef.value,
-		projectTypeFiltersRef.value,
-		metadataFiltersRef.value,
-	]) {
+	for (const element of [filterControlsRef.value, filterPillsRef.value, metadataFiltersRef.value]) {
 		if (element) filterControlsResizeObserver?.observe(element)
 	}
-	updateMetadataFiltersWrapped()
+	updateFiltersWrapped()
 }
 
 onMounted(() => {
 	if (typeof ResizeObserver === 'undefined') return
-	filterControlsResizeObserver = new ResizeObserver(updateMetadataFiltersWrapped)
+	filterControlsResizeObserver = new ResizeObserver(updateFiltersWrapped)
 	observeFilterControls()
 })
 
-watch([filterControlsRef, projectTypeFiltersRef, metadataFiltersRef], observeFilterControls, {
+watch([filterControlsRef, filterPillsRef, metadataFiltersRef], observeFilterControls, {
 	flush: 'post',
 })
 
@@ -372,6 +298,7 @@ onBeforeUnmount(() => {
 })
 
 function updateFilterChips(nextFilters: string[]) {
+	retainedRowIds.value.clear()
 	if (nextFilters.length === 0) {
 		selectedFilters.value = []
 		return
@@ -402,10 +329,12 @@ const { isChanging, markChanging, unmarkChanging } = useChangingItems()
 const bulkWaiting = ref(false)
 const bulkStatusMessage = ref<string | null>(null)
 const bulkItemCount = ref(0)
+const bulkUpdateItems = ref<ContentItem[]>([])
 
 const refreshing = ref(false)
 async function handleRefresh() {
 	if (refreshing.value) return
+	retainedRowIds.value.clear()
 	refreshing.value = true
 	try {
 		await ctx.refresh()
@@ -417,21 +346,37 @@ async function handleRefresh() {
 const filteredItems = computed(() => {
 	const sorted = sortedItems.value
 	const searched = search(sorted)
-	return applyMetadataFilters(applyFilters(searched))
+	const matching = applyMetadataFilters(applyFilters(searched))
+	if (retainedRowIds.value.size === 0) return matching
+	const matchingIds = new Set(matching.map(getItemId))
+	return searched.filter((item) => {
+		const id = getItemId(item)
+		return matchingIds.has(id) || retainedRowIds.value.has(id)
+	})
 })
 const tableItems = computed<ContentCardTableItem[]>(() => {
 	const items = filteredItems.value.map((item) => {
 		const base = ctx.mapToTableItem(item)
 		const id = getItemId(item)
+		const mutationPending =
+			ctx.disableWhileMutating !== false && (isChanging(id) || isBulkOperating.value)
 		const locked = base.locked ?? item.locked ?? false
-		const clientWarning = getClientWarningType(item, ctx.showEnvironmentWarnings)
+		const clientWarning = base.enabledFor
+			? null
+			: getClientWarningType(item, ctx.showEnvironmentWarnings)
 		return {
 			...base,
 			id,
+			projectType: item.project_type,
 			locked,
-			disabled:
-				isChanging(id) || ctx.isBusy.value || isBulkOperating.value || item.installing === true,
-			disabledTooltip: ctx.isBusy.value ? (ctx.busyMessage?.value ?? null) : null,
+			disabled: mutationPending || ctx.isBusy.value || item.installing === true,
+			disabledTooltip: ctx.isBusy.value
+				? (ctx.busyMessage?.value ?? null)
+				: mutationPending
+					? formatMessage(messages.pleaseWait)
+					: item.installing
+						? formatMessage(commonMessages.installingLabel)
+						: null,
 			toggleDisabled: ctx.isBusy.value || base.toggleDisabled,
 			toggleDisabledTooltip: ctx.isBusy.value
 				? (ctx.busyMessage?.value ?? null)
@@ -505,7 +450,10 @@ function canDeleteItem(item: ContentItem) {
 }
 
 function canToggleItem(item: ContentItem) {
-	return ctx.canToggleItem?.(item) ?? true
+	return (
+		ctx.canToggleItem?.(item) ??
+		!!(ctx.toggleEnabled || ctx.bulkEnableItems || ctx.bulkDisableItems)
+	)
 }
 
 const deletableSelectedItems = computed(() => selectedItems.value.filter(canDeleteItem))
@@ -563,6 +511,16 @@ async function promptDeleteItems(items: ContentItem[], event?: MouseEvent) {
 }
 
 async function showDeletionConfirmation(event?: MouseEvent) {
+	const confirmed = await ctx.confirmDeleteItems?.(pendingDeletionItems.value)
+	if (confirmed !== undefined) {
+		if (!confirmed) return
+		if (pendingDeletionWarning.value) {
+			confirmDeletionModal.value?.show()
+		} else {
+			await confirmDelete()
+		}
+		return
+	}
 	if (
 		!pendingDeletionWarning.value &&
 		(event?.shiftKey || skipNonEssentialWarnings.value) &&
@@ -596,6 +554,7 @@ async function confirmDependencyWarningDelete(disableDependentsAfterDeleting: bo
 
 	pendingDependencyWarningItems.value = []
 	pendingDependencyWarningDependents.value = []
+	if ((await ctx.confirmDeleteItems?.(pendingDeletionItems.value)) === false) return
 	if (pendingDeletionWarning.value) {
 		confirmDeletionModal.value?.show()
 		return
@@ -617,6 +576,7 @@ async function disableItemsWithoutWarning(items: ContentItem[]) {
 		await ctx.bulkDisableItems(items)
 		return
 	}
+	if (!ctx.toggleEnabled) return
 
 	for (const item of items) {
 		const id = getItemId(item)
@@ -685,6 +645,7 @@ async function confirmDelete() {
 async function promptDisableItems(items: ContentItem[]) {
 	const toggleableItems = items.filter(canToggleItem)
 	if (toggleableItems.length === 0) return
+	if (ctx.confirmAction && !(await ctx.confirmAction('disable', toggleableItems))) return
 	pendingDisableItems.value = toggleableItems
 	const warning = ctx.getDisableWarning?.(toggleableItems) ?? null
 	if (warning) {
@@ -727,10 +688,11 @@ async function confirmDisable() {
 		const id = getItemId(item)
 		markChanging(id)
 		try {
+			retainedRowIds.value.add(id)
 			if (ctx.bulkDisableItems) {
 				await ctx.bulkDisableItems(itemsToDisable)
 			} else {
-				await ctx.toggleEnabled(item)
+				await ctx.toggleEnabled?.(item)
 			}
 		} finally {
 			unmarkChanging(id)
@@ -744,7 +706,7 @@ async function confirmDisable() {
 }
 
 async function handleToggleEnabledById(id: string, _value: boolean) {
-	if (ctx.isBusy.value) return
+	if (ctx.isBusy.value || !ctx.toggleEnabled) return
 	const item = ctx.items.value.find((i) => getItemId(i) === id)
 	if (!item) return
 	if (!canToggleItem(item)) return
@@ -752,8 +714,10 @@ async function handleToggleEnabledById(id: string, _value: boolean) {
 		await promptDisableItems([item])
 		return
 	}
+	if (ctx.confirmAction && !(await ctx.confirmAction('enable', [item]))) return
 	markChanging(id)
 	try {
+		retainedRowIds.value.add(id)
 		await ctx.toggleEnabled(item)
 	} finally {
 		unmarkChanging(id)
@@ -764,6 +728,7 @@ async function bulkEnable() {
 	if (ctx.isBusy.value) return
 	const items = toggleableSelectedItems.value.filter((item) => !item.enabled)
 	if (items.length === 0) return
+	if (ctx.confirmAction && !(await ctx.confirmAction('enable', items))) return
 	if (ctx.bulkEnableItems) {
 		isBulkOperating.value = true
 		bulkOperation.value = 'enable'
@@ -782,7 +747,8 @@ async function bulkEnable() {
 		}
 		return
 	}
-	await runBulk('enable', items, (item) => ctx.toggleEnabled(item), { onComplete: clearSelection })
+	if (!ctx.toggleEnabled) return
+	await runBulk('enable', items, (item) => ctx.toggleEnabled!(item), { onComplete: clearSelection })
 }
 
 async function bulkDisable() {
@@ -794,7 +760,7 @@ async function bulkDisable() {
 
 function handleUpdateById(id: string) {
 	const item = ctx.items.value.find((item) => getItemId(item) === id)
-	if (item?.locked) return
+	if (!item || item.locked) return
 	ctx.updateItem?.(id)
 }
 
@@ -805,101 +771,250 @@ function handleSwitchVersionById(id: string) {
 	}
 }
 
-// Bulk updating
-const confirmBulkUpdateModal = ref<InstanceType<typeof ConfirmBulkUpdateModal>>()
-const pendingBulkUpdateItems = ref<ContentItem[]>([])
-const pendingBulkUpdateAll = ref(false)
+async function handleSetEnabledForById(id: string, side: 'server' | 'player', enabled: boolean) {
+	if (ctx.isBusy.value || !ctx.setEnabledFor) return
+	const item = ctx.items.value.find((candidate) => getItemId(candidate) === id)
+	if (!item) return
 
-const hasBulkUpdateSupport = computed(
-	() => !!(ctx.bulkUpdateAll || ctx.bulkUpdateItem || ctx.bulkUpdateItems),
-)
-
-function promptUpdateAll(event?: MouseEvent) {
-	if (!hasBulkUpdateSupport.value) return
-	const items = ctx.items.value.filter((item) => item.has_update && !item.locked)
-	if (items.length === 0) return
-	pendingBulkUpdateItems.value = items
-	pendingBulkUpdateAll.value = true
-	if ((event?.shiftKey || skipNonEssentialWarnings.value) && !ctx.isBusy.value) {
-		confirmBulkUpdate()
-	} else {
-		confirmBulkUpdateModal.value?.show()
-	}
+	retainedRowIds.value.add(id)
+	await ctx.setEnabledFor(item, side, enabled)
 }
 
-function promptUpdateSelected(event?: MouseEvent) {
-	if (!hasBulkUpdateSupport.value) return
-	const items = selectedItems.value.filter((item) => item.has_update && !item.locked)
-	if (items.length === 0) return
-	pendingBulkUpdateItems.value = items
-	pendingBulkUpdateAll.value = false
-	if ((event?.shiftKey || skipNonEssentialWarnings.value) && !ctx.isBusy.value) {
-		confirmBulkUpdate()
-	} else {
-		confirmBulkUpdateModal.value?.show()
-	}
+const queryClient = useQueryClient()
+const client = injectModrinthClient()
+const { addNotification } = injectNotificationManager()
+const updateAllModal = ref<InstanceType<typeof UpdateAllModal>>()
+const updateAllItems = ref<UpdateAllItem[]>([])
+const loadingUpdateAll = ref(false)
+const loadingUpdateAllChangelog = ref(false)
+let updateAllRequestId = 0
+
+const hasBulkUpdateSupport = computed(() => !!ctx.bulkUpdateSelections)
+
+function getUpdateAllCandidates(items: ContentItem[]) {
+	return items.filter(
+		(item) =>
+			item.has_update &&
+			!item.locked &&
+			item.project?.id &&
+			item.version?.id &&
+			item.update_version_id,
+	)
 }
 
-async function confirmBulkUpdate() {
-	if (ctx.isBusy.value) return
-	const items = pendingBulkUpdateItems.value
-	if (items.length === 0 || !hasBulkUpdateSupport.value) return
+async function loadRecommendedUpdateVersions(items: ContentItem[]) {
+	const ids = [...new Set(items.map((item) => item.update_version_id!))].sort()
+	const batches = await Promise.all(
+		chunk(ids, 100).map(async (batch) => {
+			try {
+				const versions = await queryClient.fetchQuery({
+					queryKey: ['labrinth', 'versions', 'v2', 'recommended', batch],
+					queryFn: () =>
+						client.labrinth.versions_v2.getVersions(batch, { include_changelog: false }),
+					staleTime: 5 * 60_000,
+				})
+				for (const version of versions) {
+					queryClient.setQueryData(['labrinth', 'version', 'v2', 'summary', version.id], version)
+				}
+				return versions
+			} catch {
+				return []
+			}
+		}),
+	)
+	return new Map(batches.flat().map((version) => [version.id, version]))
+}
 
-	const setBulkStatus = (status: BulkOperationStatus) => {
-		bulkStatusMessage.value = status.message ?? null
-		bulkProgress.value = status.progress ?? bulkProgress.value
-		bulkTotal.value = status.total ?? bulkTotal.value
-		bulkWaiting.value = status.waiting ?? false
+async function openUpdateAll(items: ContentItem[]) {
+	if (
+		!ctx.bulkUpdateSelections ||
+		ctx.isBusy.value ||
+		isBulkOperating.value ||
+		loadingUpdateAll.value
+	)
+		return
+	const candidates = getUpdateAllCandidates(items)
+	if (candidates.length === 0) return
+	if (candidates.length === 1 && ctx.updateItem) {
+		handleUpdateById(getItemId(candidates[0]))
+		return
 	}
 
-	try {
-		if (pendingBulkUpdateAll.value && ctx.bulkUpdateAll) {
-			isBulkOperating.value = true
-			bulkOperation.value = 'update'
-			bulkProgress.value = 0
-			bulkTotal.value = items.length
-			bulkItemCount.value = items.length
-			bulkStatusMessage.value = null
-			bulkWaiting.value = true
-			try {
-				await ctx.bulkUpdateAll(setBulkStatus)
-			} finally {
-				clearSelection()
-				isBulkOperating.value = false
-				bulkOperation.value = null
-				bulkProgress.value = 0
-				bulkTotal.value = 0
-				bulkItemCount.value = 0
-				bulkStatusMessage.value = null
-				bulkWaiting.value = false
-			}
-		} else if (ctx.bulkUpdateItems) {
-			isBulkOperating.value = true
-			bulkOperation.value = 'update'
-			bulkProgress.value = 0
-			bulkTotal.value = items.length
-			bulkItemCount.value = items.length
-			bulkStatusMessage.value = null
-			bulkWaiting.value = true
-			try {
-				await ctx.bulkUpdateItems(items)
-			} finally {
-				clearSelection()
-				isBulkOperating.value = false
-				bulkOperation.value = null
-				bulkProgress.value = 0
-				bulkTotal.value = 0
-				bulkItemCount.value = 0
-				bulkStatusMessage.value = null
-				bulkWaiting.value = false
-			}
-		} else if (ctx.bulkUpdateItem) {
-			await runBulk('update', items, ctx.bulkUpdateItem, { onComplete: clearSelection })
+	const requestId = ++updateAllRequestId
+	updateAllItems.value = []
+	loadingUpdateAll.value = true
+	loadingUpdateAllChangelog.value = false
+	await nextTick()
+	if (requestId !== updateAllRequestId) return
+	updateAllModal.value?.show()
+
+	const recommendedPromise = loadRecommendedUpdateVersions(candidates)
+	const projectVersions = new Map<string, Labrinth.Versions.v2.Version[]>()
+	let failedToLoadVersions = false
+	const projectIds = [...new Set(candidates.map((item) => item.project!.id))]
+	for (const batch of chunk(projectIds, 8)) {
+		await Promise.all(
+			batch.map(async (projectId) => {
+				try {
+					const versions = await queryClient.fetchQuery({
+						queryKey: ['labrinth', 'versions', 'v2', projectId],
+						queryFn: () =>
+							client.labrinth.versions_v2.getProjectVersions(projectId, {
+								include_changelog: false,
+							}),
+						staleTime: 5 * 60_000,
+					})
+					projectVersions.set(projectId, versions)
+				} catch {
+					failedToLoadVersions = true
+				}
+			}),
+		)
+		if (requestId !== updateAllRequestId) return
+	}
+	const recommended = await recommendedPromise
+	if (requestId !== updateAllRequestId) return
+
+	updateAllItems.value = candidates.map((item) => {
+		const preferredVersionId = item.update_version_id!
+		const versions = projectVersions.get(item.project!.id) ?? []
+		const preferredVersion =
+			queryClient.getQueryData<Labrinth.Versions.v2.Version>([
+				'labrinth',
+				'version',
+				'v2',
+				preferredVersionId,
+			]) ??
+			recommended.get(preferredVersionId) ??
+			versions.find((version) => version.id === preferredVersionId)
+		const sorted = [
+			...versions,
+			...(preferredVersion && !versions.some((version) => version.id === preferredVersion.id)
+				? [preferredVersion]
+				: []),
+		].sort((a, b) => Date.parse(b.date_published) - Date.parse(a.date_published))
+		const currentIndex = sorted.findIndex((version) => version.id === item.version!.id)
+		const newer = currentIndex < 0 ? sorted : sorted.slice(0, currentIndex)
+		if (preferredVersion && !newer.some((version) => version.id === preferredVersion.id)) {
+			newer.unshift(preferredVersion)
 		}
-	} finally {
-		pendingBulkUpdateItems.value = []
-		pendingBulkUpdateAll.value = false
+		const compatible = newer.filter(
+			(version) =>
+				version.id === preferredVersionId ||
+				versionMatchesCompatibilityTarget(version, {
+					gameVersion: ctx.currentGameVersion?.value ?? '',
+					loader: ctx.currentLoader?.value ?? '',
+					projectType: item.project_type,
+				}),
+		)
+		return {
+			id: getItemId(item),
+			project: item.project!,
+			currentVersion: item.version!,
+			versions:
+				compatible.length > 0
+					? compatible
+					: [
+							preferredVersion ?? {
+								id: preferredVersionId,
+								version_number: formatMessage(commonMessages.updateAvailableLabel),
+							},
+						],
+			initialVersionId: preferredVersionId,
+		}
+	})
+	loadingUpdateAll.value = false
+	if (failedToLoadVersions) {
+		addNotification({ type: 'error', title: formatMessage(messages.failedToLoadUpdates) })
 	}
+}
+
+function preloadUpdateAllChangelog(selection: UpdateAllSelection) {
+	if (selection.version.changelog != null) return
+	void queryClient.prefetchQuery({
+		queryKey: ['labrinth', 'version', 'v2', selection.version.id],
+		queryFn: () => client.labrinth.versions_v2.getVersion(selection.version.id),
+		staleTime: 5 * 60_000,
+	})
+}
+
+async function loadUpdateAllChangelog(selection: UpdateAllSelection) {
+	if (selection.version.changelog != null) return
+	const requestId = updateAllRequestId
+	loadingUpdateAllChangelog.value = true
+	try {
+		const version = await queryClient.fetchQuery({
+			queryKey: ['labrinth', 'version', 'v2', selection.version.id],
+			queryFn: () => client.labrinth.versions_v2.getVersion(selection.version.id),
+			staleTime: 5 * 60_000,
+		})
+		if (requestId !== updateAllRequestId) return
+		updateAllItems.value = updateAllItems.value.map((item) => ({
+			...item,
+			versions: item.versions.map((candidate) =>
+				candidate.id === version.id ? version : candidate,
+			),
+		}))
+	} catch (error) {
+		addNotification({
+			type: 'error',
+			title: formatMessage(messages.failedToLoadChangelog),
+			text: error instanceof Error ? error.message : undefined,
+		})
+	} finally {
+		if (requestId === updateAllRequestId) loadingUpdateAllChangelog.value = false
+	}
+}
+
+async function updateAllSelected(selections: UpdateAllSelection[]) {
+	if (
+		!ctx.bulkUpdateSelections ||
+		ctx.isBusy.value ||
+		isBulkOperating.value ||
+		selections.length === 0
+	)
+		return
+	++updateAllRequestId
+	isBulkOperating.value = true
+	bulkOperation.value = 'update'
+	bulkItemCount.value = selections.length
+	bulkTotal.value = selections.length
+	bulkProgress.value = 0
+	bulkUpdateItems.value = selections.flatMap((selection) => {
+		const item = ctx.items.value.find((item) => getItemId(item) === selection.id)
+		return item ? [item] : []
+	})
+	bulkWaiting.value = true
+	try {
+		await ctx.bulkUpdateSelections(selections, (completed) => {
+			bulkWaiting.value = false
+			bulkProgress.value = completed
+		})
+		clearSelection()
+	} catch {
+		return
+	} finally {
+		isBulkOperating.value = false
+		bulkOperation.value = null
+		bulkItemCount.value = 0
+		bulkTotal.value = 0
+		bulkProgress.value = 0
+		bulkUpdateItems.value = []
+		bulkWaiting.value = false
+	}
+}
+
+function promptUpdateAll() {
+	void openUpdateAll(ctx.items.value)
+}
+
+function cancelUpdateAll() {
+	++updateAllRequestId
+	loadingUpdateAll.value = false
+}
+
+function promptUpdateSelected() {
+	void openUpdateAll(selectedItems.value)
 }
 
 const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
@@ -936,19 +1051,19 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
 				/>
 
 				<template v-if="ctx.items.value.length > 0">
-					<div class="flex flex-col gap-4">
-						<span v-if="ctx.managedContent.value" class="text-xl font-semibold text-contrast">
+					<div class="flex flex-col gap-2">
+						<span v-if="ctx.managedContent.value" class="mb-2 text-xl font-semibold text-contrast">
 							{{ formatMessage(messages.additionalContent) }}
 						</span>
 
 						<div class="flex flex-wrap items-center gap-2">
-							<StyledInput
+							<Input
 								v-model="searchQuery"
 								:icon="SearchIcon"
 								type="text"
 								autocomplete="off"
 								:spellcheck="false"
-								input-class="!h-10"
+								size="medium"
 								wrapper-class="flex-1 min-w-0"
 								clearable
 								:placeholder="
@@ -956,7 +1071,7 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
 										count: tableItems.length,
 										contentType: formatContentTypeSentence(
 											formatMessage,
-											ctx.contentTypeLabel.value,
+											'project',
 											tableItems.length,
 										),
 									})
@@ -995,25 +1110,19 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
 						</div>
 
 						<div class="@container flex items-start gap-2">
-							<div ref="filterControlsRef" class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-								<div ref="projectTypeFiltersRef" class="flex items-center gap-2">
-									<TeleportOverflowMenu
-										class="!h-[34px] !text-sm !font-medium"
-										:icon-only="false"
-										:label="formatMessage(messages.sortByLabel, { mode: sortLabels[sortMode]() })"
-										:options="sortOptions"
-									>
-										<ArrowUpZAIcon v-if="sortMode === 'alphabetical-desc'" />
-										<ClockArrowDownIcon v-else-if="sortMode === 'date-added-newest'" />
-										<ClockArrowUpIcon v-else-if="sortMode === 'date-added-oldest'" />
-										<ArrowDownAZIcon v-else />
-										{{ sortLabels[sortMode]() }}
-										<DropdownIcon />
-									</TeleportOverflowMenu>
-									<div class="h-6 w-px shrink-0 bg-surface-5" />
+							<div
+								ref="filterControlsRef"
+								class="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2"
+							>
+								<ContentSortMenu v-model="sortMode" />
+								<div ref="filterPillsRef" class="relative min-w-0">
+									<div
+										class="absolute -left-2 top-[5px] h-6 w-px bg-surface-5"
+										:class="{ invisible: filterPillsWrapped }"
+									/>
 									<FilterPills
 										:model-value="selectedFilters"
-										:options="filterOptions"
+										:options="visibleFilterOptions"
 										@update:model-value="updateFilterChips"
 									>
 										<template #all>
@@ -1024,14 +1133,14 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
 								<div
 									v-if="metadataFilterCategories.length > 0"
 									ref="metadataFiltersRef"
-									class="flex flex-wrap items-center gap-1.5 [&>div:last-of-type]:!h-[34px] [&>div:last-of-type]:!gap-1.5 [&_[data-button]]:!h-[34px]"
+									class="relative flex flex-wrap items-center gap-1.5 [&>div:last-of-type]:!h-[34px] [&>div:last-of-type]:!gap-1.5 [&_[data-button]]:!h-[34px]"
 								>
 									<div
-										class="mr-0.5 h-6 w-px shrink-0 bg-surface-5"
+										class="absolute -left-2 top-[5px] h-6 w-px bg-surface-5"
 										:class="{ invisible: metadataFiltersWrapped }"
 									/>
 									<DropdownFilterBar
-										v-model="selectedMetadataFilters"
+										:model-value="selectedMetadataFilters"
 										:categories="metadataFilterCategories"
 										:show-label="false"
 										:add-label="formatMessage(messages.filter)"
@@ -1040,145 +1149,16 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
 										add-button-size="sm"
 										checkbox-position="right"
 										apply-immediately
+										@update:model-value="updateMetadataFilters"
 									>
-										<template #preview-content="{ category, selectedValues, label, summary }">
-											<div
-												v-if="category.key === 'author'"
-												class="flex min-w-0 flex-1 items-center gap-2"
-											>
-												<template v-if="selectedValues.length === 1">
-													<span
-														class="flex size-5 shrink-0 items-center justify-center overflow-hidden bg-surface-2 text-brand"
-														:class="
-															getMetadataFilterPreviewAuthor(selectedValues)?.type ===
-															'organization'
-																? 'rounded'
-																: 'rounded-full'
-														"
-													>
-														<Avatar
-															v-if="getMetadataFilterPreviewAuthor(selectedValues)?.avatar_url"
-															:src="getMetadataFilterPreviewAuthor(selectedValues)?.avatar_url"
-															size="100%"
-															:circle="
-																getMetadataFilterPreviewAuthor(selectedValues)?.type !==
-																'organization'
-															"
-															no-shadow
-															class="!border-0"
-														/>
-														<OrganizationIcon
-															v-else-if="
-																getMetadataFilterPreviewAuthor(selectedValues)?.type ===
-																'organization'
-															"
-															class="size-4"
-														/>
-														<UserIcon v-else class="size-4" />
-													</span>
-													<span class="min-w-0 truncate font-semibold text-contrast">
-														{{ getMetadataFilterPreviewAuthor(selectedValues)?.name ?? summary }}
-													</span>
-												</template>
-												<template v-else>
-													<span class="font-medium">{{ label }}:</span>
-													<div
-														class="relative h-5 shrink-0"
-														:style="{
-															width: `${getMetadataFilterPreviewAuthorStackWidth(selectedValues)}px`,
-														}"
-														aria-hidden="true"
-													>
-														<div
-															v-for="(value, index) in getMetadataFilterPreviewAuthorValues(
-																selectedValues,
-															)"
-															:key="value"
-															class="absolute top-0 flex size-5 items-center justify-center overflow-hidden border border-solid border-surface-3 bg-surface-4 text-brand"
-															:class="
-																isMetadataFilterOrganization(value) ? 'rounded' : 'rounded-full'
-															"
-															:style="{
-																left: `${index * metadataFilterPreviewAuthorOffset}px`,
-																zIndex:
-																	getMetadataFilterPreviewAuthorValues(selectedValues).length -
-																	index,
-															}"
-														>
-															<Avatar
-																v-if="getMetadataFilterAuthor(value)?.avatar_url"
-																:src="getMetadataFilterAuthor(value)?.avatar_url"
-																size="100%"
-																:circle="!isMetadataFilterOrganization(value)"
-																no-shadow
-																class="!border-0"
-															/>
-															<OrganizationIcon
-																v-else-if="isMetadataFilterOrganization(value)"
-																class="size-3.5"
-															/>
-															<UserIcon v-else class="size-3.5" />
-														</div>
-														<div
-															v-if="getMetadataFilterPreviewAuthorOverflow(selectedValues) > 0"
-															class="absolute top-0 flex size-5 items-center justify-center rounded-full border border-solid border-surface-3 bg-surface-4 text-[10px] font-bold text-contrast"
-															:style="{
-																left: `${getMetadataFilterPreviewAuthorValues(selectedValues).length * metadataFilterPreviewAuthorOffset}px`,
-															}"
-														>
-															+{{ getMetadataFilterPreviewAuthorOverflow(selectedValues) }}
-														</div>
-													</div>
-													<span class="min-w-0 truncate font-semibold text-contrast">
-														{{
-															formatMessage(messages.authorCount, { count: selectedValues.length })
-														}}
-													</span>
-												</template>
-											</div>
-											<span v-else class="min-w-0 flex-1 truncate">
+										<template #preview-content="{ label, summary }">
+											<span class="min-w-0 flex-1 truncate">
 												<span class="font-medium">{{ label }}:</span>
 												<span class="ml-1 font-semibold text-contrast">{{ summary }}</span>
 											</span>
 										</template>
-										<template #option="{ category, option, selected }">
-											<div
-												v-if="category.key === 'author'"
-												class="flex min-w-0 flex-1 items-center gap-2"
-											>
-												<span
-													v-tooltip="option.label"
-													class="flex size-6 shrink-0 items-center justify-center overflow-hidden bg-surface-2 text-secondary"
-													:class="
-														getMetadataFilterAuthor(option.value)?.type === 'organization'
-															? 'rounded'
-															: 'rounded-full'
-													"
-												>
-													<img
-														v-if="getMetadataFilterAuthor(option.value)?.avatar_url"
-														:src="getMetadataFilterAuthor(option.value)?.avatar_url"
-														:alt="option.label"
-														class="size-full object-cover"
-													/>
-													<OrganizationIcon
-														v-else-if="
-															getMetadataFilterAuthor(option.value)?.type === 'organization'
-														"
-														class="size-5"
-													/>
-													<UserIcon v-else class="size-5" />
-												</span>
-												<span
-													v-tooltip="option.label"
-													class="min-w-0 truncate font-semibold leading-tight"
-													:class="selected ? 'text-contrast' : 'text-primary'"
-												>
-													{{ option.label }}
-												</span>
-											</div>
+										<template #option="{ option, selected }">
 											<span
-												v-else
 												class="min-w-0 truncate font-semibold leading-tight"
 												:class="selected ? 'text-contrast' : 'text-primary'"
 											>
@@ -1194,9 +1174,9 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
 									v-if="hasBulkUpdateSupport && hasOutdatedProjects"
 									v-tooltip="formatMessage(messages.updateAll)"
 									type="quiet"
-									color="green"
-									:disabled="isBulkOperating"
-									class="!text-sm !font-medium hover:!bg-green focus-visible:!bg-green hover:!text-[var(--color-accent-contrast)] focus-visible:!text-[var(--color-accent-contrast)]"
+									color="brand"
+									:disabled="isBulkOperating || loadingUpdateAll"
+									class="!text-sm !font-medium hover:!bg-brand focus-visible:!bg-brand hover:!text-[var(--color-accent-contrast)] focus-visible:!text-[var(--color-accent-contrast)]"
 									@click="promptUpdateAll"
 								>
 									<DownloadIcon />
@@ -1217,9 +1197,13 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
 
 						<ContentCardTable
 							v-model:selected-ids="selectedIds"
+							class="mt-2"
 							:items="tableItems"
+							:highlighted-item-id="highlightedItemId"
 							:show-selection="true"
+							:show-enabled-for-column="!!ctx.setEnabledFor"
 							@update:enabled="handleToggleEnabledById"
+							@update:enabled-for="handleSetEnabledForById"
 							@delete="handleDeleteById"
 							@update="handleUpdateById"
 							@switch-version="handleSwitchVersionById"
@@ -1289,7 +1273,8 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
 		</template>
 
 		<ContentSelectionBar
-			:selected-items="selectedItems"
+			v-if="!ctx.bulkUpdatesInBackground || bulkOperation !== 'update'"
+			:selected-items="bulkOperation === 'update' ? bulkUpdateItems : selectedItems"
 			:content-type-label="ctx.contentTypeLabel.value"
 			:is-busy="ctx.isBusy.value"
 			:busy-tooltip="ctx.busyMessage?.value"
@@ -1312,8 +1297,9 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
 					v-if="hasBulkUpdateSupport && selectedItems.some((m) => m.has_update && !m.locked)"
 					v-tooltip="formatMessage(commonMessages.updateButton)"
 					type="quiet"
-					color="green"
-					class="hover:!bg-green focus-visible:!bg-green hover:!text-[var(--color-accent-contrast)] focus-visible:!text-[var(--color-accent-contrast)]"
+					color="brand"
+					:disabled="loadingUpdateAll"
+					class="hover:!bg-brand focus-visible:!bg-brand hover:!text-[var(--color-accent-contrast)] focus-visible:!text-[var(--color-accent-contrast)]"
 					@click="promptUpdateSelected"
 				>
 					<DownloadIcon />
@@ -1418,14 +1404,18 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
 			:action-disabled-tooltip="ctx.busyMessage?.value ?? undefined"
 			@delete="confirmDependencyWarningDelete"
 		/>
-		<ConfirmBulkUpdateModal
+		<UpdateAllModal
 			v-if="hasBulkUpdateSupport"
-			ref="confirmBulkUpdateModal"
-			:count="pendingBulkUpdateItems.length"
+			ref="updateAllModal"
+			:items="updateAllItems"
 			:server="ctx.deletionContext === 'server'"
+			:loading="loadingUpdateAll"
+			:loading-changelog="loadingUpdateAllChangelog"
 			:action-disabled="ctx.isBusy.value"
-			:action-disabled-tooltip="ctx.busyMessage?.value ?? undefined"
-			@update="confirmBulkUpdate"
+			@changelog="loadUpdateAllChangelog"
+			@preload-changelog="preloadUpdateAllChangelog"
+			@cancel="cancelUpdateAll"
+			@update="updateAllSelected"
 		/>
 		<ConfirmUnlinkModal
 			v-if="ctx.unlinkModpack"

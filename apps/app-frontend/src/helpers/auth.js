@@ -13,17 +13,12 @@ import { invoke } from '@tauri-apps/api/core'
 //   await authenticate_await_completion()
 // }
 
-// This code function is modified by AstralRinth
-export async function offline_login(name) {
-  return await invoke('plugin:auth|offline_login', { name: name })
-}
-
 /**
  * Check if the authentication servers are reachable, throwing an exception if
  * not reachable.
  */
-export async function check_reachable() {
-	await invoke('plugin:auth|check_reachable')
+export async function check_reachable(accountType) {
+	await invoke('plugin:auth|check_reachable', { accountType })
 }
 
 /**
@@ -68,4 +63,8 @@ export async function remove_user(user) {
  */
 export async function users() {
 	return await invoke('plugin:auth|get_users')
+}
+
+export async function offline_login(name) {
+	return await invoke('plugin:auth|offline_login', { name })
 }

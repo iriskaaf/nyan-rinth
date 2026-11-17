@@ -1,0 +1,42 @@
+{
+	"name": "Bug report",
+	"description": "Report a reproducible problem in NyanRinth",
+	"body": [
+		{
+			"type": "input",
+			"id": "version",
+			"attributes": {
+				"label": "NyanRinth version"
+			},
+			"validations": {
+				"required": true
+			}
+		},
+		{
+			"type": "input",
+			"id": "environment",
+			"attributes": {
+				"label": "Windows, Minecraft and loader versions"
+			}
+		},
+		{
+			"type": "textarea",
+			"id": "reproduce",
+			"attributes": {
+				"label": "Steps to reproduce",
+				"description": "Describe what you did, what you expected and what happened. Russian and English reports are welcome."
+			},
+			"validations": {
+				"required": true
+			}
+		},
+		{
+			"type": "textarea",
+			"id": "logs",
+			"attributes": {
+				"label": "Logs or screenshots",
+				"description": "Review attachments first. Do not include passwords, cookies, tokens or your launcher database."
+			}
+		}
+	]
+}

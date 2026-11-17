@@ -1,6 +1,7 @@
 use crate::state::instances::{
-    ContentSet, Instance, InstanceIconConfig, InstanceLaunchOverrides,
-    InstanceLink, SharedInstanceAttachment, adapters::sqlite::instance_rows,
+    ContentSet, IconConfig, Instance, InstanceLaunchOverrides, InstanceLink,
+    InstanceSyncedOptions, SharedInstanceAttachment,
+    adapters::sqlite::instance_rows,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -9,13 +10,15 @@ use sqlx::SqlitePool;
 pub struct InstanceMetadata {
     pub instance: Instance,
     #[serde(default)]
-    pub icon_config: Option<InstanceIconConfig>,
+    pub icon_config: Option<IconConfig>,
     pub applied_content_set: ContentSet,
     pub link: InstanceLink,
     pub shared_instance: Option<SharedInstanceAttachment>,
     #[serde(default)]
     pub quarantined: bool,
     pub group_ids: Vec<String>,
+    #[serde(default)]
+    pub synced_options: InstanceSyncedOptions,
     pub launch_overrides: InstanceLaunchOverrides,
 }
 
@@ -87,6 +90,7 @@ fn instance_metadata(
         shared_instance: record.shared_instance,
         quarantined,
         group_ids: record.group_ids,
+        synced_options: record.synced_options,
         launch_overrides: record.launch_overrides,
     }
 }

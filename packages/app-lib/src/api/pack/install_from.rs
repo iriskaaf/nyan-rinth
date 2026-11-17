@@ -1,4 +1,3 @@
-use crate::State;
 use crate::data::ModLoader;
 use crate::event::LoadingBarType;
 use crate::event::emit::{emit_loading, init_loading};
@@ -8,14 +7,15 @@ use crate::install::{
 };
 use crate::state::{
     AppliedContentSetPatch, CacheBehaviour, CachedEntry, ContentSourceKind,
-    EditInstance, InstanceInstallStage, InstanceLink, SideType,
+    DirectoryInfo, EditInstance, InstanceInstallStage, InstanceLink, SideType,
 };
 use crate::util::fetch::{
     DownloadMeta, DownloadReason, FetchProgressFn, fetch,
-    fetch_advanced_with_progress, sha1_file_async_with_progress,
+    sha1_file_async_with_progress,
 };
+use crate::{ErrorKind, State};
+use anyhow::bail;
 use path_util::SafeRelativeUtf8UnixPathBuf;
-use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::future::Future;
@@ -143,6 +143,7 @@ impl Default for CreatePackInstance {
 #[derive(Clone)]
 pub enum CreatePackFile {
     Bytes(bytes::Bytes),
+    Downloaded(crate::util::fetch::DownloadedFile),
     // Local packs can be larger than available memory, so keep them file-backed.
     Path(PathBuf),
 }
@@ -317,11 +318,9 @@ pub(crate) async fn generate_pack_from_version_id_with_reporter(
         &state.api_semaphore,
     )
     .await?
-    .ok_or_else(|| {
-        crate::ErrorKind::InputError(
-            "Invalid version ID specified!".to_string(),
-        )
-    })?;
+    .ok_or(ErrorKind::InputError(
+        "invalid version ID specified".to_string(),
+    ))?;
 
     // Update instance with correct loader and game version from the API version metadata,
     // so the UI shows accurate info while the pack file is still downloading.
@@ -357,20 +356,13 @@ pub(crate) async fn generate_pack_from_version_id_with_reporter(
                 .first()
                 .map(|file| (file.url.clone(), file.hashes.get("sha1")))
         }
-        .ok_or_else(|| {
-            crate::ErrorKind::InputError(
-                "Specified version has no files".to_string(),
-            )
-        })?;
+        .ok_or(ErrorKind::InputError(
+            "specified version has no files".to_string(),
+        ))?;
 
-    let metadata =
-        crate::api::instance::get(&instance_id)
-            .await?
-            .ok_or_else(|| {
-                crate::ErrorKind::InputError(format!(
-                    "Unknown instance {instance_id}"
-                ))
-            })?;
+    let metadata = crate::api::instance::get(&instance_id).await?.ok_or(
+        ErrorKind::InputError(format!("unknown instance {instance_id}")),
+    )?;
 
     let download_meta = DownloadMeta {
         reason,
@@ -423,17 +415,21 @@ pub(crate) async fn generate_pack_from_version_id_with_reporter(
         .version_id(version_id.clone())
         .build();
     reporter.set_context(context).await?;
-    let file = fetch_advanced_with_progress(
-        Method::GET,
-        &url,
-        hash.map(|x| &**x),
-        None,
-        None,
+    let file = crate::util::fetch::fetch_content_file(
+        &state,
+        &[&url],
+        version
+            .files
+            .iter()
+            .find(|file| file.url == url)
+            .and_then(|file| file.hashes.get("sha512"))
+            .map(String::as_str),
+        version
+            .files
+            .iter()
+            .find(|file| file.url == url)
+            .map(|file| u64::from(file.size)),
         Some(&download_meta),
-        None,
-        None,
-        &state.fetch_semaphore,
-        &state.pool,
         progress,
     )
     .await?;
@@ -478,7 +474,7 @@ pub(crate) async fn generate_pack_from_version_id_with_reporter(
     }
 
     Ok(CreatePack {
-        file: CreatePackFile::Bytes(file),
+        file: CreatePackFile::Downloaded(file),
         description: CreatePackDescription {
             icon,
             override_title: Some(title),
@@ -499,8 +495,15 @@ pub async fn generate_pack_from_file(
     let source_filename =
         path.file_name().map(|x| x.to_string_lossy().to_string());
 
+    let state = State::get().await?;
+    let stored_file = state.content_store.store_file(&path).await?;
     Ok(CreatePack {
-        file: CreatePackFile::Path(path),
+        file: CreatePackFile::Downloaded(
+            crate::util::fetch::DownloadedFile::from_stored_file(
+                stored_file,
+                true,
+            ),
+        ),
         description: CreatePackDescription {
             icon: None,
             override_title: None,
@@ -521,6 +524,7 @@ pub async fn set_instance_information(
     pack_version_id: Option<&str>,
     dependencies: &HashMap<PackDependency, String>,
     _ignore_lock: bool,
+    directories: &DirectoryInfo,
 ) -> crate::Result<()> {
     let mut game_version: Option<&String> = None;
     let mut mod_loader = None;
@@ -549,10 +553,9 @@ pub async fn set_instance_information(
     }
 
     let Some(game_version) = game_version else {
-        return Err(crate::ErrorKind::InputError(
-            "Pack did not specify Minecraft version".to_string(),
-        )
-        .into());
+        bail!(ErrorKind::InputError(
+            "pack did not specify Minecraft version".to_string(),
+        ));
     };
 
     let mod_loader = mod_loader.unwrap_or(ModLoader::Vanilla);
@@ -561,6 +564,7 @@ pub async fn set_instance_information(
             game_version,
             mod_loader,
             loader_version.cloned().as_deref(),
+            directories,
         )
         .await?
     } else {
@@ -619,12 +623,17 @@ pub async fn set_instance_information(
         &instance_id,
         EditInstance {
             install_stage: Some(InstanceInstallStage::PackInstalling),
-            name: Some(
-                description
-                    .override_title
-                    .clone()
-                    .unwrap_or_else(|| backup_name.to_string()),
-            ),
+            name: if matches!(&link, Some(InstanceLink::SharedInstance { .. }))
+            {
+                None
+            } else {
+                Some(
+                    description
+                        .override_title
+                        .clone()
+                        .unwrap_or_else(|| backup_name.to_string()),
+                )
+            },
             icon_path: description
                 .icon
                 .as_ref()

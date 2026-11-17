@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
-const cache = new Map<string, { head: string; expires: number }>()
+const cache = new Map<string, { head: string | null; expires: number }>()
+const inFlight = new Map<string, Promise<string | null>>()
 
 export async function skinTextureHead(texture: string): Promise<string> {
 	const image = new Image()

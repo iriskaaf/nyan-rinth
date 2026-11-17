@@ -48,9 +48,9 @@
 		<div class="flex flex-col gap-4 p-6">
 			<div
 				v-if="projectInstallContext"
-				class="sticky top-0 z-20 -mx-6 -mt-6 rounded-tl-[--radius-xl] border-0 border-b border-solid bg-surface-1 px-3 py-4 border-surface-5"
+				class="sticky top-0 z-20 -mx-6 -mt-6 rounded-tl-[--radius-xl] border-0 border-b border-solid bg-surface-1 px-6 py-4 border-surface-5"
 			>
-				<BrowseInstallHeader :install-context="projectInstallContext" />
+				<BrowseInstallHeader :install-context="projectHeaderInstallContext" />
 			</div>
 			<InstanceIndicator v-if="instance && !projectInstallContext" :instance="instance" />
 			<template v-if="data">
@@ -191,7 +191,7 @@
 					]"
 				/>
 				<RouterView
-					v-if="route.path.startsWith('/project')"
+					:route="displayedProjectRoute"
 					:project="data"
 					:versions="versions"
 					:members="members"
@@ -200,6 +200,11 @@
 					:installed="installed"
 					:installing="installing"
 					:installed-version="installedVersion"
+					:server-install-context="serverProjectInstallContext"
+					:server-installed="serverProjectInstalled"
+					:server-selected-version-id="serverSelectedVersionId"
+					:loader-tags="allLoaders ?? []"
+					:game-version-tags="allGameVersions ?? []"
 				/>
 			</template>
 			<template v-else>{{ formatMessage(messages.loadError) }}</template>
@@ -208,19 +213,16 @@
 			v-if="projectInstallContext"
 			:install-context="projectInstallContext"
 		/>
-		<ContextMenu ref="options" @option-clicked="handleOptionsClick">
-			<template #install>
-				<DownloadIcon /> {{ formatMessage(commonMessages.installButton) }}
-			</template>
-			<template #open_link>
-				<GlobeIcon /> {{ formatMessage(commonMessages.openInModrinthButton) }} <ExternalIcon />
-			</template>
-			<template #copy_link>
-				<ClipboardCopyIcon /> {{ formatMessage(commonMessages.copyLinkButton) }}
+		<ContextMenu ref="options" :label="formatMessage(messages.projectActionsLabel)">
+			<template #open_link="{ option }">
+				<GlobeIcon /> {{ option.label }} <ExternalIcon />
 			</template>
 		</ContextMenu>
 		<CreationFlowModal
-			v-if="serverInstallContent.isServerContext.value && data?.project_type === 'modpack'"
+			v-if="
+				serverInstallContent.isServerContext.value &&
+				serverInstallContent.serverFlowFrom.value !== 'onboarding'
+			"
 			ref="serverSetupModalRef"
 			:type="
 				serverInstallContent.serverFlowFrom.value === 'reset-server'
@@ -230,10 +232,9 @@
 			:available-loaders="['vanilla', 'fabric', 'neoforge', 'forge', 'quilt', 'paper', 'purpur']"
 			:show-snapshot-toggle="true"
 			:on-back="serverInstallContent.onServerFlowBack"
-			:search-modpacks="serverInstallContent.searchServerModpacks"
 			:get-project-versions="serverInstallContent.getServerProjectVersions"
 			:get-loader-manifest="getLoaderManifest"
-			@hide="() => {}"
+			@hide="serverInstallContent.onServerFlowHide"
 			@browse-modpacks="() => {}"
 			@create="serverInstallContent.handleServerModpackFlowCreate"
 		/>
@@ -260,6 +261,7 @@ import {
 	BrowseInstallHeader,
 	Button,
 	commonMessages,
+	ContextMenu,
 	CreationFlowModal,
 	defineMessages,
 	getTargetInstallPreferences,
@@ -287,14 +289,10 @@ import { computed, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { SwapIcon } from '@/assets/icons/index.js'
-import ContextMenu from '@/components/ui/context-menu/index.vue'
 import InstanceIndicator from '@/components/ui/InstanceIndicator.vue'
-import {
-	fetchCachedServerStatus,
-	getFreshCachedServerStatus,
-} from '@/composables/instances/use-server-status-query'
 import { useAppEvent } from '@/composables/use-app-event'
 import { useAppSettings } from '@/composables/use-app-settings.ts'
+import { fetchCachedServerStatus, getFreshCachedServerStatus } from '@/features/servers/queries'
 import {
 	get_organization,
 	get_project,
@@ -314,10 +312,10 @@ import { get_loader_versions as getLoaderManifest } from '@/helpers/metadata'
 import { get_by_instance_id } from '@/helpers/process'
 import { get_categories, get_game_versions, get_loaders } from '@/helpers/tags'
 import { getServerAddress } from '@/helpers/worlds'
-import { provideBreadcrumbParent, useBreadcrumb } from '@/providers/breadcrumbs'
+import { useServerInstallContent } from '@/platform/adapters/browse/server-install-content'
 import { injectContentInstall } from '@/providers/content-install'
 import { injectServerInstall } from '@/providers/server-install'
-import { createServerInstallContent } from '@/providers/setup/server-install-content'
+import { provideBreadcrumbParent, useBreadcrumb } from '@/shared/breadcrumbs'
 
 dayjs.extend(relativeTime)
 
@@ -325,6 +323,7 @@ const { handleError } = injectNotificationManager()
 const { install: installVersion } = injectContentInstall()
 const route = useRoute()
 const router = useRouter()
+
 const displayedProjectRoute = shallowRef(router.currentRoute.value)
 watch(
 	() => router.currentRoute.value,
@@ -353,6 +352,7 @@ const { formatMessage } = useVIntl()
 
 const messages = defineMessages({
 	moreOptions: { id: 'app.project.more-options', defaultMessage: 'More options' },
+	projectActionsLabel: { id: 'app.project.actions.label', defaultMessage: 'Project actions' },
 	descriptionTab: { id: 'app.project.tab.description', defaultMessage: 'Description' },
 	versionsTab: { id: 'app.project.tab.versions', defaultMessage: 'Versions' },
 	galleryTab: { id: 'app.project.tab.gallery', defaultMessage: 'Gallery' },
@@ -437,7 +437,10 @@ const serverStatusOnline = ref(false)
 const serverInstancePath = ref(null)
 const serverPlaying = ref(false)
 const serverSetupModalRef = ref(null)
-const serverInstallContent = createServerInstallContent({ serverSetupModalRef })
+const serverInstallContent = useServerInstallContent({
+	serverSetupModalRef,
+	inheritBreadcrumbServer: true,
+})
 
 serverInstallContent.watchServerContextChanges()
 await serverInstallContent.initServerContext()
@@ -476,7 +479,7 @@ function buildProjectHref(path, extraQuery = {}) {
 function buildBrowseHref(path) {
 	const params = new URLSearchParams()
 	for (const [key, val] of Object.entries(route.query)) {
-		if (key === 'b') continue
+		if (key === 'b' || key === 'g' || key === 'l') continue
 		if (Array.isArray(val)) {
 			for (const v of val) params.append(key, v)
 		} else if (val) {
@@ -496,6 +499,7 @@ const projectGalleryHref = computed(() => buildProjectHref(`/project/${route.par
 const projectBrowseBackUrl = computed(() => {
 	const browsePath = route.query.b
 	if (typeof browsePath === 'string' && browsePath.startsWith('/browse/')) return browsePath
+	if (serverInstallContent.isServerContext.value) return serverInstallContent.serverBackUrl.value
 	const instanceId = route.query.i
 	if (typeof instanceId === 'string' && instanceId) {
 		return `/instance/${encodeURIComponent(instanceId)}`
@@ -503,19 +507,21 @@ const projectBrowseBackUrl = computed(() => {
 	const type = data.value?.project_type ? `${data.value.project_type}` : 'mod'
 	return buildBrowseHref(`/browse/${type}`)
 })
-const projectBackLabel = computed(() =>
-	typeof route.query.i === 'string' && typeof route.query.b !== 'string'
+const projectBackLabel = computed(() => {
+	if (typeof route.query.b === 'string') return formatMessage(messages.backToBrowse)
+	if (serverInstallContent.isServerContext.value) return serverInstallContent.serverBackLabel.value
+	return typeof route.query.i === 'string'
 		? formatMessage(messages.backToInstance)
-		: formatMessage(messages.backToBrowse),
-)
+		: formatMessage(messages.backToBrowse)
+})
 
 const projectInstallContext = computed(() => {
 	const serverData = serverInstallContent.serverContextServerData.value
 	if (serverData) {
 		return {
 			name: serverData.name,
-			loader: serverData.loader ?? '',
-			gameVersion: serverData.mc_version ?? '',
+			loader: serverInstallContent.serverContextPlatform.value.loader ?? '',
+			gameVersion: serverInstallContent.serverContextPlatform.value.gameVersion ?? '',
 			serverId: serverInstallContent.serverIdQuery.value,
 			upstream: serverData.upstream,
 			iconSrc: null,
@@ -549,22 +555,50 @@ const projectInstallContext = computed(() => {
 	return null
 })
 
+/**
+ * Going back from a project returns to browse, where the selection is still shown, so the header
+ * skips the "selected projects not installed yet" prompt that would otherwise leave to the server.
+ */
+const projectHeaderInstallContext = computed(() => {
+	const context = projectInstallContext.value
+	if (!context) return null
+	return {
+		...context,
+		selectedProjects: [],
+		isInstallingSelected: false,
+	}
+})
+
 const serverProjectInstallContext = computed(
 	() =>
 		!!serverInstallContent.serverContextServerData.value &&
-		['modpack', 'mod', 'plugin', 'datapack'].includes(data.value?.project_type),
+		['modpack', 'mod', 'plugin', 'datapack', 'resourcepack', 'shader'].includes(
+			data.value?.project_type,
+		),
 )
 const serverProjectSelected = computed(
-	() => !!data.value && serverInstallContent.queuedServerInstallProjectIds.value.has(data.value.id),
+	() =>
+		!serverInstallContent.isSetupServerContext.value &&
+		!!data.value &&
+		serverInstallContent.queuedServerInstallProjectIds.value.has(data.value.id),
 )
 const serverProjectInstalled = computed(
 	() =>
+		!serverInstallContent.isSetupServerContext.value &&
 		!!data.value &&
 		(serverInstallContent.serverContentProjectIds.value.has(data.value.id) ||
 			serverInstallContent.serverContextServerData.value?.upstream?.project_id === data.value.id),
 )
+const serverSelectedVersionId = computed(() =>
+	serverProjectInstallContext.value && serverProjectSelected.value
+		? (serverInstallContent.getQueuedServerInstallPlans().get(data.value.id)?.versionId ?? null)
+		: null,
+)
 const installButtonLoading = computed(
-	() => installing.value || serverInstallContent.isInstallingQueuedServerInstalls.value,
+	() =>
+		installing.value ||
+		serverInstallContent.isInstallingQueuedServerInstalls.value ||
+		serverInstallContent.activeServerModpackInstallProjectId.value === data.value?.id,
 )
 const installButtonValidating = computed(
 	() =>
@@ -871,18 +905,25 @@ async function install(version) {
 					icon_url: data.value.icon_url,
 				},
 				contentType,
-				mode: contentType === 'modpack' ? 'immediate' : 'queue',
+				mode:
+					contentType === 'modpack' || serverInstallContent.isSetupServerContext.value
+						? 'immediate'
+						: 'queue',
 				selectedFilters: [],
 				providedFilters: [],
 				overriddenProvidedFilterTypes: [],
-				targetPreferences: getTargetInstallPreferences(
-					{
-						gameVersion: serverInstallContent.serverContextServerData.value?.mc_version,
-						loader: serverInstallContent.serverContextServerData.value?.loader,
-					},
-					contentType,
-				),
-				getProjectVersions: async () => versions.value,
+				targetPreferences: serverInstallContent.isSetupServerContext.value
+					? {}
+					: getTargetInstallPreferences(
+							{
+								gameVersion: serverInstallContent.serverContextPlatform.value.gameVersion,
+								loader: serverInstallContent.serverContextPlatform.value.loader,
+							},
+							contentType,
+						),
+				updateChannel: version ? undefined : await serverInstallContent.getServerUpdateChannel(),
+				getProjectVersions: async () =>
+					version ? versions.value.filter((candidate) => candidate.id === version) : versions.value,
 				queue: {
 					get: serverInstallContent.getQueuedServerInstallPlans,
 					set: serverInstallContent.setQueuedServerInstallPlans,
@@ -890,6 +931,7 @@ async function install(version) {
 				install: (plan) =>
 					serverInstallContent.openServerModpackInstallFlow({
 						projectId: plan.projectId,
+						contentType: plan.contentType,
 						versionId: plan.versionId,
 						name: plan.project.title ?? plan.project.name ?? data.value.title,
 						iconUrl: plan.project.icon_url ?? undefined,
@@ -926,36 +968,32 @@ async function install(version) {
 
 const options = ref(null)
 const handleRightClick = (event) => {
-	options.value.showMenu(event, data.value, [
+	const project = data.value
+	options.value.open(event, [
 		{
-			name: 'install',
+			id: 'install',
+			label: formatMessage(commonMessages.installButton),
+			icon: DownloadIcon,
+			action: () => install(null),
+		},
+		{ type: 'divider' },
+		{
+			id: 'open_link',
+			label: formatMessage(commonMessages.openInModrinthButton),
+			icon: GlobeIcon,
+			action: () => openProjectLink(project),
 		},
 		{
-			type: 'divider',
-		},
-		{
-			name: 'open_link',
-		},
-		{
-			name: 'copy_link',
+			id: 'copy_link',
+			label: formatMessage(commonMessages.copyLinkButton),
+			icon: ClipboardCopyIcon,
+			action: () => copyProjectLink(project),
 		},
 	])
 }
-const handleOptionsClick = (args) => {
-	switch (args.option) {
-		case 'install':
-			install(null)
-			break
-		case 'open_link':
-			openUrl(`https://modrinth.com/${args.item.project_type}/${args.item.slug}`)
-			break
-		case 'copy_link':
-			navigator.clipboard.writeText(
-				`https://modrinth.com/${args.item.project_type}/${args.item.slug}`,
-			)
-			break
-	}
-}
+const getProjectLink = (project) => `https://modrinth.com/${project.project_type}/${project.slug}`
+const openProjectLink = (project) => openUrl(getProjectLink(project))
+const copyProjectLink = (project) => navigator.clipboard.writeText(getProjectLink(project))
 </script>
 
 <style scoped lang="scss">

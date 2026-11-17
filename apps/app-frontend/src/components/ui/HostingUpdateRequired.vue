@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { DownloadIcon, ExcitedRinthbot, RefreshCwIcon, ServerStackIcon } from '@modrinth/assets'
-import { Button, commonMessages, defineMessages, useVIntl } from '@modrinth/ui'
+import { Button, defineMessages, useVIntl } from '@modrinth/ui'
 import { computed } from 'vue'
 
 import {
@@ -8,18 +8,18 @@ import {
 	downloadAvailableAppUpdate,
 	installAvailableAppUpdate,
 } from '@/providers/app-update'
-import { useRootBreadcrumb } from '@/providers/breadcrumbs'
+import { useRootBreadcrumb } from '@/shared/breadcrumbs'
 
 const { formatMessage } = useVIntl()
 
 const messages = defineMessages({
 	title: {
 		id: 'app.hosting.update-required.title',
-		defaultMessage: 'NyanRinth update required',
+		defaultMessage: 'Modrinth App update required',
 	},
 	description: {
 		id: 'app.hosting.update-required.description',
-		defaultMessage: 'You need to update to use Modrinth Hosting through the NyanRinth',
+		defaultMessage: 'You need to update to use Modrinth Hosting through the Modrinth App',
 	},
 	downloadToUpdate: {
 		id: 'app.hosting.update-required.download',
@@ -42,7 +42,7 @@ const messages = defineMessages({
 useRootBreadcrumb({
 	slot: 'root',
 	id: 'servers',
-	label: () => formatMessage(commonMessages.serversLabel),
+	label: 'Hosting',
 	to: '/hosting/manage/',
 	visual: { type: 'icon', component: ServerStackIcon },
 })

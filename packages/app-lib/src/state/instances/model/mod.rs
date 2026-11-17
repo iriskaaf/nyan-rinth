@@ -15,6 +15,10 @@ pub use self::content_set_sync_state::*;
 mod file;
 pub use self::file::*;
 
+mod game_options;
+pub use self::game_options::{CanonicalValue, GameOptionKind};
+pub(crate) use self::game_options::{StoredOption, StoredPreference};
+
 mod instance;
 pub use self::instance::*;
 
@@ -33,5 +37,5 @@ mod update_check;
 pub use self::update_check::*;
 
 fn unknown_value(kind: &str, value: &str) -> crate::Error {
-    crate::ErrorKind::InputError(format!("Unknown {kind} {value}")).into()
+    crate::ErrorKind::InputError(format!("unknown {kind} {value}")).into()
 }

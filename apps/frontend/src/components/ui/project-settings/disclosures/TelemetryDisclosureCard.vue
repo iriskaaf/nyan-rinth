@@ -7,8 +7,8 @@ import {
 	defineMessages,
 	disclosureTelemetryConsentMessages,
 	IconButton,
+	Input,
 	SettingsFormGroup,
-	StyledInput,
 	useVIntl,
 } from '@modrinth/ui'
 import { watch } from 'vue'
@@ -70,6 +70,7 @@ watch(
 			model.value.entries = ['']
 		}
 	},
+	{ immediate: true },
 )
 
 function addEntry() {
@@ -87,8 +88,9 @@ function removeEntry(index: number) {
 		v-bind="props"
 		v-model="model.enabled"
 		:icon="RadioTowerIcon"
-		:title="formatMessage(messages.title)"
+		:title="props.title ?? formatMessage(messages.title)"
 		:description="formatMessage(messages.description)"
+		info-link="https://support.modrinth.com/en/articles/16567675#h_490dcf364b"
 		@set-lock-status="emit('setLockStatus', $event)"
 	>
 		<template #expanded>
@@ -107,7 +109,7 @@ function removeEntry(index: number) {
 				:description="formatMessage(messages.dataDescription)"
 			>
 				<div v-for="(_, index) in model.entries" :key="index" class="flex items-center gap-2">
-					<StyledInput
+					<Input
 						v-model="model.entries[index]"
 						class="min-w-0 flex-1"
 						:disabled="disabled"

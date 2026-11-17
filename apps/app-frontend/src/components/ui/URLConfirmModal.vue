@@ -1,8 +1,5 @@
 <script setup>
-import { nyanMessages } from '@/helpers/ui-messages'
-import { useVIntl } from '@modrinth/ui'
-
-import { Button, injectNotificationManager, IntlFormatted, ProjectCard } from '@modrinth/ui'
+import { Button, injectNotificationManager, ProjectCard } from '@modrinth/ui'
 import { ref } from 'vue'
 
 import ModalWrapper from '@/components/ui/modal/ModalWrapper.vue'
@@ -45,15 +42,10 @@ async function install() {
 		() => {},
 	).catch(handleError)
 }
-
-const { formatMessage } = useVIntl()
 </script>
 
 <template>
-	<ModalWrapper
-		ref="confirmModal"
-		:header="formatMessage(nyanMessages.installNamed, { name: project?.name ?? '' })"
-	>
+	<ModalWrapper ref="confirmModal" :header="`Install ${project?.name}`">
 		<div class="modal-body">
 			<ProjectCard
 				:title="project.name"
@@ -73,20 +65,11 @@ const { formatMessage } = useVIntl()
 			<div class="button-row">
 				<div class="markdown-body">
 					<p>
-						<IntlFormatted
-							:message-id="nyanMessages.installVersion"
-							:values="{ version: version.id }"
-						>
-							<template #code="{ children }"
-								><code><component :is="() => children" /></code
-							></template>
-						</IntlFormatted>
+						Installing <code>{{ version.id }}</code> from Modrinth
 					</p>
 				</div>
 				<div class="button-group">
-					<Button type="colored" color="brand" @click="install">
-						{{ formatMessage(nyanMessages.install) }}
-					</Button>
+					<Button type="colored" color="brand" @click="install">Install</Button>
 				</div>
 			</div>
 		</div>

@@ -22,9 +22,12 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
             install_create_modpack_instance,
             install_get_shared_instance_preview,
             install_accept_shared_instance_invite,
+            install_get_shared_instance_invite_preview,
+            install_accept_pending_shared_instance_invite,
             install_get_shared_instance_update_preview,
             install_shared_instance,
             install_update_shared_instance,
+            install_bulk_update_content,
             install_import_instance,
             install_duplicate_instance,
             install_existing_instance,
@@ -32,6 +35,8 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
             install_job_list,
             install_job_get,
             install_job_retry,
+            install_job_pause,
+            install_job_resume,
             install_job_cancel,
             install_job_dismiss,
             install_job_support_details,
@@ -47,7 +52,7 @@ pub struct InstallCreateInstanceRequest {
     pub loader: ModLoader,
     pub loader_version: Option<String>,
     pub icon_path: Option<String>,
-    pub icon_config: Option<theseus::data::InstanceIconConfig>,
+    pub icon_config: Option<theseus::data::IconConfig>,
     pub link: Option<InstanceLink>,
 }
 
@@ -125,15 +130,39 @@ pub async fn install_get_shared_instance_preview(
 }
 
 #[tauri::command]
-pub async fn install_accept_shared_instance_invite(
+pub async fn install_get_shared_instance_invite_preview(
     invite_id: String,
 ) -> Result<SharedInstanceInviteInstallPreview> {
     Ok(
-        theseus::instance::accept_shared_instance_invite_for_install(
+        theseus::instance::get_shared_instance_invite_install_preview(
             &invite_id,
         )
         .await?,
     )
+}
+
+#[tauri::command]
+pub async fn install_accept_shared_instance_invite(
+    shared_instance_id: String,
+    invite_id: String,
+) -> Result<()> {
+    Ok(
+        theseus::instance::accept_shared_instance_invite_for_install(
+            &shared_instance_id,
+            &invite_id,
+        )
+        .await?,
+    )
+}
+
+#[tauri::command]
+pub async fn install_accept_pending_shared_instance_invite(
+    shared_instance_id: String,
+) -> Result<()> {
+    Ok(theseus::instance::accept_pending_shared_instance_invite(
+        &shared_instance_id,
+    )
+    .await?)
 }
 
 #[tauri::command]
@@ -154,6 +183,7 @@ pub async fn install_shared_instance(
     server_manager_name: Option<String>,
     server_manager_icon_url: Option<String>,
     instance_icon_url: Option<String>,
+    instance_icon_config: Option<theseus::data::IconConfig>,
 ) -> Result<InstallJobSnapshot> {
     Ok(theseus::instance::install_shared_instance(
         &shared_instance_id,
@@ -162,6 +192,7 @@ pub async fn install_shared_instance(
         server_manager_name,
         server_manager_icon_url,
         instance_icon_url,
+        instance_icon_config,
     )
     .await?)
 }
@@ -171,6 +202,14 @@ pub async fn install_update_shared_instance(
     instance_id: String,
 ) -> Result<InstallJobSnapshot> {
     Ok(theseus::instance::update_shared_instance(&instance_id).await?)
+}
+
+#[tauri::command]
+pub async fn install_bulk_update_content(
+    instance_id: String,
+    updates: Vec<theseus::install::ContentUpdateSelection>,
+) -> Result<InstallJobSnapshot> {
+    Ok(theseus::install::bulk_update_content(instance_id, updates).await?)
 }
 
 #[tauri::command]
@@ -231,6 +270,16 @@ pub async fn install_job_get(job_id: Uuid) -> Result<InstallJobSnapshot> {
 #[tauri::command]
 pub async fn install_job_retry(job_id: Uuid) -> Result<InstallJobSnapshot> {
     Ok(theseus::install::retry_job(job_id).await?)
+}
+
+#[tauri::command]
+pub async fn install_job_pause(job_id: Uuid) -> Result<InstallJobSnapshot> {
+    Ok(theseus::install::pause_job(job_id).await?)
+}
+
+#[tauri::command]
+pub async fn install_job_resume(job_id: Uuid) -> Result<InstallJobSnapshot> {
+    Ok(theseus::install::resume_job(job_id).await?)
 }
 
 #[tauri::command]

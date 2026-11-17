@@ -1,8 +1,10 @@
-import { ElyByIcon, ExternalIcon } from '@modrinth/assets'
+import { ExternalIcon } from '@modrinth/assets'
 import { invoke } from '@tauri-apps/api/core'
 import { fetch } from '@tauri-apps/plugin-http'
 import type { Component } from 'vue'
 import { ref } from 'vue'
+
+import ElyByAccountIcon from '@/assets/elyby-account.svg'
 
 export type ExternalAuthProvider = {
 	id: string
@@ -25,6 +27,7 @@ type ExternalAuthLibraryCatalogEntry = {
 }
 
 export type MinecraftCredential = {
+	active?: boolean
 	account_type?: string
 	profile: {
 		id: string
@@ -46,7 +49,7 @@ type ExternalAuthProviderMetadata = {
 }
 
 const externalAuthProviderIcons: Record<string, Component> = {
-	elyby: ElyByIcon,
+	elyby: ElyByAccountIcon,
 }
 
 export const externalAuthProviders = ref<ExternalAuthProvider[]>([])
@@ -195,9 +198,7 @@ export function getExternalAuthProvider(accountType?: string) {
 }
 
 /** Starts the native OAuth flow for one external authentication provider. */
-async function authenticateExternalProvider(
-	provider: string,
-): Promise<MinecraftCredential | null> {
+async function authenticateExternalProvider(provider: string): Promise<MinecraftCredential | null> {
 	return await invoke('plugin:auth|authenticate_external_provider', { provider })
 }
 

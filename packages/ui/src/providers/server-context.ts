@@ -44,6 +44,8 @@ export interface ModrinthServerContext {
 	readonly server: Ref<Archon.Servers.v0.Server>
 	readonly serverFull: ComputedRef<Archon.Servers.v1.ServerFull | null>
 	readonly currentUserPermissions: ComputedRef<Archon.Servers.v0.UserScope>
+	/** Whether the viewer is a Modrinth admin, same as the server settings support tab. */
+	readonly isSiteAdmin: ComputedRef<boolean>
 
 	// Websocket state
 	readonly isConnected: Ref<boolean>
@@ -75,6 +77,7 @@ export interface ModrinthServerContext {
 	// File operations (extract, move, etc.)
 	readonly activeOperations: ComputedRef<FileOperation[]>
 	dismissOperation: (opId: string, action: 'dismiss' | 'cancel') => Promise<void>
+	upsertLocalFileOperation?: (operation: FileOperation) => void
 }
 
 export const [injectModrinthServerContext, provideModrinthServerContext] =

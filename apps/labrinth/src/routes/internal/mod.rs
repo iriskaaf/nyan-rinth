@@ -1,5 +1,4 @@
 pub mod admin;
-pub mod affiliate;
 pub mod analytics_event;
 pub mod attribution;
 pub mod billing;
@@ -43,7 +42,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                     .configure(analytics_event::config),
             )
             .service(web::scope("/moderation").configure(moderation::config))
-            .service(web::scope("/affiliate").configure(affiliate::config))
             .service(web::scope("/campaign").configure(campaign::config))
             .service(web::scope("/search-management").configure(search::config))
             .service(web::scope("/globals").configure(globals::config))
@@ -68,7 +66,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 		description = include_str!("../../api_internal_description.md"),
 	),
 	paths(
-		admin::count_download,
 		blocked_users::block_status,
 		privacy::invite_privacy_status,
 		admin::force_reindex,
@@ -106,6 +103,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 		pats::create_pat,
 		pats::edit_pat,
 		pats::delete_pat,
+		moderation::copyright_archives::list,
+		moderation::copyright_archives::create,
+		moderation::copyright_archives::replace,
+		moderation::copyright_archives::delete,
 		moderation::get_projects,
 		moderation::get_project_ids,
 		moderation::get_project_meta,
@@ -121,11 +122,19 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 		moderation::tech_review::search_projects,
 		moderation::tech_review::global::search_global_issue_details,
 		moderation::tech_review::global::get_global_issue_detail,
+		moderation::tech_review::rules::get_rules,
+		moderation::tech_review::rules::test_rule,
+		moderation::tech_review::rules::get_rule_affected_details,
+		moderation::tech_review::rules::create_rule,
+		moderation::tech_review::rules::update_rule,
+		moderation::tech_review::rules::delete_rule,
+		moderation::tech_review::rules_scan::get_rule_schema,
+		moderation::tech_review::rules_scan::get_detail_rule_input,
+		moderation::tech_review::rules_scan::scan_rules,
 		moderation::tech_review::get_project_report,
 		moderation::tech_review::submit_report,
 		moderation::tech_review::update_issue_details,
 		moderation::tech_review::update_global_issue_details,
-		moderation::tech_review::add_report,
 		moderation::external_license::search,
 		moderation::external_license::lookup,
 		moderation::external_license::get_by_sha1,
@@ -133,12 +142,13 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 		moderation::external_license::add_file,
 		moderation::external_license::reassign_file,
 		moderation::external_license::update_license,
-		affiliate::ingest_click,
-		affiliate::get_all,
-		affiliate::create,
-		affiliate::get,
-		affiliate::delete,
-		affiliate::patch,
+		admin::user_credentials::force_password_reset,
+		admin::user_credentials::reset_2fa,
+		moderation::user_restrictions::restrict_user,
+		moderation::user_restrictions::unrestrict_user,
+		admin::user_lock::lock_user,
+		admin::user_lock::unlock_user,
+		admin::user_sessions::revoke_user_sessions,
 		campaign::tiltify_webhook,
 		campaign::pride_26,
 		search::tasks,
@@ -170,6 +180,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 		billing::credit,
 		delphi::ingest_report,
 		delphi::_run,
+		delphi::get_file,
 		delphi::version,
 		delphi::issue_type_schema,
 		external_notifications::create,

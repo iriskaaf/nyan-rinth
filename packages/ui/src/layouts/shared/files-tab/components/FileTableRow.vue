@@ -11,7 +11,7 @@
 		@mouseenter="handleMouseEnter"
 		@pointerdown="handlePointerDown"
 	>
-		<div class="pointer-events-none flex flex-1 items-center gap-3 truncate">
+		<div class="pointer-events-none flex min-w-0 flex-[2.5_1_0%] items-center gap-3 truncate">
 			<Checkbox
 				class="pointer-events-auto"
 				:model-value="selected"
@@ -32,67 +32,39 @@
 				</span>
 			</div>
 		</div>
-		<div class="pointer-events-auto flex w-fit flex-shrink-0 items-center gap-4 @[800px]:gap-12">
-			<span class="hidden w-[100px] text-nowrap text-sm text-secondary @[800px]:block">
-				{{ formattedSize }}
+		<span
+			class="hidden min-w-[100px] flex-[0.5_1_0%] text-nowrap text-sm text-secondary @[640px]:block"
+		>
+			{{ formattedSize }}
+		</span>
+		<span
+			class="hidden min-w-[160px] flex-[0.6_1_0%] @[900px]:ml-8 text-nowrap text-sm text-secondary @[900px]:block"
+		>
+			{{ formattedCreationDate }}
+		</span>
+		<span
+			class="hidden min-w-[160px] flex-[0.6_1_0%] @[900px]:ml-8 text-nowrap text-sm text-secondary @[500px]:block"
+		>
+			{{ formattedModifiedDate }}
+		</span>
+		<div class="grid min-w-[51px] shrink-0 items-center justify-items-end @[900px]:ml-8">
+			<span aria-hidden="true" class="invisible col-start-1 row-start-1 text-nowrap font-semibold">
+				{{ formatMessage(commonMessages.actionsLabel) }}
 			</span>
-			<span class="hidden w-[160px] text-nowrap text-sm text-secondary @[800px]:block">
-				{{ formattedCreationDate }}
-			</span>
-			<span class="hidden w-[160px] text-nowrap text-sm text-secondary @[800px]:block">
-				{{ formattedModifiedDate }}
-			</span>
-			<div class="grid min-w-[51px] shrink-0 items-center justify-items-end">
-				<span
-					aria-hidden="true"
-					class="invisible col-start-1 row-start-1 text-nowrap font-semibold"
+			<div
+				class="col-start-1 row-start-1 flex justify-end"
+				@click.stop
+				@contextmenu.stop
+				@keydown.stop
+				@pointerdown.stop
+			>
+				<TeleportOverflowMenu
+					type="quiet"
+					:label="formatMessage(commonMessages.actionsLabel)"
+					:options="menuOptions"
 				>
-					{{ formatMessage(commonMessages.actionsLabel) }}
-				</span>
-				<div
-					class="col-start-1 row-start-1 flex justify-end"
-					@click.stop
-					@contextmenu.stop
-					@keydown.stop
-					@pointerdown.stop
-				>
-					<TeleportOverflowMenu
-						type="quiet"
-						:label="formatMessage(commonMessages.actionsLabel)"
-						:options="menuOptions"
-					>
-						<MoreHorizontalIcon class="h-5 w-5 bg-transparent" />
-						<template #copy-filename
-							><ClipboardCopyIcon />
-							{{ formatMessage(commonMessages.copyFilenameButton) }}</template
-						>
-						<template #copy-full-path
-							><ClipboardCopyIcon />
-							{{ formatMessage(commonMessages.copyFullPathButton) }}</template
-						>
-						<template #open-in-folder
-							><FolderOpenIcon /> {{ formatMessage(commonMessages.openInFolderButton) }}</template
-						>
-						<template #extract
-							><PackageOpenIcon /> {{ formatMessage(commonMessages.extractButton) }}</template
-						>
-						<template #rename
-							><EditIcon /> {{ formatMessage(commonMessages.renameButton) }}</template
-						>
-						<template #move
-							><RightArrowIcon /> {{ formatMessage(commonMessages.moveButton) }}</template
-						>
-						<template #download
-							><DownloadIcon />
-							{{
-								ctx.downloadButtonLabel ?? formatMessage(commonMessages.downloadButton)
-							}}</template
-						>
-						<template #delete
-							><TrashIcon /> {{ formatMessage(commonMessages.deleteLabel) }}</template
-						>
-					</TeleportOverflowMenu>
-				</div>
+					<MoreHorizontalIcon class="h-5 w-5 bg-transparent" />
+				</TeleportOverflowMenu>
 			</div>
 		</div>
 	</li>
@@ -105,6 +77,7 @@ import {
 	ClipboardCopyIcon,
 	DownloadIcon,
 	EditIcon,
+	FolderArchiveIcon,
 	FolderCogIcon,
 	FolderOpenIcon,
 	GlassesIcon,
@@ -117,6 +90,7 @@ import {
 } from '@modrinth/assets'
 import { computed, ref } from 'vue'
 
+import type { ButtonMenuOption } from '#ui/components/base/buttons'
 import { TeleportOverflowMenu } from '#ui/components/base/buttons'
 import Checkbox from '#ui/components/base/Checkbox.vue'
 import { useFormatBytes } from '#ui/composables'
@@ -147,6 +121,10 @@ const messages = defineMessages({
 		id: 'files.row.item-count',
 		defaultMessage: '{count, plural, one {# item} other {# items}}',
 	},
+	createZip: {
+		id: 'files.row.create-zip',
+		defaultMessage: 'Create ZIP',
+	},
 })
 
 const props = defineProps<
@@ -161,14 +139,23 @@ const props = defineProps<
 
 const emit = defineEmits<{
 	(
-		e: 'rename' | 'move' | 'download' | 'delete' | 'edit' | 'extract' | 'hover' | 'navigate',
+		e:
+			| 'rename'
+			| 'move'
+			| 'download'
+			| 'zip'
+			| 'delete'
+			| 'edit'
+			| 'extract'
+			| 'hover'
+			| 'navigate',
 		item: Pick<FileItem, 'name' | 'type' | 'path'>,
 	): void
 	(
 		e: 'moveDirectTo',
 		item: Pick<FileItem, 'name' | 'type' | 'path'> & { destination: string },
 	): void
-	(e: 'contextmenu', x: number, y: number): void
+	(e: 'contextmenu', event: MouseEvent, options: ButtonMenuOption[]): void
 	(e: 'toggle-select'): void
 }>()
 
@@ -189,7 +176,7 @@ const formatBytes = useFormatBytes()
 const containerClasses = computed(() => {
 	const dropTarget = isDropTarget.value
 	return [
-		'group m-0 flex w-full select-none items-center justify-between overflow-hidden border-0 border-t border-solid border-surface-4 pl-3 pr-4 py-3 focus:!outline-none',
+		'group m-0 flex w-full select-none items-center justify-between gap-4 overflow-hidden border-0 border-t border-solid border-surface-4 pl-3 pr-4 py-3 focus:!outline-none',
 		dropTarget
 			? '!bg-brand-highlight'
 			: props.selected
@@ -205,13 +192,13 @@ const containerClasses = computed(() => {
 
 const fileExtension = computed(() => getFileExtension(props.name))
 
-const isZip = computed(() => fileExtension.value === 'zip')
+const canExtract = computed(() => fileExtension.value === 'zip' && !!ctx.extractFile)
 
 function getFullPath() {
 	return joinDisplayPath(ctx.basePath?.value, props.path)
 }
 
-const menuOptions = computed(() => {
+const menuOptions = computed<ButtonMenuOption[]>(() => {
 	const item = { name: props.name, type: props.type, path: props.path }
 	const wd = props.writeDisabled
 	const wdTooltip = props.writeDisabledTooltip
@@ -248,15 +235,27 @@ const menuOptions = computed(() => {
 		{
 			id: 'extract',
 			label: formatMessage(commonMessages.extractButton),
-			shown: isZip.value,
+			icon: PackageOpenIcon,
+			shown: canExtract.value,
 			disabled: wd,
 			tooltip: wd ? wdTooltip : undefined,
 			action: () => emit('extract', item),
 		},
-		{ type: 'divider', shown: isZip.value },
+		{ type: 'divider', shown: canExtract.value },
+		{
+			id: 'zip',
+			label: formatMessage(messages.createZip),
+			icon: FolderArchiveIcon,
+			shown: props.type === 'directory' && !!ctx.zipFolder,
+			disabled: wd,
+			tooltip: wd ? wdTooltip : undefined,
+			action: () => emit('zip', item),
+		},
+		{ type: 'divider', shown: props.type === 'directory' && !!ctx.zipFolder },
 		{
 			id: 'rename',
 			label: formatMessage(commonMessages.renameButton),
+			icon: EditIcon,
 			disabled: wd,
 			tooltip: wd ? wdTooltip : undefined,
 			action: () => emit('rename', item),
@@ -264,6 +263,7 @@ const menuOptions = computed(() => {
 		{
 			id: 'move',
 			label: formatMessage(commonMessages.moveButton),
+			icon: RightArrowIcon,
 			disabled: wd,
 			tooltip: wd ? wdTooltip : undefined,
 			action: () => emit('move', item),
@@ -271,12 +271,14 @@ const menuOptions = computed(() => {
 		{
 			id: 'download',
 			label: ctx.downloadButtonLabel ?? formatMessage(commonMessages.downloadButton),
+			icon: DownloadIcon,
 			action: () => emit('download', item),
 			shown: props.type !== 'directory',
 		},
 		{
 			id: 'delete',
 			label: formatMessage(commonMessages.deleteLabel),
+			icon: TrashIcon,
 			disabled: wd,
 			tooltip: wd ? wdTooltip : undefined,
 			action: () => emit('delete', item),
@@ -321,13 +323,13 @@ const formattedSize = computed(() => {
 		return formatMessage(messages.itemCount, { count: props.count ?? 0 })
 	}
 
-	if (props.size === undefined) return ''
+	if (props.size == null) return ''
 	return formatBytes(props.size)
 })
 
 function openContextMenu(event: MouseEvent) {
 	event.preventDefault()
-	emit('contextmenu', event.clientX, event.clientY)
+	emit('contextmenu', event, menuOptions.value)
 }
 
 function handleMouseEnter() {

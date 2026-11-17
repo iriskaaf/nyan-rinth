@@ -12,7 +12,7 @@ export class AppNotificationManager extends AbstractWebNotificationManager {
 	public constructor() {
 		super()
 		this.state = ref<WebNotification[]>([])
-		this.locationState = ref<NotificationPanelLocation>('right')
+		this.locationState = ref<NotificationPanelLocation>('left')
 	}
 
 	public getNotificationLocation(): NotificationPanelLocation {

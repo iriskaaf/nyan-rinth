@@ -7,7 +7,11 @@ use crate::models::{
     projects::{Project, Version},
 };
 use crate::test::asserts::assert_status;
-use crate::test::{api_common::Api, api_v3, database::USER_USER_PAT};
+use crate::test::{
+    api_common::Api,
+    api_v3,
+    database::{ADMIN_USER_PAT, USER_USER_PAT},
+};
 use actix_http::StatusCode;
 use actix_web::test::{self, TestRequest};
 use serde_json::json;
@@ -21,7 +25,7 @@ use super::{
 
 use super::{database::USER_USER_ID, get_json_val_str};
 
-pub const DUMMY_DATA_UPDATE: i64 = 8;
+pub const DUMMY_DATA_UPDATE: i64 = 13;
 
 pub const DUMMY_CATEGORIES: &[&str] = &[
     "combat",
@@ -47,6 +51,9 @@ pub enum TestFile {
     // and BasicModRandom.bytes() will return a different file each time.
     BasicModRandom { filename: String, bytes: Vec<u8> },
     BasicModpackRandom { filename: String, bytes: Vec<u8> },
+    BasicPluginRandom { filename: String, bytes: Vec<u8> },
+    BasicDatapackRandom { filename: String, bytes: Vec<u8> },
+    BasicResourcePackRandom { filename: String, bytes: Vec<u8> },
 }
 
 impl TestFile {
@@ -162,6 +169,72 @@ impl TestFile {
         let bytes = cursor.into_inner();
 
         TestFile::BasicModpackRandom { filename, bytes }
+    }
+
+    pub fn build_random_plugin() -> Self {
+        let filename = format!("random-plugin-{}.jar", rand::random::<u64>());
+        let plugin_yml =
+            "name: TestPlugin\nversion: 1.0.0\nmain: com.example.TestPlugin\n";
+
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut zip = ZipWriter::new(&mut cursor);
+            zip.start_file(
+                "plugin.yml",
+                FileOptions::<()>::default()
+                    .compression_method(CompressionMethod::Stored),
+            )
+            .unwrap();
+            zip.write_all(plugin_yml.as_bytes()).unwrap();
+            zip.finish().unwrap();
+        }
+
+        TestFile::BasicPluginRandom {
+            filename,
+            bytes: cursor.into_inner(),
+        }
+    }
+
+    pub fn build_random_datapack() -> Self {
+        TestFile::BasicDatapackRandom {
+            filename: format!("random-datapack-{}.zip", rand::random::<u64>()),
+            bytes: Self::build_random_pack_zip(),
+        }
+    }
+
+    pub fn build_random_resource_pack() -> Self {
+        TestFile::BasicResourcePackRandom {
+            filename: format!(
+                "random-resource-pack-{}.zip",
+                rand::random::<u64>()
+            ),
+            bytes: Self::build_random_pack_zip(),
+        }
+    }
+
+    fn build_random_pack_zip() -> Vec<u8> {
+        let pack_mcmeta = serde_json::json!({
+            "pack": {
+                "pack_format": 15,
+                "description": format!("Test pack {}", rand::random::<u64>())
+            }
+        })
+        .to_string();
+
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut zip = ZipWriter::new(&mut cursor);
+            zip.start_file(
+                "pack.mcmeta",
+                FileOptions::<()>::default()
+                    .compression_method(CompressionMethod::Stored),
+            )
+            .unwrap();
+            zip.write_all(pack_mcmeta.as_bytes()).unwrap();
+            zip.finish().unwrap();
+        }
+
+        cursor.into_inner()
     }
 }
 
@@ -296,9 +369,9 @@ pub async fn add_dummy_data(api: &ApiV3, db: TemporaryDatabase) -> DummyData {
 
     let oauth_client_alpha = get_oauth_client_alpha(api).await;
 
-    sqlx::raw_sql(&format!(
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "INSERT INTO dummy_data (update_id) VALUES ({DUMMY_DATA_UPDATE})"
-    ))
+    )))
     .execute(pool)
     .await
     .unwrap();
@@ -363,7 +436,7 @@ pub async fn add_project_beta(api: &ApiV3) -> (Project, Version) {
 
     let modify_json = serde_json::from_value(json!([
         { "op": "add", "path": "/summary", "value": "A dummy project for testing with." },
-        { "op": "add", "path": "/description", "value": "This project is not-yet-approved, and versions are draft." },
+        { "op": "add", "path": "/description", "value": "This project is not yet approved, but it contains enough descriptive information to satisfy project review validation requirements while remaining available for testing private project behavior." },
         { "op": "add", "path": "/initial_versions/0/status", "value": "unlisted" },
         { "op": "add", "path": "/status", "value": "private" },
         { "op": "add", "path": "/requested_status", "value": "private" },
@@ -375,7 +448,13 @@ pub async fn add_project_beta(api: &ApiV3) -> (Project, Version) {
         Some(jar),
         Some(modify_json),
     );
-    api.create_project(creation_data, USER_USER_PAT).await;
+    let resp = api.create_project(creation_data, USER_USER_PAT).await;
+    assert_status!(&resp, StatusCode::OK);
+
+    let resp = api
+        .edit_project("beta", json!({ "status": "processing" }), ADMIN_USER_PAT)
+        .await;
+    assert_status!(&resp, StatusCode::NO_CONTENT);
 
     get_project_beta(api).await
 }
@@ -472,6 +551,9 @@ impl TestFile {
             TestFile::BasicModDifferent => "basic-mod-different.jar",
             TestFile::BasicModRandom { filename, .. } => filename,
             TestFile::BasicModpackRandom { filename, .. } => filename,
+            TestFile::BasicPluginRandom { filename, .. } => filename,
+            TestFile::BasicDatapackRandom { filename, .. } => filename,
+            TestFile::BasicResourcePackRandom { filename, .. } => filename,
         }
         .to_string()
     }
@@ -498,6 +580,9 @@ impl TestFile {
             }
             TestFile::BasicModRandom { bytes, .. } => bytes.clone(),
             TestFile::BasicModpackRandom { bytes, .. } => bytes.clone(),
+            TestFile::BasicPluginRandom { bytes, .. } => bytes.clone(),
+            TestFile::BasicDatapackRandom { bytes, .. } => bytes.clone(),
+            TestFile::BasicResourcePackRandom { bytes, .. } => bytes.clone(),
         }
     }
 
@@ -510,8 +595,11 @@ impl TestFile {
             TestFile::BasicModRandom { .. } => "mod",
 
             TestFile::BasicZip => "resourcepack",
+            TestFile::BasicResourcePackRandom { .. } => "resourcepack",
 
             TestFile::BasicModpackRandom { .. } => "modpack",
+            TestFile::BasicPluginRandom { .. } => "plugin",
+            TestFile::BasicDatapackRandom { .. } => "datapack",
         }
         .to_string()
     }
@@ -525,10 +613,15 @@ impl TestFile {
             TestFile::BasicModRandom { .. } => Some("application/java-archive"),
 
             TestFile::BasicZip => Some("application/zip"),
+            TestFile::BasicResourcePackRandom { .. } => Some("application/zip"),
 
             TestFile::BasicModpackRandom { .. } => {
                 Some("application/x-modrinth-modpack+zip")
             }
+            TestFile::BasicPluginRandom { .. } => {
+                Some("application/java-archive")
+            }
+            TestFile::BasicDatapackRandom { .. } => Some("application/zip"),
         }
         .map(|s| s.to_string())
     }

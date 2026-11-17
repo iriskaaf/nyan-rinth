@@ -1,6 +1,12 @@
 <template>
 	<ServersUpgradeModalWrapper ref="upgradeModal" />
-	<ResubscribeModal ref="pyroResubscribeModal" @resubscribe="handlePyroResubscribeConfirm" />
+	<ResubscribeModal
+		ref="pyroResubscribeModal"
+		:payment-methods="paymentMethods"
+		:regions="regions"
+		:on-add-payment-method="addPaymentMethod"
+		@resubscribe="handlePyroResubscribeConfirm"
+	/>
 	<section class="universal-card">
 		<h2>{{ formatMessage(messages.subscriptionTitle) }}</h2>
 		<p>{{ formatMessage(messages.subscriptionDescription) }}</p>
@@ -291,7 +297,9 @@
 								v-bind="subscription.serverInfo"
 								:pending-change="getPendingChange(subscription)"
 								:cancellation-date="getCancellationDate(subscription)"
-								:on-download-backup="getBackupDownloadForServer(subscription.serverInfo)"
+								:on-download-world="
+									getWorldDownload(subscription.serverInfo.server_id, serverFullList)
+								"
 							/>
 							<div v-else class="w-fit">
 								<p>
@@ -382,14 +390,8 @@
 													getProductPrice(getPyroProduct(subscription), subscription.interval)
 														? formatMessage(messages.pricePerInterval, {
 																price: formatPrice(
-																	getProductPrice(
-																		getPyroProduct(subscription),
-																		subscription.interval,
-																	).prices.intervals[subscription.interval],
-																	getProductPrice(
-																		getPyroProduct(subscription),
-																		subscription.interval,
-																	).currency_code,
+																	getPyroSubscriptionTotal(subscription),
+																	getPyroSubscriptionCurrency(subscription),
 																),
 																interval: getIntervalNounLabel(subscription.interval),
 															})
@@ -398,15 +400,7 @@
 											</span>
 										</h3>
 										<div
-											v-if="
-												getPyroCharge(subscription) &&
-												getPyroCharge(subscription).status === 'open' &&
-												((getPyroCharge(subscription).price_id &&
-													getPyroCharge(subscription).price_id !== subscription.price_id) ||
-													(getPyroCharge(subscription).subscription_interval &&
-														getPyroCharge(subscription).subscription_interval !==
-															subscription.interval))
-											"
+											v-if="hasPendingPyroChange(subscription)"
 											class="-mt-1 flex items-baseline gap-2 text-sm text-secondary"
 										>
 											<span class="opacity-70">{{ formatMessage(messages.nextLabel) }}</span>
@@ -414,8 +408,8 @@
 												{{
 													formatMessage(messages.pricePerInterval, {
 														price: formatPrice(
-															getPyroCharge(subscription).amount,
-															getPyroCharge(subscription).currency_code,
+															getPyroNextChargeTotal(subscription),
+															getPyroSubscriptionCurrency(subscription),
 														),
 														interval: getIntervalNounLabel(
 															getPyroCharge(subscription).subscription_interval ||
@@ -425,6 +419,19 @@
 												}}
 											</span>
 										</div>
+										<span
+											v-if="subscription.next_charge_tax_amount != null"
+											class="text-sm text-secondary"
+										>
+											{{
+												formatMessage(messages.includesTax, {
+													amount: formatPrice(
+														subscription.next_charge_tax_amount,
+														getPyroSubscriptionCurrency(subscription),
+													),
+												})
+											}}
+										</span>
 										<div v-if="getPyroCharge(subscription)" class="mb-4 flex flex-col items-end">
 											<span class="text-sm text-secondary">
 												{{
@@ -509,11 +516,7 @@
 											{{ formatMessage(messages.upgrade) }}
 										</Button>
 										<Button
-											v-else-if="
-												getPyroCharge(subscription) &&
-												(getPyroCharge(subscription).status === 'cancelled' ||
-													getPyroCharge(subscription).status === 'failed')
-											"
+											v-else-if="canResubscribe(subscription)"
 											type="colored"
 											color="green"
 											size="xl"
@@ -704,16 +707,19 @@ import {
 	CopyCode,
 	defineMessages,
 	getPaymentMethodIcon,
+	hasAvailableWorldDownload,
 	injectModrinthClient,
 	injectNotificationManager,
+	isWithinServerResubscribeWindow,
 	paymentMethodMessages,
 	PurchaseModal,
 	ResubscribeModal,
 	ServerListing,
 	TeleportOverflowMenu,
+	useDebugLogger,
 	useFormatDateTime,
 	useFormatPrice,
-	useServerBackupDownload,
+	useServerWorldDownload,
 	useVIntl,
 } from '@modrinth/ui'
 import { calculateSavings, getCurrency } from '@modrinth/utils'
@@ -727,7 +733,8 @@ import { products } from '~/generated/state.json'
 
 const { addNotification, handleError } = injectNotificationManager()
 const client = injectModrinthClient()
-const { getLatestBackupDownload } = useServerBackupDownload()
+const { getWorldDownload } = useServerWorldDownload()
+const debug = useDebugLogger('Billing')
 definePageMeta({
 	middleware: 'auth',
 })
@@ -845,6 +852,10 @@ const messages = defineMessages({
 	pricePerInterval: {
 		id: 'settings.billing.price.per-interval',
 		defaultMessage: '{price} / {interval}',
+	},
+	includesTax: {
+		id: 'settings.billing.price.includes-tax',
+		defaultMessage: 'Includes {amount} tax',
 	},
 	nextLabel: {
 		id: 'settings.billing.next',
@@ -1013,7 +1024,6 @@ const messages = defineMessages({
 })
 
 function getIntervalNounLabel(interval) {
-	console.log(interval)
 	return interval === 'yearly'
 		? formatMessage(messages.intervalYear)
 		: interval === 'quarterly'
@@ -1051,6 +1061,11 @@ const { data: serversData } = useQuery({
 const { data: serverFullList } = useQuery({
 	queryKey: ['servers', 'v1'],
 	queryFn: () => client.archon.servers_v1.list(),
+})
+
+const { data: regions } = useQuery({
+	queryKey: ['servers', 'regions'],
+	queryFn: () => client.archon.servers_v1.getRegions(),
 })
 
 const midasProduct = ref(products.find((x) => x.metadata?.type === 'midas'))
@@ -1098,17 +1113,17 @@ const pyroSubscriptions = computed(() => {
 			}
 		})
 		.filter((subscription) => {
-			// files expire 30 days after cancellation
-			const cancellationDate = getCancellationDate(subscription)
 			if (
-				!cancellationDate ||
 				subscription.serverInfo?.status !== 'suspended' ||
 				subscription.serverInfo?.suspension_reason !== 'cancelled'
 			)
 				return true
-			const cancellation = new Date(cancellationDate)
-			const thirtyDaysLater = new Date(cancellation.getTime() + 30 * 24 * 60 * 60 * 1000)
-			return new Date() <= thirtyDaysLater
+			const cancellationDate = getCancellationDate(subscription)
+			if (!cancellationDate || !serverFullList.value) return true
+			return (
+				isWithinServerResubscribeWindow(cancellationDate) ||
+				hasAvailableWorldDownload(subscription.serverInfo.server_id, serverFullList.value)
+			)
 		})
 })
 
@@ -1122,7 +1137,7 @@ const price = computed(() =>
 const primaryPaymentMethodId = computed(() => {
 	if (customer.value?.invoice_settings?.default_payment_method) {
 		return customer.value.invoice_settings.default_payment_method
-	} else if (paymentMethods.value?.[0]?.id) {
+	} else if (paymentMethods.value?.length === 1) {
 		return paymentMethods.value[0].id
 	} else {
 		return null
@@ -1230,11 +1245,51 @@ function getPyroCharge(subscription) {
 	)
 }
 
+function hasPendingPyroChange(subscription) {
+	const charge = getPyroCharge(subscription)
+	return (
+		charge?.status === 'open' &&
+		((charge.price_id && charge.price_id !== subscription.price_id) ||
+			(charge.subscription_interval && charge.subscription_interval !== subscription.interval))
+	)
+}
+
+function getPyroSubscriptionTotal(subscription) {
+	const productPrice = getProductPrice(getPyroProduct(subscription), subscription.interval)
+	const subtotal = productPrice?.prices?.intervals?.[subscription.interval]
+	if (subtotal == null) return subtotal
+
+	return (
+		subtotal + (hasPendingPyroChange(subscription) ? 0 : (subscription.next_charge_tax_amount ?? 0))
+	)
+}
+
+function getPyroSubscriptionCurrency(subscription) {
+	return (
+		getPyroCharge(subscription)?.currency_code ??
+		getProductPrice(getPyroProduct(subscription), subscription.interval)?.currency_code
+	)
+}
+
+function getPyroNextChargeTotal(subscription) {
+	const charge = getPyroCharge(subscription)
+	if (!charge) return 0
+
+	return charge.amount + (subscription.next_charge_tax_amount ?? 0)
+}
+
 function getCancellationDate(subscription) {
 	const charge = getPyroCharge(subscription)
 	if (!charge) return null
 	if (charge.status === 'cancelled') return charge.due
 	return null
+}
+
+function canResubscribe(subscription) {
+	const charge = getPyroCharge(subscription)
+	if (!charge) return false
+	if (charge.status === 'failed') return true
+	return charge.status === 'cancelled' && isWithinServerResubscribeWindow(charge.due)
 }
 
 const getProductSize = (product) => {
@@ -1328,31 +1383,18 @@ const resubscribePyro = async (subscriptionId, wasSuspended) => {
 
 function openPyroResubscribeModal(subscription) {
 	const charge = getPyroCharge(subscription)
-	const product = getPyroProduct(subscription)
-	const interval = charge?.subscription_interval || subscription?.interval
-	const productPrice = getProductPrice(product, interval)
 
 	pyroResubscribeModal.value?.show({
 		subscriptionId: subscription?.id ?? '',
 		wasSuspended: charge?.due ? new Date(charge.due).getTime() < Date.now() : false,
 		serverName: subscription?.serverInfo?.name ?? 'this server',
-		planName: `${getProductSize(product)} plan`,
-		ramGb: product?.metadata?.ram ? product.metadata.ram / 1024 : undefined,
-		storageGb: product?.metadata?.storage ? product.metadata.storage / 1024 : undefined,
-		sharedCpus: product?.metadata?.cpu ? product.metadata.cpu / 2 : undefined,
-		priceCents: charge?.amount ?? productPrice?.prices?.intervals?.[interval],
-		currencyCode: charge?.currency_code ?? productPrice?.currency_code,
-		interval,
-		nextChargeDate: charge?.due,
+		plan: getPyroProduct(subscription),
+		regionShortcode: subscription?.metadata?.region,
 	})
 }
 
 function handlePyroResubscribeConfirm({ subscriptionId, wasSuspended }) {
 	return resubscribePyro(subscriptionId, wasSuspended)
-}
-
-function getBackupDownloadForServer(serverInfo) {
-	return getLatestBackupDownload(serverInfo.server_id, serverFullList.value)
 }
 
 const refresh = async () => {
@@ -1391,10 +1433,10 @@ function showCancellationSurvey(subscription) {
 			price: price ? `${price / 100}` : 'unknown',
 			currency: currency ?? 'unknown',
 		},
-		onOpen: () => console.log(`Opened cancellation survey for: ${subscription.id}`),
-		onClose: () => console.log(`Closed cancellation survey for: ${subscription.id}`),
+		onOpen: () => debug(`Opened cancellation survey for: ${subscription.id}`),
+		onClose: () => debug(`Closed cancellation survey for: ${subscription.id}`),
 		onSubmit: (payload) => {
-			console.log('Form submitted, cancelling server.', payload)
+			debug('Form submitted, cancelling server.', payload)
 			cancelSubscription(subscription.id, true)
 		},
 	}
@@ -1403,9 +1445,7 @@ function showCancellationSurvey(subscription) {
 
 	try {
 		if (window.Tally?.openPopup) {
-			console.log(
-				`Opening Tally popup for servers subscription ${subscription.id} (form ID: ${formId})`,
-			)
+			debug(`Opening Tally popup for servers subscription ${subscription.id} (form ID: ${formId})`)
 			window.Tally.openPopup(formId, popupOptions)
 		} else {
 			console.warn('Tally script not yet loaded')

@@ -1,3 +1,4 @@
+use crate::ErrorKind;
 use crate::state::DirectoryInfo;
 use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
@@ -10,23 +11,31 @@ pub(crate) async fn connect(
     app_identifier: &str,
 ) -> crate::Result<Pool<Sqlite>> {
     let settings_dir = DirectoryInfo::initial_settings_dir_path(app_identifier)
-        .ok_or(crate::ErrorKind::FSError(
-            "Could not find valid config dir".to_string(),
+        .ok_or(ErrorKind::FSError(
+            "could not find valid config dir".to_string(),
         ))?;
 
     crate::util::io::create_dir_all(&settings_dir).await?;
 
-    let db_path = settings_dir.join("app.db");
+    let db_path = super::nyan_upgrade::select_database(&settings_dir).await?;
 
     connect_app_db(&db_path).await
 }
 
 async fn connect_app_db(db_path: &Path) -> crate::Result<Pool<Sqlite>> {
-    super::db_backup::maybe_backup_existing_app_db(db_path).await?;
+    if let Err(err) =
+        super::db_backup::maybe_backup_existing_app_db(db_path).await
+    {
+        tracing::warn!(
+            "Continuing without a pre-migration app database backup: {err}"
+        );
+    }
     open_migrated_app_db(db_path).await
 }
 
-async fn open_migrated_app_db(db_path: &Path) -> crate::Result<Pool<Sqlite>> {
+pub(super) async fn open_migrated_app_db(
+    db_path: &Path,
+) -> crate::Result<Pool<Sqlite>> {
     let pool = open_app_db_pool(db_path).await?;
 
     if let Err(err) = stale_data_cleanup(&pool).await {
@@ -56,12 +65,40 @@ async fn open_app_db_pool(db_path: &Path) -> crate::Result<Pool<Sqlite>> {
         .create_if_missing(true);
 
     Ok(SqlitePoolOptions::new()
-        .max_connections(100)
+        .max_connections(10)
+        .min_connections(1)
+        .idle_timeout(Duration::from_secs(120))
         .connect_with(conn_options)
         .await?)
 }
 
 async fn record_current_app_version(pool: &Pool<Sqlite>) -> crate::Result<()> {
+    let previous_version = sqlx::query_scalar!(
+        "SELECT value FROM app_metadata WHERE key = 'app_version'"
+    )
+    .fetch_optional(pool)
+    .await?;
+    let already_used_sync_update = previous_version
+        .as_deref()
+        .and_then(|version| {
+            let mut parts = version.split('.');
+            Some((
+                parts.next()?.parse::<u64>().ok()?,
+                parts.next()?.parse::<u64>().ok()?,
+            ))
+        })
+        .is_some_and(|version| version >= (0, 20));
+
+    if env!("CARGO_PKG_VERSION").starts_with("0.20.")
+        && already_used_sync_update
+    {
+        let mut settings = super::Settings::get(pool).await?;
+        if settings.pending_update_toast_for_version.is_some() {
+            settings.pending_update_toast_for_version = None;
+            settings.update(pool).await?;
+        }
+    }
+
     sqlx::query!(
         "
 		INSERT INTO app_metadata (key, value, updated_at)
@@ -82,7 +119,7 @@ async fn record_current_app_version(pool: &Pool<Sqlite>) -> crate::Result<()> {
 /// kept around for a little while to allow users to recover from accidental
 /// deletions.
 async fn stale_data_cleanup(pool: &Pool<Sqlite>) -> crate::Result<()> {
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
     let has_skin_tables = sqlx::query!(
 		"SELECT COUNT(*) AS \"count!: i64\" FROM sqlite_master WHERE type = 'table' AND name IN ('custom_minecraft_skins', 'minecraft_users')",

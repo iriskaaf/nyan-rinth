@@ -5,25 +5,89 @@
 			<LoadingBar />
 		</ClientOnly>
 		<NotificationPanel />
+		<AccountSwitchOverlay :show="isSwitchingAccount" />
 		<AdsConsentNotification />
 		<I18nDebugPanel />
 		<NuxtPage />
+		<div id="teleports"></div>
 	</NuxtLayout>
+	<ServerOnboardingModal
+		browse-path="/discover/modpacks"
+		:navigate="async (to) => navigateTo(to)"
+		:page-ready="onboardingPageReady"
+	/>
+	<ServerSharingUpdate />
+	<ClientOnly>
+		<PopupNotificationPanel :style="{ '--top-bar-height': popupNotificationOffset }" />
+	</ClientOnly>
 </template>
 <script setup lang="ts">
-import { I18nDebugPanel, injectI18n, LoadingBar, NotificationPanel } from '@modrinth/ui'
+import {
+	AccountSwitchOverlay,
+	createServerInviteHandoff,
+	createServerOnboardingFlow,
+	I18nDebugPanel,
+	injectI18n,
+	LoadingBar,
+	NotificationPanel,
+	PopupNotificationPanel,
+	provideServerInviteHandoff,
+	provideServerOnboardingFlow,
+	ServerOnboardingModal,
+} from '@modrinth/ui'
+import { useWindowScroll } from '@vueuse/core'
 
 import AdsConsentNotification from '~/components/ui/AdsConsentNotification.vue'
-import { isDarkTheme } from '~/plugins/theme/index.ts'
+import ServerSharingUpdate from '~/components/ui/servers/ServerSharingUpdate.vue'
 import { setupProviders } from '~/providers/setup.ts'
 
+import {
+	hydrateStoredAccounts,
+	rememberStoredAccount,
+	rememberStoredAccountAppearance,
+	useIsSwitchingAccount,
+} from './composables/accounts'
 import { useAuth } from './composables/auth'
 
+const POPUP_NOTIFICATION_NAV_OFFSET_PX = 48
+
+const onboardingPageReady = ref(true)
+const { y: scrollY } = useWindowScroll()
+const popupNotificationOffset = computed(
+	() => `${Math.max(0, POPUP_NOTIFICATION_NAV_OFFSET_PX - scrollY.value)}px`,
+)
+const nuxtApp = useNuxtApp()
+nuxtApp.hook('page:start', () => {
+	onboardingPageReady.value = false
+})
+nuxtApp.hook('page:finish', () => {
+	onboardingPageReady.value = true
+})
+nuxtApp.hook('vue:error', () => {
+	onboardingPageReady.value = true
+})
+
 const auth = await useAuth()
-const userPreferences = setupProviders(auth)
+const { userPreferences } = setupProviders(auth)
+provideServerOnboardingFlow(createServerOnboardingFlow())
+provideServerInviteHandoff(createServerInviteHandoff())
 const cosmetics = useCosmetics()
 const theme = useTheme()
 const { locale, setLocale } = injectI18n()
+const isSwitchingAccount = useIsSwitchingAccount()
+
+// initAuth doesn't run again after SSR, so stash the current account for switching
+watch(
+	auth,
+	({ user, token }) => {
+		if (user && token) {
+			rememberStoredAccount(user, token)
+		}
+	},
+	{ immediate: true },
+)
+
+onMounted(hydrateStoredAccounts)
 
 watch(
 	userPreferences.preferences,
@@ -31,12 +95,12 @@ watch(
 		if (!preferences) return
 
 		if (theme.syncAcrossDevices) {
-			if (isDarkTheme(preferences.appearance.theme)) {
-				theme.preferences.dark = preferences.appearance.theme
-			} else {
-				theme.preferences.light = preferences.appearance.theme
-			}
-			theme.preferred = preferences.appearance.auto ? 'system' : preferences.appearance.theme
+			theme.applyAccountAppearance(preferences.appearance)
+		}
+
+		const userId = auth.value.user?.id
+		if (userId) {
+			rememberStoredAccountAppearance(userId, preferences.appearance)
 		}
 
 		if (locale.value !== preferences.localization.locale) {

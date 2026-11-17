@@ -18,16 +18,17 @@
 		:world="worldToRemove"
 		@confirm="proceedRemoveWorld"
 	/>
+	<DesyncServerModal ref="desyncServerModal" @confirm="confirmDesyncServer" />
 	<ReadyTransition :pending="worldsReadyPending">
-		<div v-if="dedupedWorlds.length > 0" class="flex flex-col gap-4">
+		<div v-if="dedupedWorlds.length > 0" class="flex flex-col gap-2">
 			<div class="flex flex-wrap items-center gap-2">
-				<StyledInput
+				<Input
 					v-model="searchFilter"
 					:icon="SearchIcon"
 					type="text"
 					autocomplete="off"
 					:spellcheck="false"
-					input-class="!h-10"
+					size="medium"
 					wrapper-class="flex-1 min-w-0"
 					clearable
 					:placeholder="
@@ -46,27 +47,19 @@
 				</div>
 			</div>
 			<div class="flex flex-wrap items-center justify-between gap-2">
-				<div class="flex flex-wrap items-center gap-1.5">
-					<FilterIcon class="size-5 text-secondary" />
-					<button
-						:class="filterPillClass(selectedFilters.length === 0)"
-						@click="selectedFilters = []"
-					>
+				<FilterPills
+					:model-value="selectedFilters"
+					:options="filterOptions"
+					@update:model-value="updateFilters"
+				>
+					<template #all>
 						{{ formatMessage(commonMessages.allProjectType) }}
-					</button>
-					<button
-						v-for="option in filterOptions"
-						:key="option.id"
-						:class="filterPillClass(selectedFilters.includes(option.id))"
-						@click="toggleFilter(option.id)"
-					>
-						{{ option.label }}
-					</button>
-				</div>
+					</template>
+				</FilterPills>
 				<Button
 					type="quiet"
 					:disabled="refreshingAll"
-					class="hover:!bg-transparent focus-visible:!bg-transparent"
+					class="!text-sm !font-medium"
 					@click="refreshAllWorlds"
 				>
 					<RefreshCwIcon :class="refreshingAll ? 'animate-spin' : ''" />
@@ -75,7 +68,7 @@
 					}}
 				</Button>
 			</div>
-			<div class="flex flex-col w-full gap-2">
+			<div class="mt-2 flex w-full flex-col gap-2">
 				<WorldItem
 					v-for="world in filteredWorlds"
 					:key="`world-${world.type}-${world.type == 'singleplayer' ? world.path : `${world.address}-${world.index}`}`"
@@ -89,11 +82,9 @@
 					:playing-instance="playing"
 					:playing-world="worldsMatch(world, worldPlaying)"
 					:starting-instance="startingInstance"
-					:refreshing="world.type === 'server' ? serverData[world.address]?.refreshing : undefined"
-					:server-status="world.type === 'server' ? serverData[world.address]?.status : undefined"
-					:rendered-motd="
-						world.type === 'server' ? serverData[world.address]?.renderedMotd : undefined
-					"
+					:refreshing="getServerData(world)?.refreshing"
+					:server-status="getServerData(world)?.status"
+					:rendered-motd="getServerData(world)?.renderedMotd"
 					:game-mode="world.type === 'singleplayer' ? GAME_MODES[world.game_mode] : undefined"
 					:shortcut-instance-id="instance.id"
 					@play="() => joinWorld(world)"
@@ -108,6 +99,7 @@
 									: editServerModal?.show(world)
 					"
 					@delete="() => !isManagedServerWorld(world) && promptToRemoveWorld(world)"
+					@desync="() => world.type === 'server' && desyncServerModal?.show(world as ServerWorld)"
 					@open-folder="(world: SingleplayerWorld) => showWorldInFolder(instance.id, world.path)"
 				/>
 			</div>
@@ -132,20 +124,22 @@
 	</ReadyTransition>
 </template>
 <script setup lang="ts">
-import { CompassIcon, FilterIcon, PlusIcon, RefreshCwIcon, SearchIcon } from '@modrinth/assets'
+import { CompassIcon, PlusIcon, RefreshCwIcon, SearchIcon } from '@modrinth/assets'
 import { Button } from '@modrinth/ui'
 import {
 	commonMessages,
 	defineMessages,
 	EmptyState,
+	FilterPills,
 	GAME_MODES,
 	type GameVersion,
 	injectNotificationManager,
+	Input,
 	ReadyTransition,
-	StyledInput,
 	useReadyState,
 	useVIntl,
 } from '@modrinth/ui'
+import { autoToHTML } from '@sfirew/minecraft-motd-parser'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { platform } from '@tauri-apps/plugin-os'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -153,6 +147,7 @@ import { useRoute } from 'vue-router'
 
 import AddServerModal from '@/components/ui/world/modal/AddServerModal.vue'
 import ConfirmRemoveWorldModal from '@/components/ui/world/modal/ConfirmRemoveWorldModal.vue'
+import DesyncServerModal from '@/components/ui/world/modal/DesyncServerModal.vue'
 import EditServerModal from '@/components/ui/world/modal/EditServerModal.vue'
 import EditWorldModal from '@/components/ui/world/modal/EditSingleplayerWorldModal.vue'
 import WorldItem from '@/components/ui/world/WorldItem.vue'
@@ -160,12 +155,15 @@ import { useAppEvent } from '@/composables/use-app-event'
 import { handleSevereError } from '@/composables/use-error.js'
 import { trackEvent } from '@/helpers/analytics'
 import { get_project, get_project_v3 } from '@/helpers/cache.js'
+import { set_synced_option } from '@/helpers/instance'
 import { get_game_versions } from '@/helpers/tags'
-import { ensureManagedServerWorldExists, getServerAddress } from '@/helpers/worlds'
 import {
 	delete_world,
+	desync_server,
+	type DesyncServerMode,
+	ensureManagedServerWorldExists,
 	get_instance_protocol_version,
-	getServerDomainKey,
+	getServerAddress,
 	getWorldIdentifier,
 	handleDefaultInstanceUpdateEvent,
 	hasServerQuickPlaySupport,
@@ -185,6 +183,7 @@ import {
 	start_join_server,
 	start_join_singleplayer_world,
 	type World,
+	worldNameMatchesQuery,
 } from '@/helpers/worlds.ts'
 import { injectServerInstall } from '@/providers/server-install'
 
@@ -244,6 +243,7 @@ const addServerModal = ref<InstanceType<typeof AddServerModal>>()
 const editServerModal = ref<InstanceType<typeof EditServerModal>>()
 const editWorldModal = ref<InstanceType<typeof EditWorldModal>>()
 const removeWorldModal = ref<InstanceType<typeof ConfirmRemoveWorldModal>>()
+const desyncServerModal = ref<InstanceType<typeof DesyncServerModal>>()
 
 const worldToRemove = ref<World | null>(null)
 
@@ -258,26 +258,13 @@ function play() {
 const selectedFilters = ref<string[]>([])
 const searchFilter = ref('')
 
-function filterPillClass(isActive: boolean) {
-	return [
-		'cursor-pointer rounded-full border border-solid px-3 py-1.5 text-base font-semibold leading-5 transition-all duration-100 active:scale-[0.97]',
-		isActive
-			? 'border-brand bg-brand-highlight text-brand'
-			: 'border-surface-5 bg-surface-4 text-primary hover:bg-surface-5',
-	]
-}
-
-function toggleFilter(id: string) {
-	const idx = selectedFilters.value.indexOf(id)
-	if (idx >= 0) {
-		selectedFilters.value.splice(idx, 1)
-	} else {
-		selectedFilters.value.push(id)
-		if (id === 'singleplayer') {
-			selectedFilters.value = selectedFilters.value.filter((f) => f !== 'online' && f !== 'offline')
-		} else if (id === 'online' || id === 'offline') {
-			selectedFilters.value = selectedFilters.value.filter((f) => f !== 'singleplayer')
-		}
+function updateFilters(filters: string[]) {
+	const addedFilter = filters.find((id) => !selectedFilters.value.includes(id))
+	selectedFilters.value = filters
+	if (addedFilter === 'singleplayer') {
+		selectedFilters.value = filters.filter((id) => id !== 'online' && id !== 'offline')
+	} else if (addedFilter === 'online' || addedFilter === 'offline') {
+		selectedFilters.value = filters.filter((id) => id !== 'singleplayer')
 	}
 }
 
@@ -299,6 +286,37 @@ const worldsReadyPending = useReadyState(worldsQuery)
 
 const worlds = ref<World[]>([])
 const serverData = ref<Record<string, ServerData>>({})
+const headerServerData = computed<ServerData>(() => {
+	const status = instancePage.serverStatus.value
+	return {
+		refreshing: instancePage.serverStatusLoading.value,
+		status,
+		renderedMotd: status?.description ? autoToHTML(status.description) : undefined,
+	}
+})
+
+function isHeaderServerAddress(address: string) {
+	const headerAddress = instancePage.serverAddress.value
+	const normalizedHeaderAddress = headerAddress && normalizeServerAddress(headerAddress)
+	return (
+		instancePage.isServerInstance.value &&
+		!!normalizedHeaderAddress &&
+		normalizeServerAddress(address) === normalizedHeaderAddress
+	)
+}
+
+function isHeaderServerWorld(world: World): world is ServerWorld {
+	return world.type === 'server' && isHeaderServerAddress(world.address)
+}
+
+function getServerData(world: World): ServerData | undefined {
+	if (world.type !== 'server') return undefined
+	return isHeaderServerWorld(world) ? headerServerData.value : serverData.value[world.address]
+}
+
+function manualPingWorlds() {
+	return worlds.value.filter((world) => !isHeaderServerWorld(world))
+}
 
 // Track servers_updated calls on Linux to prevent server ping spam
 const MAX_LINUX_REFRESHES = 3
@@ -324,7 +342,7 @@ watch(
 			// Manual refresh handles its own server pings to avoid double-pinging
 			if (!refreshingAll.value) {
 				void refreshServers(
-					worlds.value,
+					manualPingWorlds(),
 					serverData.value,
 					protocolVersion.value,
 					protocolVersionReady.value,
@@ -346,12 +364,7 @@ function isManagedServerWorld(world: World): world is ServerWorld {
 }
 
 async function refreshManagedServerMetadata() {
-	await ensureManagedServerWorldExists(
-		instance.value.id,
-		managedServerName.value,
-		managedServerAddress.value,
-	)
-
+	const instanceId = instance.value.id
 	const projectId = instance.value.link?.project_id
 	if (!projectId) {
 		managedServerName.value = null
@@ -364,6 +377,7 @@ async function refreshManagedServerMetadata() {
 			get_project(projectId),
 			get_project_v3(projectId),
 		])
+		if (instance.value.id !== instanceId || instance.value.link?.project_id !== projectId) return
 
 		if (projectV3?.minecraft_server == null) {
 			managedServerName.value = null
@@ -380,6 +394,8 @@ async function refreshManagedServerMetadata() {
 
 		managedServerName.value = project.title
 		managedServerAddress.value = serverAddress
+		await ensureManagedServerWorldExists(instanceId, project.title, serverAddress)
+		await queryClient.invalidateQueries({ queryKey: instanceKeys.worlds(instanceId) })
 	} catch (err) {
 		console.error(
 			`Failed to resolve managed server metadata for instance: ${instance.value.id}`,
@@ -391,7 +407,7 @@ async function refreshManagedServerMetadata() {
 }
 
 watch(
-	() => instance.value.link?.project_id,
+	() => [instance.value.id, instance.value.link?.project_id],
 	async () => {
 		await refreshManagedServerMetadata()
 	},
@@ -428,13 +444,17 @@ async function initWorldsTab() {
 	protocolVersionReady.value = true
 
 	if (worlds.value.length > 0) {
-		refreshServers(worlds.value, serverData.value, protocolVersion.value)
+		refreshServers(manualPingWorlds(), serverData.value, protocolVersion.value)
 	}
 }
 
 void initWorldsTab()
 
 async function refreshServer(address: string) {
+	if (isHeaderServerAddress(address)) {
+		await instancePage.refreshServerStatus()
+		return
+	}
 	if (!serverData.value[address]) {
 		serverData.value[address] = {
 			refreshing: true,
@@ -453,7 +473,7 @@ async function refreshAllWorlds() {
 	refreshingAll.value = true
 	try {
 		// Show loading on server rows immediately while the list refreshes
-		for (const world of worlds.value) {
+		for (const world of manualPingWorlds()) {
 			if (world.type === 'server') {
 				if (!serverData.value[world.address]) {
 					serverData.value[world.address] = { refreshing: true }
@@ -464,12 +484,15 @@ async function refreshAllWorlds() {
 		}
 
 		await queryClient.invalidateQueries({ queryKey: instanceKeys.worlds(instance.value.id) })
-		await refreshServers(
-			worlds.value,
-			serverData.value,
-			protocolVersion.value,
-			protocolVersionReady.value,
-		)
+		await Promise.all([
+			refreshServers(
+				manualPingWorlds(),
+				serverData.value,
+				protocolVersion.value,
+				protocolVersionReady.value,
+			),
+			instancePage.refreshServerStatus(),
+		])
 	} finally {
 		refreshingAll.value = false
 	}
@@ -496,15 +519,29 @@ async function editServer(server: ServerWorld) {
 	}
 }
 
-async function removeServer(server: ServerWorld) {
-	await remove_server_from_instance(instance.value.id, server.index).catch(handleError)
-	worlds.value = worlds.value.filter((w) => w.type !== 'server' || w.index !== server.index)
-	let serverIdx = 0
-	for (const w of worlds.value) {
-		if (w.type === 'server') {
-			w.index = serverIdx++
+async function removeServer(server: ServerWorld, scope: 'here' | 'all') {
+	const instanceId = instance.value.id
+	try {
+		if (scope === 'here' && server.source === 'user_synced') {
+			const updated = await set_synced_option(instanceId, 'multiplayer_servers', false)
+			queryClient.setQueryData(instanceKeys.detail(instanceId), updated)
 		}
+		await remove_server_from_instance(instanceId, server.index)
+	} catch (error) {
+		handleError(error)
+	} finally {
+		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: instanceKeys.all }),
+			queryClient.invalidateQueries({ queryKey: ['instance-synced-options'] }),
+		])
+		await refreshAllWorlds()
 	}
+}
+
+async function confirmDesyncServer(server: ServerWorld, mode: DesyncServerMode) {
+	if (!server.server_id) return
+	await desync_server(instance.value.id, server.server_id, mode).catch(handleError)
+	await refreshAllWorlds()
 }
 
 async function editWorld(path: string, name: string, removeIcon: boolean) {
@@ -590,7 +627,7 @@ function worldsMatch(world: World, other: World | undefined) {
 
 const dedupedWorlds = computed(() => {
 	const visibleWorlds: World[] = []
-	const serverIndexByDomain = new Map<string, number>()
+	const serverIndexByAddress = new Map<string, number>()
 
 	for (const world of worlds.value) {
 		if (world.type !== 'server') {
@@ -598,14 +635,11 @@ const dedupedWorlds = computed(() => {
 			continue
 		}
 
-		const domainKey =
-			getServerDomainKey(world.address) ||
-			normalizeServerAddress(world.address) ||
-			`server-${world.index}`
-		const existingIndex = serverIndexByDomain.get(domainKey)
+		const addressKey = normalizeServerAddress(world.address) || `server-${world.index}`
+		const existingIndex = serverIndexByAddress.get(addressKey)
 
 		if (existingIndex == null) {
-			serverIndexByDomain.set(domainKey, visibleWorlds.length)
+			serverIndexByAddress.set(addressKey, visibleWorlds.length)
 			visibleWorlds.push(world)
 			continue
 		}
@@ -641,8 +675,8 @@ const filterOptions = computed(() => {
 			options.push({ id: 'vanilla', label: formatMessage(messages.vanillaFilter) })
 			options.push({ id: 'modded', label: formatMessage(messages.moddedFilter) })
 		}
-		const hasOnline = servers.some((x) => !!serverData.value[x.address]?.status)
-		const hasOffline = servers.some((x) => !serverData.value[x.address]?.status)
+		const hasOnline = servers.some((x) => !!getServerData(x)?.status)
+		const hasOffline = servers.some((x) => !getServerData(x)?.status)
 		if (hasOnline && hasOffline) {
 			options.push({ id: 'online', label: formatMessage(messages.onlineFilter) })
 			options.push({ id: 'offline', label: formatMessage(messages.offlineFilter) })
@@ -662,7 +696,7 @@ watch(filterOptions, (options) => {
 
 const filteredWorlds = computed(() =>
 	dedupedWorlds.value.filter((x) => {
-		if (searchFilter.value && !x.name.toLowerCase().includes(searchFilter.value.toLowerCase())) {
+		if (searchFilter.value && !worldNameMatchesQuery(x.name, searchFilter.value)) {
 			return false
 		}
 
@@ -690,7 +724,7 @@ const filteredWorlds = computed(() =>
 
 		let passesStatus = true
 		if (statusFilters.length > 0) {
-			const isOnline = !!serverData.value[x.address]?.status
+			const isOnline = !!getServerData(x)?.status
 			passesStatus =
 				(statusFilters.includes('online') && isOnline) ||
 				(statusFilters.includes('offline') && !isOnline)
@@ -708,9 +742,9 @@ function promptToRemoveWorld(world: World): boolean {
 	return !!removeWorldModal.value
 }
 
-async function proceedRemoveWorld(world: World) {
+async function proceedRemoveWorld(world: World, scope: 'here' | 'all') {
 	if (world.type === 'server') {
-		await removeServer(world)
+		await removeServer(world, scope)
 	} else {
 		await deleteWorld(world)
 	}

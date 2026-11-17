@@ -1,16 +1,19 @@
+use crate::util::MinecraftMeta;
 use crate::util::error::ApiContext as _;
-use std::collections::HashMap;
 
 use super::ApiError;
 use crate::database::PgPool;
-use crate::database::models::loader_fields::LoaderFieldEnumValue;
+use crate::models::minecraft::{
+    legacy_game_version_date, legacy_game_version_name,
+};
 use crate::models::v2::projects::LegacySideType;
 use crate::routes::v2_reroute::capitalize_first;
-use crate::routes::v3::tags::{LinkPlatformQueryData, LoaderFieldsEnumQuery};
+use crate::routes::v3::tags::LinkPlatformQueryData;
 use crate::routes::{v2_reroute, v3};
 use actix_web::{HttpResponse, get, web};
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
+use minecraft_meta_model::upstream::mojang::VersionType;
 use xredis::RedisPool;
 
 pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
@@ -36,7 +39,7 @@ pub struct CategoryData {
     pub header: String,
 }
 
-/// List project categories.  
+/// List project categories.
 #[utoipa::path(
 	context_path = "/tag",
 	tag = "tags",
@@ -86,7 +89,7 @@ pub struct LoaderData {
     pub supported_project_types: Vec<String>,
 }
 
-/// List loaders.  
+/// List loaders.
 #[utoipa::path(
 	context_path = "/tag",
 	tag = "tags",
@@ -164,7 +167,7 @@ pub struct GameVersionQuery {
     major: Option<bool>,
 }
 
-/// List game versions.  
+/// List game versions.
 #[utoipa::path(
 	context_path = "/tag",
 	tag = "tags",
@@ -184,48 +187,40 @@ pub struct GameVersionQuery {
 )]
 #[get("/game_version")]
 pub async fn game_version_list(
-    pool: web::Data<PgPool>,
+    minecraft_meta: web::Data<MinecraftMeta>,
     query: web::Query<GameVersionQuery>,
-    redis: web::Data<RedisPool>,
-) -> Result<HttpResponse, ApiError> {
-    let mut filters = HashMap::new();
-    if let Some(type_) = &query.type_ {
-        filters.insert("type".to_string(), serde_json::json!(type_));
-    }
-    if let Some(major) = query.major {
-        filters.insert("major".to_string(), serde_json::json!(major));
-    }
-    let response = v3::tags::loader_fields_list(
-        pool,
-        web::Query(LoaderFieldsEnumQuery {
-            loader_field: "game_versions".to_string(),
-            filters: Some(filters),
-        }),
-        redis,
-    )
-    .await
-    .wrap_api_err("fetching game versions")?;
-
-    // Convert to V2 format
-    Ok(
-        match v2_reroute::extract_ok_json::<Vec<LoaderFieldEnumValue>>(response)
-            .await
-        {
-            Ok(fields) => {
-                let fields = fields
-                    .into_iter()
-                    .map(|f| GameVersionQueryData {
-                        version: f.value,
-                        version_type: f.ty.unwrap_or_default(),
-                        date: f.created,
-                        major: f.major.unwrap_or_default(),
-                    })
-                    .collect::<Vec<_>>();
-                HttpResponse::Ok().json(fields)
-            }
-            Err(response) => response,
-        },
-    )
+) -> Result<web::Json<Vec<GameVersionQueryData>>, ApiError> {
+    let versions = minecraft_meta.minecraft_versions().await;
+    let mut versions = versions
+        .iter()
+        .map(|row| {
+            let version_type = match row.version_type {
+                VersionType::Release => "release",
+                VersionType::Snapshot => "snapshot",
+                VersionType::OldAlpha => "alpha",
+                VersionType::OldBeta => "beta",
+            };
+            let date = row.released_at;
+            Ok(GameVersionQueryData {
+                version: legacy_game_version_name(&row.name.to_string())
+                    .to_owned(),
+                version_type: version_type.to_owned(),
+                date: legacy_game_version_date(&row.name.to_string(), date),
+                major: matches!(row.version_type, VersionType::Release),
+            })
+        })
+        .collect::<Result<Vec<_>, ApiError>>()?;
+    versions.retain(|version| {
+        query
+            .type_
+            .as_ref()
+            .is_none_or(|ty| ty == &version.version_type)
+            && query.major.is_none_or(|major| major == version.major)
+    });
+    versions.sort_unstable_by(|a, b| {
+        b.date.cmp(&a.date).then_with(|| a.version.cmp(&b.version))
+    });
+    Ok(web::Json(versions))
 }
 
 #[derive(serde::Serialize, utoipa::ToSchema)]
@@ -234,7 +229,7 @@ pub struct License {
     pub name: String,
 }
 
-/// List SPDX license identifiers and names.  
+/// List SPDX license identifiers and names.
 #[utoipa::path(
 	context_path = "/tag",
 	tag = "tags",
@@ -275,7 +270,7 @@ pub struct LicenseText {
     pub body: String,
 }
 
-/// Get full license text by SPDX ID.  
+/// Get full license text by SPDX ID.
 #[utoipa::path(
 	context_path = "/tag",
 	tag = "tags",
@@ -327,7 +322,7 @@ pub struct DonationPlatformQueryData {
     pub name: String,
 }
 
-/// List donation platforms.  
+/// List donation platforms.
 #[utoipa::path(
 	context_path = "/tag",
 	tag = "tags",
@@ -389,7 +384,7 @@ pub async fn donation_platform_list(
     .or_else(v2_reroute::flatten_404_error)
 }
 
-/// List valid report types.  
+/// List valid report types.
 #[utoipa::path(
 	context_path = "/tag",
 	tag = "tags",
@@ -414,7 +409,7 @@ pub async fn report_type_list(
         .or_else(v2_reroute::flatten_404_error)
 }
 
-/// List valid project types.  
+/// List valid project types.
 #[utoipa::path(
 	context_path = "/tag",
 	tag = "tags",
@@ -439,7 +434,7 @@ pub async fn project_type_list(
         .or_else(v2_reroute::flatten_404_error)
 }
 
-/// List valid side-type values.  
+/// List valid side-type values.
 #[utoipa::path(
 	context_path = "/tag",
 	tag = "tags",

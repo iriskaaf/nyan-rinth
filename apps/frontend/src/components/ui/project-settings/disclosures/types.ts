@@ -44,6 +44,7 @@ export type DerivativeDisclosure = {
 
 export type DisclosureFormState = {
 	ai: AiDisclosure
+	aiFunctionality: NoteDisclosure
 	advertising: NoteDisclosure
 	paidFeatures: PaidFeaturesDisclosure
 	telemetry: TelemetryDisclosure
@@ -61,6 +62,17 @@ export type DisclosureUpdatedByUser = {
 }
 
 export type DisclosureCardMetaProps = {
+	editing?: boolean
+	onToggleEditing?: () => void
+	onCancelEditing?: () => void
+	onSaveEditing?: () => Promise<void>
+	sectionCanSave?: boolean
+	sectionSaving?: boolean
+	sectionSaveError?: boolean
+	sectionSaveDisabledReason?: string[]
+	variant?: 'settings' | 'review'
+	title?: string
+	hideDescription?: boolean
 	disabled?: boolean
 	toggleDisabled?: boolean
 	updatedAt?: string | null

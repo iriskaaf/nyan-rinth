@@ -1,4 +1,5 @@
 import { AbstractModule } from '../../../core/abstract-module'
+import type { DownloadSink } from '../../../types/download'
 import type { UploadHandle, UploadProgress } from '../../../types/upload'
 import { getNodeBaseUrl } from '../../../utils/node-url'
 import type { Archon } from '../../archon/types'
@@ -86,6 +87,21 @@ export class KyrosFilesV0Module extends AbstractModule {
 			headers: { Authorization: `Bearer ${auth.token}` },
 			skipAuth: true,
 		})
+	}
+
+	public async downloadFileTo(auth: NodeFsAuth, path: string, sink: DownloadSink): Promise<void> {
+		return this.client.download(
+			'/fs/download',
+			{
+				api: this.getNodeBaseUrl(auth),
+				version: 'modrinth/v0',
+				method: 'GET',
+				params: { path },
+				headers: { Authorization: `Bearer ${auth.token}` },
+				skipAuth: true,
+			},
+			sink,
+		)
 	}
 
 	/**
@@ -239,18 +255,20 @@ export class KyrosFilesV0Module extends AbstractModule {
 	 * @param path - Path to archive file
 	 * @param override - If true, overwrite existing files
 	 * @param dry - If true, perform dry run (returns conflicts without extracting)
+	 * @param target - Directory to extract the archive into
 	 * @returns Extract result with modpack name and conflicting files
 	 */
 	public async extractFile(
 		path: string,
 		override: boolean = true,
 		dry: boolean = false,
+		target: string = '/',
 	): Promise<Kyros.Files.v0.ExtractResult> {
 		return this.client.request<Kyros.Files.v0.ExtractResult>('/fs/unarchive', {
 			api: '',
 			version: 'v1',
 			method: 'POST',
-			params: { src: path, trg: '/', override, dry },
+			params: { src: path, trg: target, override, dry },
 			useNodeAuth: true,
 		})
 	}

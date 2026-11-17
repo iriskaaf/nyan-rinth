@@ -31,6 +31,7 @@ type UseServerManageCoreRuntimeOptions = {
 	server: ReadableRef<Archon.Servers.v0.Server | null | undefined>
 	serverFull?: ReadableRef<Archon.Servers.v1.ServerFull | null | undefined>
 	content?: ReadableRef<Archon.Content.v1.Addons | null | undefined>
+	isSiteAdmin?: ReadableRef<boolean>
 	extraBusyReasons?: ComputedRef<BusyReason[]>
 	setDisconnectedOnAuthIncorrect?: boolean
 	syncUptimeFromState?: boolean
@@ -343,6 +344,11 @@ export function useServerManageCoreRuntime(options: UseServerManageCoreRuntimeOp
 					},
 					{ immediate: true },
 				),
+				watch(runtimeLease.socketGeneration, () => {
+					if (!shouldProcessEvent()) return
+					modrinthServersConsole.clear()
+					modrinthServersConsole.beginInitialLogHydration()
+				}),
 				watch(
 					runtimeLease.isSocketAuthIncorrect,
 					(authIncorrect) => {
@@ -382,13 +388,21 @@ export function useServerManageCoreRuntime(options: UseServerManageCoreRuntimeOp
 
 	type QueuedOpWithState = Archon.Websocket.v0.QueuedFilesystemOp & { state: 'queued' }
 	const dismissedOpIds = ref<Set<string>>(new Set())
+	const localFileOperations = ref<FileOperation[]>([])
 
 	const activeOperations = computed<FileOperation[]>(() => [
+		...localFileOperations.value,
 		...fsQueuedOps.value.map((x) => ({ ...x, state: 'queued' }) satisfies QueuedOpWithState),
 		...(fsOps.value.filter((op) => !op.id || !dismissedOpIds.value.has(op.id)) as FileOperation[]),
 	])
 
 	async function dismissOperation(opId: string, action: 'dismiss' | 'cancel') {
+		if (localFileOperations.value.some((operation) => operation.id === opId)) {
+			localFileOperations.value = localFileOperations.value.filter(
+				(operation) => operation.id !== opId,
+			)
+			return
+		}
 		if (action === 'dismiss') {
 			dismissedOpIds.value = new Set([...dismissedOpIds.value, opId])
 		}
@@ -400,6 +414,17 @@ export function useServerManageCoreRuntime(options: UseServerManageCoreRuntimeOp
 		}
 	}
 
+	function upsertLocalFileOperation(operation: FileOperation) {
+		const index = localFileOperations.value.findIndex((item) => item.id === operation.id)
+		if (index === -1) {
+			localFileOperations.value = [...localFileOperations.value, operation]
+			return
+		}
+		localFileOperations.value = localFileOperations.value.map((item, itemIndex) =>
+			itemIndex === index ? operation : item,
+		)
+	}
+
 	const refreshFsAuth = async () => {
 		if (!options.serverId.value) {
 			fsAuth.value = null
@@ -409,6 +434,7 @@ export function useServerManageCoreRuntime(options: UseServerManageCoreRuntimeOp
 	}
 	const currentUserPermissions = computed(() => options.server.value?.current_user_permissions ?? 0)
 	const serverFull = computed(() => options.serverFull?.value ?? null)
+	const isSiteAdmin = computed(() => options.isSiteAdmin?.value ?? false)
 
 	provideModrinthServerContext({
 		get serverId() {
@@ -418,6 +444,7 @@ export function useServerManageCoreRuntime(options: UseServerManageCoreRuntimeOp
 		server: options.server as Ref<Archon.Servers.v0.Server>,
 		serverFull,
 		currentUserPermissions,
+		isSiteAdmin,
 		isConnected,
 		isWsAuthIncorrect,
 		powerState: serverPowerState,
@@ -439,6 +466,7 @@ export function useServerManageCoreRuntime(options: UseServerManageCoreRuntimeOp
 		cancelUpload,
 		activeOperations,
 		dismissOperation,
+		upsertLocalFileOperation,
 	})
 
 	setNodeAuthState(() => fsAuth.value, refreshFsAuth)

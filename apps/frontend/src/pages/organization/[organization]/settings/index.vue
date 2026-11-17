@@ -6,12 +6,16 @@ import {
 	ConfirmModal,
 	FileButton,
 	injectNotificationManager,
-	StyledInput,
+	Input,
+	Textarea,
 	UnsavedChangesPopup,
+	useGlobals,
 	useSavable,
 } from '@modrinth/ui'
 
 import { injectOrganizationContext } from '~/providers/organization-context.ts'
+
+const { data: globals } = useGlobals()
 
 const { addNotification } = injectNotificationManager()
 const {
@@ -164,11 +168,11 @@ const onDeleteOrganization = useClientTry(async () => {
 				<div class="flex flex-col gap-2">
 					<FileButton
 						id="project-icon"
-						:max-size="262144"
+						:max-size="globals?.max_organization_icon_size"
 						accept="image/png,image/jpeg,image/gif,image/webp"
 						class="button-like"
 						prompt="Upload icon"
-						:disabled="!hasPermission"
+						:disabled="!globals?.max_organization_icon_size || !hasPermission"
 						@change="showPreviewImage"
 					>
 						<UploadIcon />
@@ -187,7 +191,7 @@ const onDeleteOrganization = useClientTry(async () => {
 			<label for="project-name">
 				<span class="label__title">Name</span>
 			</label>
-			<StyledInput
+			<Input
 				id="project-name"
 				v-model="current.name"
 				:maxlength="2048"
@@ -199,7 +203,7 @@ const onDeleteOrganization = useClientTry(async () => {
 			</label>
 			<div class="text-input-wrapper">
 				<div class="text-input-wrapper__before">https://modrinth.com/organization/</div>
-				<StyledInput
+				<Input
 					id="project-slug"
 					v-model="current.slug"
 					:maxlength="64"
@@ -211,10 +215,9 @@ const onDeleteOrganization = useClientTry(async () => {
 			<label for="project-summary">
 				<span class="label__title">Summary</span>
 			</label>
-			<StyledInput
+			<Textarea
 				id="project-summary"
 				v-model="current.summary"
-				multiline
 				:maxlength="256"
 				:disabled="!hasPermission"
 				resize="vertical"

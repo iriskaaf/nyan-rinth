@@ -5,8 +5,14 @@
   "action.continue": {
     "message": "המשך"
   },
-  "admin.billing.error.not-found": {
-    "message": "משתמש לא קיים"
+  "ads-consent.accept": {
+    "message": "אשר הכול"
+  },
+  "ads-consent.manage": {
+    "message": "ניהול העדפות"
+  },
+  "ads-consent.reject": {
+    "message": "דחיית כל השינויים"
   },
   "analytics.action.add": {
     "message": "לְהוֹסִיף"
@@ -14,8 +20,38 @@
   "analytics.action.cancel": {
     "message": "ביטול"
   },
+  "analytics.action.reset": {
+    "message": "איפוס"
+  },
+  "analytics.breakdown.country": {
+    "message": "מדינה"
+  },
+  "analytics.breakdown.download-reason": {
+    "message": "סיבת ההורדה"
+  },
+  "analytics.breakdown.game-version": {
+    "message": "גרסת משחק"
+  },
+  "analytics.breakdown.members": {
+    "message": "חבר"
+  },
+  "analytics.breakdown.monetization": {
+    "message": "ייצור הכנסות"
+  },
   "analytics.breakdown.project": {
     "message": "פּרוֹיֶקט"
+  },
+  "analytics.breakdown.project-status": {
+    "message": "מצב הפרוייקט"
+  },
+  "analytics.breakdown.project-version": {
+    "message": "גרסת פרויקט"
+  },
+  "analytics.chart.action.show-all": {
+    "message": "להציג הכול"
+  },
+  "analytics.chart.action.show-top-eight": {
+    "message": "לרואת טופ 8"
   },
   "analytics.chart.axis.playtime-hours": {
     "message": "{hours} שעות"
@@ -25,6 +61,12 @@
   },
   "analytics.chart.render-limit.header": {
     "message": "להציג את כל {count} הקווים בגרף?"
+  },
+  "analytics.chart.tooltip.total": {
+    "message": "סך הכול"
+  },
+  "analytics.chart.view.area": {
+    "message": "שטח"
   },
   "app-marketing.download.description": {
     "message": "היישום השולחני שלנו זמין לכל הפלטפורמות. אנא בחר את הגרסה הרצויה."
@@ -65,23 +107,11 @@
   "app-marketing.download.windows": {
     "message": "ווינדוס"
   },
-  "app-marketing.features.follow.description": {
-    "message": "שמור תוכן שאתה אוהב וקבל עדכונים בלחיצה אחת."
-  },
-  "app-marketing.features.follow.title": {
-    "message": "עקוב אחר פרויקטים"
-  },
-  "app-marketing.features.importing.description": {
-    "message": "ייבא את כל הפרופילים המועדפים עליך מהמפעיל שבו השתמשת לפני כן, והתחל להשתמש באפליקציית מודרינת' תוך שניות!"
-  },
   "app-marketing.features.importing.gdlauncher-alt": {
     "message": "GDLauncher"
   },
   "app-marketing.features.importing.multimc-alt": {
     "message": "MultiMC"
-  },
-  "app-marketing.features.importing.title": {
-    "message": "ייבוא פרופילים"
   },
   "app-marketing.features.mod-management.actions": {
     "message": "פעולות"
@@ -107,15 +137,6 @@
   "app-marketing.features.mod-management.version": {
     "message": "גרסה"
   },
-  "app-marketing.features.offline.description": {
-    "message": "שחק עם המודים שלך, בין אם אתה מחובר לאינטרנט ובין אם לאו."
-  },
-  "app-marketing.features.offline.title": {
-    "message": "מצב לא מקוון"
-  },
-  "app-marketing.features.open-source.description": {
-    "message": "המפעיל של מודרינת' הוא קוד פתוח לחלוטין. באפשרותך לצפות בקוד המקור ב<github-link>GitHub</github-link>!"
-  },
   "app-marketing.features.open-source.title": {
     "message": "קוד פתוח"
   },
@@ -125,9 +146,6 @@
   "app-marketing.features.performance.cpu-percent": {
     "message": "% מעבד"
   },
-  "app-marketing.features.performance.description": {
-    "message": "אפליקציית Modrinth מציגה ביצועים טובים יותר מרוב מנהלי המודים המובילים, תוך שימוש ב 150 MB של RAM בלבד!"
-  },
   "app-marketing.features.performance.discord": {
     "message": "דיסקורד"
   },
@@ -136,12 +154,6 @@
   },
   "app-marketing.features.performance.google-chrome": {
     "message": "גוגל כרום"
-  },
-  "app-marketing.features.performance.infinite-mb": {
-    "message": "∞ מגה-בייט"
-  },
-  "app-marketing.features.performance.less-than-150mb": {
-    "message": "פחות מ-150 מגה-בייט"
   },
   "app-marketing.features.performance.modrinth-app": {
     "message": "Modrinth App"
@@ -272,9 +284,6 @@
   "auth.reset-password.title.long": {
     "message": "הפס סיסמתכם"
   },
-  "auth.sign-in.2fa.placeholder": {
-    "message": "כתבו קוד..."
-  },
   "auth.sign-in.title": {
     "message": "הכנס"
   },
@@ -317,20 +326,11 @@
   "auth.verify-email.title": {
     "message": "אמת אימייל"
   },
-  "collection.button.edit-icon": {
-    "message": "ערוך סמל"
-  },
   "collection.button.remove-icon": {
     "message": "מחק אייקון"
   },
   "collection.button.remove-project": {
     "message": "מחק פרוייקט"
-  },
-  "collection.button.replace-icon": {
-    "message": "החלף אייקון"
-  },
-  "collection.button.select-icon": {
-    "message": "בחר אייקון"
   },
   "collection.button.unfollow-project": {
     "message": "הסר מעקב מפרוייקט"
@@ -346,9 +346,6 @@
   },
   "collection.description.following": {
     "message": "אוסף שנוצר אוטומטית של כל הפרויקטים שאתה עוקב אחריו."
-  },
-  "collection.editing": {
-    "message": "צור אוסף"
   },
   "collection.error.not-found": {
     "message": "אוסף לא נמצא"
@@ -520,27 +517,6 @@
   },
   "create.project.visibility-unlisted": {
     "message": "לא מוגדר"
-  },
-  "dashboard.affiliate-links.create.button": {
-    "message": "צור קישור שותפות"
-  },
-  "dashboard.affiliate-links.error.title": {
-    "message": "שגיאה בטעינת קישורי שותפים"
-  },
-  "dashboard.affiliate-links.header": {
-    "message": "קישורי השותפים שלך"
-  },
-  "dashboard.affiliate-links.revoke-confirm.body": {
-    "message": "פעולה זו תבטל לצמיתות את קוד השותף {id}, וכל הקישורים הקיימים שהופצו עם קוד זה לא יהיו תקפים יותר."
-  },
-  "dashboard.affiliate-links.revoke-confirm.button": {
-    "message": "ביטול"
-  },
-  "dashboard.affiliate-links.revoke-confirm.title": {
-    "message": "האם אתה בטוח שברצונך לבטל את קישור השותף \"{title}\"?"
-  },
-  "dashboard.affiliate-links.search": {
-    "message": "חיפוש קישורי שותפים..."
   },
   "dashboard.collections.button.create-new": {
     "message": "צור חדש"
@@ -1091,9 +1067,6 @@
   "hosting-marketing.faq.cpu-kind": {
     "message": "על אילו מעבדים (CPUs) רצים השרתים של Modrinth Hosting?"
   },
-  "hosting-marketing.faq.cpu-kind.answer": {
-    "message": "שרתי האחסון של Modrinth מבוססים על מעבדי AMD Ryzen 7900 ו-7950X3D (או שווי ערך) במהירות של 5GHz ומעלה, בשילוב עם זיכרון DDR5."
-  },
   "hosting-marketing.faq.currency": {
     "message": "באיזה מטבע מוצגים המחירים?"
   },
@@ -1409,12 +1382,6 @@
   "layout.action.file-lookup": {
     "message": "חיפוש קבצים"
   },
-  "layout.action.lookup-by-email": {
-    "message": "חיפוש על ידי אימייל"
-  },
-  "layout.action.manage-affiliates": {
-    "message": "נהל את קישורי השותפים"
-  },
   "layout.action.manage-server-notices": {
     "message": "ניהול הודעות השרת"
   },
@@ -1426,9 +1393,6 @@
   },
   "layout.action.new-project": {
     "message": "פרוייקט חדש"
-  },
-  "layout.action.new-server-project": {
-    "message": "יצירת שרת חדש"
   },
   "layout.action.publish": {
     "message": "פרסם"
@@ -1897,9 +1861,6 @@
   },
   "project.actions.dont-show-again": {
     "message": "אל תציג שוב"
-  },
-  "project.actions.review-project": {
-    "message": "סקירת פרויקט"
   },
   "project.actions.servers-promo.description": {
     "message": "Modrinth Hosting היא הדרך הקלה ביותר לשחק עם חברים בלי כאב ראש!"

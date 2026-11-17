@@ -4,15 +4,14 @@
 		:aria-label="formatMessage(messages.fileNavigation)"
 	>
 		<div v-if="!isEditing" class="flex items-center gap-2 @[800px]:hidden">
-			<StyledInput
+			<Input
 				:model-value="searchQuery"
 				:icon="SearchIcon"
 				type="search"
 				name="search"
 				autocomplete="off"
 				:placeholder="formatMessage(messages.searchFiles)"
-				class="!h-10"
-				input-class="!h-10"
+				size="medium"
 				wrapper-class="flex-1 min-w-0"
 				@update:model-value="$emit('update:searchQuery', $event)"
 			/>
@@ -95,7 +94,7 @@
 			</nav>
 
 			<div v-if="!isEditing" class="flex flex-shrink-0 items-center gap-2">
-				<StyledInput
+				<Input
 					id="search-folder"
 					:model-value="searchQuery"
 					:icon="SearchIcon"
@@ -103,8 +102,8 @@
 					name="search"
 					autocomplete="off"
 					:placeholder="formatMessage(messages.searchFiles)"
-					class="!h-10 hidden @[800px]:inline-flex"
-					input-class="!h-10"
+					class="hidden @[800px]:inline-flex"
+					size="medium"
 					wrapper-class="w-full sm:w-[280px]"
 					@update:model-value="$emit('update:searchQuery', $event)"
 				/>
@@ -159,13 +158,7 @@
 							id: 'install-from-url',
 							label: formatMessage(messages.uploadFromZipUrl),
 							shown: showInstallFromUrl ?? false,
-							action: () => $emit('unzipFromUrl', false),
-						},
-						{
-							id: 'install-cf-pack',
-							label: formatMessage(messages.installCurseForgePack),
-							shown: showInstallFromUrl ?? false,
-							action: () => $emit('unzipFromUrl', true),
+							action: () => $emit('unzipFromUrl'),
 						},
 					]"
 				>
@@ -185,10 +178,6 @@
 					</template>
 					<template #install-from-url>
 						<LinkIcon aria-hidden="true" /> {{ formatMessage(messages.uploadFromZipUrl) }}
-					</template>
-					<template #install-cf-pack>
-						<CurseForgeIcon aria-hidden="true" />
-						{{ formatMessage(messages.installCurseForgePack) }}
 					</template>
 				</TeleportOverflowMenu>
 			</div>
@@ -222,7 +211,6 @@
 import {
 	BoxIcon,
 	ChevronRightIcon,
-	CurseForgeIcon,
 	DropdownIcon,
 	FileArchiveIcon,
 	FolderOpenIcon,
@@ -237,7 +225,7 @@ import {
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { Button, IconButton, TeleportOverflowMenu } from '#ui/components/base/buttons'
-import StyledInput from '#ui/components/base/StyledInput.vue'
+import Input from '#ui/components/base/inputs/Input.vue'
 import { defineMessages, useVIntl } from '#ui/composables/i18n'
 import { commonMessages } from '#ui/utils/common-messages'
 
@@ -288,10 +276,6 @@ const messages = defineMessages({
 		id: 'files.navbar.upload-from-zip-url',
 		defaultMessage: 'Upload from .zip URL',
 	},
-	installCurseForgePack: {
-		id: 'files.navbar.install-curseforge-pack',
-		defaultMessage: 'Install CurseForge pack',
-	},
 	shareToMclogs: {
 		id: 'files.navbar.share-to-mclogs',
 		defaultMessage: 'Share to mclo.gs',
@@ -325,7 +309,7 @@ const emit = defineEmits<{
 	create: [type: 'file' | 'directory']
 	upload: []
 	uploadZip: []
-	unzipFromUrl: [cf: boolean]
+	unzipFromUrl: []
 	refresh: []
 	share: []
 	find: []

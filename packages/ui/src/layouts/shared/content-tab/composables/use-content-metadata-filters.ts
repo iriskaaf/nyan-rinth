@@ -6,10 +6,14 @@ import type {
 	DropdownFilterBarCategory,
 	DropdownFilterBarOption,
 } from '#ui/components/base/DropdownFilterBar.vue'
+import {
+	type EnvironmentFilterValue,
+	getEnvironmentFilterValue,
+} from '#ui/components/project/settings/environment/environments'
 import { defineMessages, useVIntl } from '#ui/composables/i18n'
 
 import type { ContentItem } from '../types'
-import { getClientWarningType } from './content-filtering'
+import { getContentWarningType } from './content-filtering'
 
 export type ContentMetadataFilterValue = Record<string, string[]>
 
@@ -18,6 +22,8 @@ interface MetadataFilterDefinition {
 	label: string
 	searchable?: boolean
 	direct?: boolean
+	submenuClass?: string
+	previewDropdownWidth?: string
 	options?: DropdownFilterBarOption[]
 	values: (item: ContentItem) => DropdownFilterBarOption[]
 }
@@ -25,6 +31,8 @@ interface MetadataFilterDefinition {
 interface ContentMetadataFilterConfig {
 	showSharedContent?: Ref<boolean> | Readonly<Ref<boolean>>
 	showEnvironmentWarnings?: boolean
+	showEnabledFor?: boolean
+	showUpdates?: boolean
 }
 
 const openSourceLicenseIds = new Set([
@@ -58,35 +66,7 @@ const openSourceLicenseIds = new Set([
 	'Zlib',
 ])
 
-type EnvironmentFilterValue = 'client' | 'server' | 'client_and_server' | 'singleplayer'
-
-function getEnvironmentFilterValue(
-	environment?: ContentItem['environment'],
-): EnvironmentFilterValue | undefined {
-	switch (environment) {
-		case 'client_only':
-			return 'client'
-		case 'server_only':
-		case 'dedicated_server_only':
-			return 'server'
-		case 'client_and_server':
-		case 'client_only_server_optional':
-		case 'server_only_client_optional':
-		case 'client_or_server':
-		case 'client_or_server_prefers_both':
-			return 'client_and_server'
-		case 'singleplayer_only':
-			return 'singleplayer'
-		default:
-			return undefined
-	}
-}
-
 const messages = defineMessages({
-	author: {
-		id: 'content.metadata-filter.author',
-		defaultMessage: 'Author',
-	},
 	openSource: {
 		id: 'content.metadata-filter.open-source',
 		defaultMessage: 'Open source',
@@ -94,6 +74,22 @@ const messages = defineMessages({
 	environment: {
 		id: 'content.metadata-filter.environment',
 		defaultMessage: 'Environment',
+	},
+	enabledFor: {
+		id: 'content.enabled-for.label',
+		defaultMessage: 'Enabled for',
+	},
+	serverOnly: {
+		id: 'content.enabled-for.server-only-filter',
+		defaultMessage: 'Server-only',
+	},
+	playerOnly: {
+		id: 'content.enabled-for.player-only-filter',
+		defaultMessage: 'Player-only',
+	},
+	serverAndPlayer: {
+		id: 'content.enabled-for.server-and-player',
+		defaultMessage: 'Server and player',
 	},
 	clientSideOnly: {
 		id: 'project.settings.environment.client_only.title',
@@ -132,20 +128,24 @@ const messages = defineMessages({
 		defaultMessage: 'Update available',
 	},
 	clientRetained: {
-		id: 'content.metadata-filter.warning.client-retained',
-		defaultMessage: 'Client file retained',
+		id: 'content.metadata-filter.warning.client-only-dependency-on-server',
+		defaultMessage: 'Client-only mod on server',
 	},
 	clientDepends: {
-		id: 'content.metadata-filter.warning.client-depends',
-		defaultMessage: 'Client depends on file',
+		id: 'content.metadata-filter.warning.requires-client-only-dependency',
+		defaultMessage: 'Needs client-only mod',
 	},
 	clientOnly: {
 		id: 'content.metadata-filter.warning.client-only',
 		defaultMessage: 'Client-only content',
 	},
-	noWarnings: {
-		id: 'content.metadata-filter.warning.none',
-		defaultMessage: 'No warnings',
+	serverOnlyWarning: {
+		id: 'content.metadata-filter.warning.server-only',
+		defaultMessage: 'Server-only content',
+	},
+	unknownEnvironment: {
+		id: 'content.metadata-filter.warning.compatibility-unknown',
+		defaultMessage: 'Compatibility unknown',
 	},
 	external: {
 		id: 'content.metadata-filter.source.external',
@@ -166,6 +166,17 @@ export function useContentMetadataFilters(
 	const selectedMetadataFilters = persistKey
 		? useSessionStorage<ContentMetadataFilterValue>(`content-metadata-filters:${persistKey}`, {})
 		: ref<ContentMetadataFilterValue>({})
+	const savedEnabledFor = selectedMetadataFilters.value.enabled_for
+	if (savedEnabledFor?.some((value) => value === 'server' || value === 'player')) {
+		selectedMetadataFilters.value = {
+			...selectedMetadataFilters.value,
+			enabled_for: [
+				...(savedEnabledFor.includes('server') ? ['server_only'] : []),
+				...(savedEnabledFor.includes('player') ? ['player_only'] : []),
+				'server_and_player',
+			],
+		}
+	}
 
 	function option(value: string, label: string, searchTerms?: string[]): DropdownFilterBarOption {
 		return { value, label, searchTerms }
@@ -194,29 +205,42 @@ export function useContentMetadataFilters(
 	}
 
 	const definitions = computed<MetadataFilterDefinition[]>(() => [
-		{
-			key: 'author',
-			label: formatMessage(messages.author),
-			searchable: true,
-			values: (item) =>
-				item.owner
-					? [option(`${item.owner.type}:${item.owner.id}`, item.owner.name, [item.owner.id])]
-					: [],
-		},
-		{
-			key: 'environment',
-			label: formatMessage(messages.environment),
-			options: [
-				option('client', getEnvironmentFilterLabel('client')),
-				option('server', getEnvironmentFilterLabel('server')),
-				option('client_and_server', getEnvironmentFilterLabel('client_and_server')),
-				option('singleplayer', getEnvironmentFilterLabel('singleplayer')),
-			],
-			values: (item) => {
-				const value = getEnvironmentFilterValue(item.environment)
-				return value ? [option(value, getEnvironmentFilterLabel(value))] : []
-			},
-		},
+		config?.showEnabledFor
+			? {
+					key: 'enabled_for',
+					label: formatMessage(messages.enabledFor),
+					options: [
+						option('server_only', formatMessage(messages.serverOnly)),
+						option('player_only', formatMessage(messages.playerOnly)),
+						option('server_and_player', formatMessage(messages.serverAndPlayer)),
+					],
+					values: (item) => {
+						if (item.enabledFor?.server && item.enabledFor.player) {
+							return [option('server_and_player', formatMessage(messages.serverAndPlayer))]
+						}
+						if (item.enabledFor?.server) {
+							return [option('server_only', formatMessage(messages.serverOnly))]
+						}
+						if (item.enabledFor?.player) {
+							return [option('player_only', formatMessage(messages.playerOnly))]
+						}
+						return []
+					},
+				}
+			: {
+					key: 'environment',
+					label: formatMessage(messages.environment),
+					options: [
+						option('client', getEnvironmentFilterLabel('client')),
+						option('server', getEnvironmentFilterLabel('server')),
+						option('client_and_server', getEnvironmentFilterLabel('client_and_server')),
+						option('singleplayer', getEnvironmentFilterLabel('singleplayer')),
+					],
+					values: (item) => {
+						const value = getEnvironmentFilterValue(item.environment)
+						return value ? [option(value, getEnvironmentFilterLabel(value))] : []
+					},
+				},
 		{
 			key: 'state',
 			label: formatMessage(messages.state),
@@ -232,8 +256,10 @@ export function useContentMetadataFilters(
 		{
 			key: 'warnings',
 			label: formatMessage(messages.warnings),
+			submenuClass: 'w-[24rem]',
+			previewDropdownWidth: 'min(24rem, calc(100vw - 1rem))',
 			values: (item) => {
-				const warning = getClientWarningType(item, config?.showEnvironmentWarnings)
+				const warning = getContentWarningType(item, config?.showEnvironmentWarnings)
 				switch (warning) {
 					case 'retained':
 						return [option(warning, formatMessage(messages.clientRetained))]
@@ -241,18 +267,26 @@ export function useContentMetadataFilters(
 						return [option(warning, formatMessage(messages.clientDepends))]
 					case 'environment':
 						return [option(warning, formatMessage(messages.clientOnly))]
+					case 'server-only':
+						return [option(warning, formatMessage(messages.serverOnlyWarning))]
+					case 'unknown-environment':
+						return [option(warning, formatMessage(messages.unknownEnvironment))]
 					default:
-						return [option('none', formatMessage(messages.noWarnings))]
+						return []
 				}
 			},
 		},
-		{
-			key: 'updates',
-			label: formatMessage(messages.updateAvailable),
-			direct: true,
-			values: (item) =>
-				item.has_update ? [option('available', formatMessage(messages.updateAvailable))] : [],
-		},
+		...(config?.showUpdates === false
+			? []
+			: [
+					{
+						key: 'updates',
+						label: formatMessage(messages.updateAvailable),
+						direct: true,
+						values: (item: ContentItem) =>
+							item.has_update ? [option('available', formatMessage(messages.updateAvailable))] : [],
+					},
+				]),
 		{
 			key: 'open_source',
 			label: formatMessage(messages.openSource),
@@ -309,6 +343,8 @@ export function useContentMetadataFilters(
 					label: definition.label,
 					direct: definition.direct,
 					searchable: definition.searchable,
+					submenuClass: definition.submenuClass,
+					previewDropdownWidth: definition.previewDropdownWidth,
 					options: visibleOptions,
 				}
 			})

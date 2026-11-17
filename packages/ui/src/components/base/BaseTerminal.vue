@@ -1,9 +1,14 @@
 <template>
 	<div
-		class="flex h-full w-full flex-col bg-surface-2 overflow-hidden rounded-[20px] border border-solid border-surface-4"
+		class="flex w-full flex-col bg-surface-2 overflow-hidden rounded-[20px] border border-solid border-surface-4"
+		:class="minLogHeight ? 'min-h-min' : 'h-full min-h-0'"
 	>
-		<div ref="wrapperRef" class="relative min-h-0 flex-1 overflow-hidden pb-2 pt-1">
-			<div ref="containerRef" class="size-full" />
+		<div
+			ref="wrapperRef"
+			class="relative mb-2 mt-1 min-h-0 flex-1 overflow-hidden"
+			:style="{ minHeight: minLogHeight }"
+		>
+			<div ref="containerRef" class="absolute inset-0" />
 			<Transition name="terminal-loading-fade">
 				<div
 					v-if="loading"
@@ -20,16 +25,16 @@
 		<div
 			v-if="showInput"
 			ref="inputRef"
-			class="border-t border-solid border-b-0 border-x-0 border-surface-4 bg-surface-3 p-4"
+			class="shrink-0 border-t border-solid border-b-0 border-x-0 border-surface-4 bg-surface-3 p-4"
 		>
-			<StyledInput
+			<Input
 				v-model="commandInput"
 				v-tooltip="disableInput ? disableInputTooltip : undefined"
 				:icon="TerminalSquareIcon"
 				:placeholder="disableInput ? disabledInputPlaceholder : 'Send a command'"
 				:disabled="disableInput"
 				wrapper-class="w-full"
-				input-class="!h-10"
+				size="medium"
 				@keydown.enter="submitCommand"
 			/>
 		</div>
@@ -42,12 +47,13 @@ import type { Terminal } from '@xterm/xterm'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { IconButton } from '#ui/components/base/buttons'
-import StyledInput from '#ui/components/base/StyledInput.vue'
+import Input from '#ui/components/base/inputs/Input.vue'
 import { useTerminal } from '#ui/composables/terminal'
 
 const props = withDefaults(
 	defineProps<{
 		scrollback?: number
+		minLogHeight?: string
 		showInput?: boolean
 		disableInput?: boolean
 		disableInputTooltip?: string
@@ -58,6 +64,7 @@ const props = withDefaults(
 	}>(),
 	{
 		scrollback: Infinity,
+		minLogHeight: undefined,
 		showInput: false,
 		disableInput: false,
 		disableInputTooltip: undefined,

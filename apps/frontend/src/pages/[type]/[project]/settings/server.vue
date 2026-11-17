@@ -1,5 +1,6 @@
 <template>
 	<div>
+		<ProjectIssueCard location="server" class="mb-4" />
 		<ConfirmLeaveModal ref="confirmLeaveModal" />
 		<section class="universal-card">
 			<div class="flex flex-col gap-6">
@@ -9,7 +10,7 @@
 
 				<!-- Region -->
 				<div class="max-w-[600px]">
-					<label for="server-region">
+					<label for="server-region" class="w-fit">
 						<span class="label__title">{{ formatMessage(messages.regionLabel) }}</span>
 					</label>
 					<Combobox
@@ -20,11 +21,18 @@
 						:placeholder="formatMessage(messages.selectRegionPlaceholder)"
 						:disabled="!hasPermission"
 					/>
+					<ValidationMessage
+						:check="regionValidation"
+						:project-field="projectV3?.minecraft_server?.region ?? ''"
+						:current-field="region"
+						class="mt-2"
+					/>
+					<ValidationMessage :check="saveValidation.forField('server-region')" class="mt-2" />
 				</div>
 
 				<!-- Language -->
 				<div class="max-w-[600px]">
-					<label for="server-language">
+					<label for="server-language" class="block w-fit">
 						<span class="label__title"
 							>{{ formatMessage(messages.languagesLabel) }}
 							<span class="font-normal text-secondary"
@@ -42,12 +50,26 @@
 						:placeholder="formatMessage(messages.selectLanguagesPlaceholder)"
 						:disabled="!hasPermission"
 					/>
+					<ValidationMessage
+						:check="languageValidation"
+						:project-field="
+							JSON.stringify([...(projectV3?.minecraft_server?.languages ?? [])].sort())
+						"
+						:current-field="JSON.stringify([...languages].sort())"
+						class="mt-2"
+					/>
+					<ValidationMessage :check="saveValidation.forField('server-languages')" class="mt-2" />
+					<ProjectIssueCard
+						target="modify_server_languages"
+						:field-action="languagesIssueAction"
+						class="mt-2"
+					/>
 				</div>
 
 				<!-- Java Address -->
 				<div class="max-w-[600px]">
 					<div class="flex items-center justify-between">
-						<label for="java-address">
+						<label for="java-address" class="block w-fit">
 							<span class="label__title !m-0 !text-contrast">{{
 								formatMessage(messages.javaAddressLabel)
 							}}</span>
@@ -62,7 +84,7 @@
 							}
 						"
 					>
-						<StyledInput
+						<Input
 							id="java-address"
 							v-model="javaAddress"
 							:placeholder="formatMessage(messages.enterAddressPlaceholder)"
@@ -99,7 +121,11 @@
 						>
 							{{ formatMessage(messages.serverOnline) }}
 							<template v-if="javaPingResult.latency">
-								{{ formatMessage(messages.latencyLabel, { latency: javaPingResult.latency }) }}
+								{{
+									formatMessage(messages.latencyLabel, {
+										latency: javaPingResult.latency,
+									})
+								}}
 							</template>
 						</div>
 						<div v-else-if="javaPingResult !== null && !javaPingLoading" class="mt-0.5 text-orange">
@@ -127,11 +153,24 @@
 							/></template>
 						</IntlFormatted>
 					</div>
+					<ValidationMessage
+						:check="javaAddressValidation"
+						:project-field="projectV3?.minecraft_java_server?.address ?? ''"
+						:current-field="javaAddress.trim()"
+						class="mt-2"
+					/>
+					<ValidationMessage :check="saveValidation.forField('java-address')" class="mt-2" />
+					<ProjectIssueCard
+						target="modify_server_address"
+						platform="minecraft_java"
+						:field-action="javaAddressIssueAction"
+						class="mt-2"
+					/>
 				</div>
 
 				<!-- Bedrock Address -->
 				<div class="max-w-[600px]">
-					<label for="bedrock-address">
+					<label for="bedrock-address" class="block w-fit">
 						<span class="label__title !text-contrast"
 							>{{ formatMessage(messages.bedrockAddressLabel) }}
 							<span class="font-normal text-secondary"
@@ -140,7 +179,7 @@
 						</span>
 					</label>
 					<div class="mt-2 flex items-center gap-2">
-						<StyledInput
+						<Input
 							id="bedrock-address"
 							v-model="bedrockAddress"
 							:placeholder="formatMessage(messages.enterAddressPlaceholder)"
@@ -149,16 +188,45 @@
 							autocomplete="off"
 						/>
 					</div>
+					<ProjectIssueCard
+						target="modify_server_address"
+						platform="minecraft_bedrock"
+						:field-action="bedrockAddressIssueAction"
+						class="mt-2"
+					/>
 				</div>
 
-				<CompatibilityCard />
+				<div>
+					<CompatibilityCard
+						:project="projectV3"
+						:save-project="patchProjectV3"
+						:can-edit="hasPermission"
+					/>
+					<ValidationMessage :check="compatibilityValidation" class="mt-2" />
+					<ValidationMessage
+						:check="saveValidation.forField('server-compatibility')"
+						class="mt-2"
+					/>
+				</div>
 			</div>
 		</section>
 
+		<ValidationMessage
+			:check="
+				saveValidation.withoutFields([
+					'server-region',
+					'server-languages',
+					'java-address',
+					'server-compatibility',
+				])
+			"
+			class="my-4"
+		/>
 		<UnsavedChangesPopup
 			:original="original"
 			:modified="modified"
 			:saving="saving"
+			:can-save="!saveValidation.hasErrors.value"
 			@reset="resetChanges"
 			@save="handleSave"
 		/>
@@ -173,23 +241,27 @@ import {
 	ConfirmLeaveModal,
 	defineMessages,
 	IconButton,
-	injectModrinthClient,
 	injectNotificationManager,
 	injectProjectPageContext,
+	Input,
 	IntlFormatted,
 	MultiSelect,
 	normalizeChildren,
 	SERVER_LANGUAGES,
 	SERVER_REGIONS,
-	StyledInput,
 	UnsavedChangesPopup,
 	usePageLeaveSafety,
 	useVIntl,
 } from '@modrinth/ui'
+import { isAdmin } from '@modrinth/utils'
 
+import ProjectIssueCard from '~/components/ui/project-issue-card/index.vue'
 import CompatibilityCard from '~/components/ui/project-settings/CompatibilityCard.vue'
-
-const PING_TIMEOUT_MS = 5000
+import ValidationMessage from '~/components/ValidationMessage.vue'
+import { useProjectIssueFieldAction } from '~/composables/project-issue-field-action'
+import { useProjectNagMessages } from '~/composables/project-nag-validation'
+import { useProjectSaveValidation } from '~/composables/project-save-validation'
+import { useJavaServerPing } from '~/providers/manage-server-compatibility-modal'
 
 const { formatMessage, locale } = useVIntl()
 
@@ -268,9 +340,13 @@ const messages = defineMessages({
 	},
 })
 
-const client = injectModrinthClient()
 const { addNotification } = injectNotificationManager()
 const { projectV3, currentMember, patchProjectV3 } = injectProjectPageContext()
+
+const regionValidation = useProjectNagMessages('server-region')
+const languageValidation = useProjectNagMessages('server-languages')
+const javaAddressValidation = useProjectNagMessages('java-address')
+const compatibilityValidation = useProjectNagMessages('server-compatibility')
 
 useProjectSettingsHeadTitle(commonProjectSettingsMessages.server)
 
@@ -280,57 +356,20 @@ const bedrockPort = ref(19132)
 const region = ref('')
 const languages = ref([])
 
-const javaPingLoading = ref(false)
-const javaPingResult = ref(null)
+const {
+	loading: javaPingLoading,
+	result: javaPingResult,
+	addressChanged: lastPingAddressChanged,
+	ping: pingJavaServer,
+} = useJavaServerPing(javaAddress)
 
-const lastPingedAddress = ref('')
-
-const lastPingAddressChanged = computed(() => {
-	return javaAddress.value.trim() !== lastPingedAddress.value
-})
-
-let pingDebounceTimer = null
-
-watch(javaAddress, () => {
-	clearTimeout(pingDebounceTimer)
-	pingDebounceTimer = setTimeout(() => {
-		pingJavaServer()
-	}, 500)
-})
-
+const isAdminUser = computed(() => isAdmin(currentMember.value?.user))
 const hasPermission = computed(() => {
 	const EDIT_DETAILS = 1 << 2
-	return ((currentMember.value?.permissions ?? 0) & EDIT_DETAILS) === EDIT_DETAILS
+	return (
+		isAdminUser.value || ((currentMember.value?.permissions ?? 0) & EDIT_DETAILS) === EDIT_DETAILS
+	)
 })
-
-async function pingJavaServer() {
-	const address = javaAddress.value?.trim()
-	if (!address) {
-		javaPingResult.value = null
-		return
-	}
-
-	javaPingLoading.value = true
-	javaPingResult.value = null
-
-	try {
-		await Promise.race([
-			client.labrinth.server_ping_internal.pingMinecraftJava({
-				address,
-				timeout_ms: PING_TIMEOUT_MS,
-			}),
-			new Promise((_, reject) =>
-				setTimeout(() => reject(new Error('Ping timed out')), PING_TIMEOUT_MS),
-			),
-		])
-		javaPingResult.value = { online: true, latency: null }
-	} catch {
-		javaPingResult.value = { online: false, latency: null }
-	} finally {
-		javaPingLoading.value = false
-		lastPingedAddress.value = address
-	}
-}
 
 function initFromProjectV3(v3) {
 	if (!v3) return
@@ -469,7 +508,43 @@ const hasChanges = computed(() =>
 
 const { confirmLeaveModal } = usePageLeaveSafety(hasChanges)
 
+const saveValidation = useProjectSaveValidation(() => modified.value)
+
+function useServerIssueAction(field, value, validationField, canSave = () => true) {
+	return useProjectIssueFieldAction({
+		draft: () => ({ [field]: { ...projectV3.value?.[field], ...value() } }),
+		canSave: () =>
+			hasPermission.value &&
+			canSave() &&
+			!saveValidation.forField(validationField).some((message) => message.severity === 'error'),
+		saving,
+		validation: saveValidation,
+		save: () => patchProjectV3({ [field]: value() }, true, true),
+	})
+}
+
+const languagesIssueAction = useServerIssueAction(
+	'minecraft_server',
+	() => ({ languages: [...languages.value] }),
+	'server-languages',
+)
+const javaAddressIssueAction = useServerIssueAction(
+	'minecraft_java_server',
+	() => ({ address: javaAddress.value.trim() }),
+	'java-address',
+	() =>
+		isAdminUser.value ||
+		!javaAddress.value.trim() ||
+		(!javaPingLoading.value && !lastPingAddressChanged.value && !!javaPingResult.value?.online),
+)
+const bedrockAddressIssueAction = useServerIssueAction(
+	'minecraft_bedrock_server',
+	() => ({ address: bedrockAddress.value.trim() }),
+	'bedrock-address',
+)
+
 function resetChanges() {
+	saveValidation.clear()
 	javaAddress.value = projectV3.value?.minecraft_java_server?.address ?? ''
 	bedrockAddress.value = projectV3.value?.minecraft_bedrock_server?.address ?? ''
 	bedrockPort.value = projectV3.value?.minecraft_bedrock_server?.port ?? 19132
@@ -478,7 +553,9 @@ function resetChanges() {
 }
 
 async function handleSave() {
-	if (javaAddress.value.trim() && !javaPingResult.value?.online) {
+	if (saving.value || saveValidation.hasErrors.value) return
+	const submittedState = saveValidation.snapshot()
+	if (!isAdminUser.value && javaAddress.value.trim() && !javaPingResult.value?.online) {
 		addNotification({
 			title: formatMessage(messages.cannotSaveTitle),
 			text: formatMessage(messages.cannotSaveText),
@@ -491,8 +568,11 @@ async function handleSave() {
 	try {
 		const hasV3Changes = Object.keys(v3PatchData.value).length > 0
 		if (hasV3Changes) {
-			await patchProjectV3(v3PatchData.value)
+			await patchProjectV3(v3PatchData.value, false, true)
+			saveValidation.clear()
 		}
+	} catch (error) {
+		if (!saveValidation.capture(error, submittedState)) throw error
 	} finally {
 		saving.value = false
 	}

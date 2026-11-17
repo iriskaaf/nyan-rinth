@@ -1,7 +1,7 @@
 import type { Labrinth } from '@modrinth/api-client'
 import type { RouteLocationRaw } from 'vue-router'
 
-import type { OverflowMenuOption } from '#ui/components/base/buttons'
+import type { ButtonMenuOption } from '#ui/components/base/buttons'
 
 export type ContentCardProject = Pick<
 	Labrinth.Projects.v2.Project,
@@ -28,6 +28,7 @@ export interface ContentSource {
 }
 
 export type ClientWarningType = 'retained' | 'depends' | 'environment'
+export type ContentWarningType = ClientWarningType | 'server-only' | 'unknown-environment'
 
 export type ContentSourceKind =
 	| 'local'
@@ -50,15 +51,36 @@ export interface EmbeddedContentMetadata {
 	icon_url?: string | null
 }
 
+export type ContentSide = 'server' | 'player'
+
+export interface ContentEnabledForState {
+	server: boolean
+	player: boolean
+	locked: boolean
+	lockedTooltip?: string
+	disabledSides?: ContentSide[]
+	warningTooltip?: string | null
+	warningKind?: ContentWarningType | null
+}
+
+export interface ContentCardEmbeddedIcon {
+	queryKey: readonly unknown[]
+	queryFn: () => Promise<Blob>
+	fallbackUrl?: string | null
+}
+
 export interface ContentCardTableItem {
 	id: string
 	project: ContentCardProject
+	projectType?: string
 	projectLink?: string | RouteLocationRaw
 	version?: ContentCardVersion
 	versionLink?: string | RouteLocationRaw
 	owner?: ContentOwner
 	source?: ContentSource
 	external?: boolean
+	externalFile?: boolean
+	overrideFile?: boolean
 	enabled?: boolean
 	locked?: boolean
 	disabled?: boolean
@@ -71,9 +93,13 @@ export interface ContentCardTableItem {
 	hasUpdate?: boolean
 	isClientOnly?: boolean
 	clientWarning?: ClientWarningType | null
+	synced?: boolean
+	syncUpdatePending?: boolean
 	hideDelete?: boolean
 	hideSwitchVersion?: boolean
-	overflowOptions?: OverflowMenuOption[]
+	overflowOptions?: ButtonMenuOption[]
+	enabledFor?: ContentEnabledForState
+	embeddedIcon?: ContentCardEmbeddedIcon
 }
 
 export type ContentCardTableSortColumn = 'project' | 'version'
@@ -92,6 +118,11 @@ export interface ContentItem extends Omit<
 	'id' | 'projectLink' | 'disabled' | 'overflowOptions'
 > {
 	id: string
+	synced_pack?: {
+		id: string
+		instance_ids: string[]
+		update_pending: boolean
+	} | null
 	file_name: string
 	file_path?: string
 	size?: number
@@ -147,6 +178,7 @@ export type ManagedContentCardData =
 			versionNumber?: string
 			versionLink?: string | RouteLocationRaw
 			updatedAt?: string
+			canSwitchVersion?: boolean
 	  })
 	| (ManagedContentCardBase & {
 			kind: 'server' | 'shared-instance'

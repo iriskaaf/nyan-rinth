@@ -1,4 +1,4 @@
-use actix_web::{HttpRequest, get, patch, web};
+use actix_web::{HttpRequest, HttpResponse, get, patch, web};
 use chrono::Utc;
 use eyre::eyre;
 use serde::{Deserialize, Serialize};
@@ -7,13 +7,14 @@ use xredis::RedisPool;
 
 use crate::auth::checks::{is_team_member_project, is_visible_project};
 use crate::auth::get_user_from_headers;
-use crate::database::{DBProject, models as db_models};
+use crate::database::models as db_models;
 use crate::database::{PgPool, ReadOnlyPgPool};
 use crate::models::disclosures::{
     DisclosureLockStatus, ProjectDisclosure, ProjectDisclosureData,
     ProjectDisclosureType,
 };
 use crate::models::pats::Scopes;
+
 use crate::models::teams::ProjectPermissions;
 use crate::queue::session::AuthQueue;
 use crate::routes::ApiError;
@@ -44,7 +45,20 @@ pub async fn get_project_disclosures(
     ro_pool: web::Data<ReadOnlyPgPool>,
     redis: web::Data<RedisPool>,
     session_queue: web::Data<AuthQueue>,
-) -> Result<web::Json<GetProjectDisclosures>, ApiError> {
+) -> Result<HttpResponse, ApiError> {
+    if let Some(response) = crate::routes::redirect_ref(
+        &req,
+        "project_id",
+        pool.as_ref(),
+        redis.as_ref(),
+        session_queue.as_ref(),
+        Scopes::PROJECT_READ,
+    )
+    .await?
+    {
+        return Ok(response);
+    }
+
     let (string,) = info.into_inner();
 
     let project = db_models::DBProject::get(&string, &***ro_pool, &redis)
@@ -73,24 +87,29 @@ pub async fn get_project_disclosures(
     let viewer_is_moderator =
         user_option.as_ref().is_some_and(|user| user.role.is_mod());
 
-    let include_deleted = viewer_is_moderator
+    // Moderators can see regardless of membership, short circuit to avoid extra db call
+    let viewer_is_member = viewer_is_moderator
         || is_team_member_project(&project.inner, &user_option, &pool)
             .await
             .wrap_internal_err("failed to check project team membership")?;
 
     let disclosures = db_models::DBProjectDisclosure::get_many_for_project(
         project.inner.id,
-        include_deleted,
+        viewer_is_moderator || viewer_is_member,
         &***ro_pool,
     )
     .await
     .wrap_internal_err("failed to fetch project disclosures")?;
 
-    Ok(web::Json(GetProjectDisclosures {
+    Ok(HttpResponse::Ok().json(GetProjectDisclosures {
         disclosures: disclosures
             .into_iter()
             .map(|disclosure| {
-                ProjectDisclosureData::from_db(disclosure, viewer_is_moderator)
+                ProjectDisclosureData::from_db(
+                    disclosure,
+                    viewer_is_moderator,
+                    viewer_is_member,
+                )
             })
             .collect(),
     }))
@@ -119,7 +138,20 @@ pub async fn modify_project_disclosures(
     search_state: web::Data<SearchState>,
     session_queue: web::Data<AuthQueue>,
     body: web::Json<ModifyProjectDisclosures>,
-) -> Result<(), ApiError> {
+) -> Result<HttpResponse, ApiError> {
+    if let Some(response) = crate::routes::redirect_ref(
+        &req,
+        "project_id",
+        pool.as_ref(),
+        redis.as_ref(),
+        session_queue.as_ref(),
+        Scopes::PROJECT_WRITE,
+    )
+    .await?
+    {
+        return Ok(response);
+    }
+
     let (string,) = info.into_inner();
     let body = body.into_inner();
 
@@ -274,19 +306,19 @@ pub async fn modify_project_disclosures(
         .wrap_internal_err("failed to remove project disclosure")?;
     }
 
-    transaction
-        .commit()
-        .await
-        .wrap_internal_err("failed to commit project disclosure changes")?;
-
-    DBProject::clear_cache(project.inner.id, project.inner.slug, None, &redis)
-        .await
-        .wrap_internal_err("clearing cached data from Redis")?;
+    super::projects::mutation::finalize_mutation(
+        project.inner.id,
+        transaction,
+        &pool,
+        &redis,
+        Some(&user),
+    )
+    .await?;
 
     search_state
         .queue
         .push_project_change(project.inner.id.into())
         .await;
 
-    Ok(())
+    Ok(HttpResponse::Ok().finish())
 }

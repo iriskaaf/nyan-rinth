@@ -21,7 +21,7 @@
 				/>
 				<img
 					v-else
-					src="https://cdn-raw.modrinth.com/landing-new/landing.webp"
+					src="https://cdn.modrinth.com/landing-new/landing.webp"
 					alt=""
 					class="absolute w-full h-full inset-0 object-cover object-center placeholder-banner scale-[200%]"
 				/>
@@ -68,7 +68,9 @@
 								class="smart-clickable:allow-pointer-events"
 							/>
 						</template>
-						<ProjectCardEnvironment v-if="environment" :environment="environment" />
+						<div v-if="environment" class="flex basis-full">
+							<ProjectCardEnvironment :environment="environment" />
+						</div>
 						<ProjectCardTags
 							v-if="tags"
 							:tags="tags"
@@ -111,7 +113,7 @@
 				class="project-card__icon grid-project-card-list__icon ease-brightness"
 				no-shadow
 			/>
-			<div class="flex flex-col gap-2 grid-project-card-list__info">
+			<div class="flex min-w-0 flex-col gap-2 grid-project-card-list__info">
 				<div class="flex gap-2 items-center">
 					<ProjectCardTitle :title="title" />
 					<ProjectCardAuthor v-if="author" :author="author" />
@@ -140,8 +142,8 @@
 				</div>
 				<ProjectCardDate v-if="date && autoDisplayDate" :type="autoDisplayDate" :date="date" />
 			</div>
-			<div class="mt-auto flex items-center gap-3 grid-project-card-list__tags">
-				<div class="flex items-center gap-2 w-full">
+			<div class="flex min-w-0 items-center gap-3 self-start grid-project-card-list__tags">
+				<div class="flex min-w-0 w-full flex-wrap items-center gap-2">
 					<template v-if="isServerProject">
 						<ServerOnlinePlayers
 							v-if="serverOnlinePlayers !== undefined"
@@ -155,7 +157,7 @@
 							:hide-label="true"
 						/>
 					</template>
-					<div class="flex items-center gap-1">
+					<div class="flex min-w-0 flex-wrap items-center gap-1">
 						<template v-if="isServerProject">
 							<ServerPing v-if="serverPing && serverStatusOnline" :ping="serverPing" />
 							<ServerRegion
@@ -313,7 +315,7 @@ const cssColor = computed(() => {
 		'icon info stats stats'
 		'icon info stats stats'
 		'icon tags tags tags';
-	grid-template-columns: auto 1fr auto auto;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
 }
 
 .grid-project-card-list.has-actions {
@@ -321,7 +323,7 @@ const cssColor = computed(() => {
 		'icon info actions actions'
 		'icon info dummy stats'
 		'icon tags tags stats';
-	grid-template-columns: auto 1fr auto auto;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
 }
 
 .grid-project-card-list__icon {
@@ -352,17 +354,19 @@ const cssColor = computed(() => {
 	.grid-project-card-list {
 		grid-template:
 			'icon info stats'
-			'icon info stats'
-			'tags tags tags';
-		grid-template-columns: auto 1fr auto;
+			'tags tags stats';
+		grid-template-columns: auto minmax(0, 1fr) auto;
 	}
 
 	.grid-project-card-list.has-actions {
 		grid-template:
 			'icon info actions'
-			'icon info stats'
 			'tags tags stats';
-		grid-template-columns: auto 1fr auto;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+	}
+
+	.grid-project-card-list__stats {
+		margin-top: 0;
 	}
 }
 
@@ -377,7 +381,7 @@ const cssColor = computed(() => {
 			'icon info'
 			'tags tags'
 			'stats stats';
-		grid-template-columns: auto 1fr;
+		grid-template-columns: auto minmax(0, 1fr);
 	}
 
 	.grid-project-card-list.has-actions {
@@ -387,7 +391,7 @@ const cssColor = computed(() => {
 			'tags tags'
 			'stats stats'
 			'actions actions';
-		grid-template-columns: auto 1fr;
+		grid-template-columns: auto minmax(0, 1fr);
 	}
 
 	.grid-project-card-list__stats,

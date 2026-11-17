@@ -1,79 +1,89 @@
 <template>
-	<div class="flex flex-col gap-4">
-		<span class="font-semibold text-contrast">
-			{{ formatMessage(messages.knownProjectPrompt) }}
-		</span>
-		<Combobox
-			ref="projectSearchCombobox"
-			v-model="ctx.projectSearchProjectId.value"
-			v-tooltip="ctx.finishDisabled.value ? ctx.finishDisabledTooltip.value : undefined"
-			:options="ctx.projectSearchOptions.value"
-			searchable
-			show-search-icon
-			:show-chevron="false"
-			:disabled="ctx.finishDisabled.value"
-			:search-placeholder="formatMessage(messages.searchProjectPlaceholder)"
-			:no-options-message="
-				searchLoading
-					? formatMessage(commonMessages.loadingLabel)
-					: formatMessage(messages.noResultsFound)
-			"
-			:disable-search-filter="true"
-			@search-input="handleSearch"
-		>
-			<template #option-suffix="{ item }">
-				<div
-					class="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-secondary opacity-0 transition-opacity group-hover/option:opacity-100 group-data-[focused=true]/option:opacity-100"
-				>
-					<span>
-						{{
-							formatMessage(
-								isModpackOption(item.value) ? messages.installModpack : messages.createInstance,
-							)
-						}}
-					</span>
-					<DownloadIcon v-if="isModpackOption(item.value)" class="size-5 shrink-0" />
-					<RightArrowIcon v-else class="size-5 shrink-0" />
-				</div>
-			</template>
-		</Combobox>
+	<div class="flex flex-col gap-4" :aria-busy="ctx.navigating.value">
+		<template v-if="ctx.flowType !== 'instance'">
+			<span class="font-semibold text-contrast">
+				{{ formatMessage(messages.knownProjectPrompt) }}
+			</span>
+			<Combobox
+				ref="projectSearchCombobox"
+				v-model="ctx.projectSearchProjectId.value"
+				v-tooltip="ctx.finishDisabled.value ? ctx.finishDisabledTooltip.value : undefined"
+				:options="ctx.projectSearchOptions.value"
+				searchable
+				show-search-icon
+				:show-chevron="false"
+				:disabled="ctx.finishDisabled.value || ctx.navigating.value"
+				:search-placeholder="formatMessage(messages.searchProjectPlaceholder)"
+				:no-options-message="
+					searchLoading
+						? formatMessage(commonMessages.loadingLabel)
+						: formatMessage(messages.noResultsFound)
+				"
+				:disable-search-filter="true"
+				@search-input="handleSearch"
+			>
+				<template #option-suffix="{ item }">
+					<div
+						class="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-secondary opacity-0 transition-opacity group-hover/option:opacity-100 group-data-[focused=true]/option:opacity-100"
+					>
+						<span>
+							{{
+								formatMessage(
+									isModpackOption(item.value)
+										? messages.installModpack
+										: ctx.flowType === 'instance'
+											? messages.createInstance
+											: commonMessages.continueButton,
+								)
+							}}
+						</span>
+						<DownloadIcon v-if="isModpackOption(item.value)" class="size-5 shrink-0" />
+						<RightArrowIcon v-else class="size-5 shrink-0" />
+					</div>
+				</template>
+			</Combobox>
 
-		<div class="flex items-center gap-3">
-			<div class="h-[1px] w-full flex-1 bg-surface-5" />
-			<span class="text-sm text-secondary">{{ formatMessage(commonMessages.orLabel) }}</span>
-			<div class="h-[1px] w-full flex-1 bg-surface-5" />
-		</div>
+			<div class="flex items-center gap-3">
+				<div class="h-[1px] w-full flex-1 bg-surface-5" />
+				<span class="text-sm text-secondary">{{ formatMessage(commonMessages.orLabel) }}</span>
+				<div class="h-[1px] w-full flex-1 bg-surface-5" />
+			</div>
 
-		<span class="font-semibold text-contrast">
-			{{ setupTypeTitle }}
-		</span>
+			<span class="font-semibold text-contrast">
+				{{ setupTypeTitle }}
+			</span>
+		</template>
 
 		<template v-if="ctx.flowType === 'instance'">
 			<div class="flex flex-col gap-3">
 				<BigOptionButton
+					:disabled="ctx.navigating.value"
 					:icon="UploadIcon"
 					:title="formatMessage(messages.uploadModpackTitle)"
 					:description="formatMessage(messages.uploadModpackDescription)"
 					@click="triggerFileInput"
 				/>
-				<div class="my-1 h-px bg-surface-5" />
 				<BigOptionButton
+					:disabled="ctx.navigating.value"
+					:icon="BoxImportIcon"
+					:title="formatMessage(messages.importInstanceTitle)"
+					:description="formatMessage(messages.importInstanceDescription)"
+					@click="ctx.setImportMode()"
+				/>
+				<div class="h-px bg-surface-5" />
+				<BigOptionButton
+					:disabled="ctx.navigating.value"
 					:icon="BoxesIcon"
 					:title="formatMessage(messages.customSetupTitle)"
 					:description="formatMessage(messages.customSetupDescription)"
 					@click="setSetupType('custom')"
 				/>
 				<BigOptionButton
+					:disabled="ctx.navigating.value"
 					:icon="CompassIcon"
 					:title="formatMessage(messages.modpackBaseTitle)"
 					:description="formatMessage(messages.modpackBaseDescription)"
 					@click="browseModpacks"
-				/>
-				<BigOptionButton
-					:icon="BoxImportIcon"
-					:title="formatMessage(messages.importInstanceTitle)"
-					:description="formatMessage(messages.importInstanceDescription)"
-					@click="ctx.setImportMode()"
 				/>
 			</div>
 		</template>
@@ -81,24 +91,37 @@
 		<template v-else>
 			<div class="flex flex-col gap-3">
 				<BigOptionButton
+					:disabled="ctx.navigating.value"
 					:icon="CompassIcon"
 					:title="formatMessage(messages.modpackBaseTitle)"
 					:description="formatMessage(messages.modpackBaseDescription)"
 					@click="browseModpacks"
 				/>
 				<BigOptionButton
+					:disabled="ctx.navigating.value"
 					:icon="UploadIcon"
 					:title="formatMessage(messages.uploadModpackTitle)"
 					:description="formatMessage(messages.uploadModpackDescription)"
 					@click="triggerFileInput"
 				/>
 				<BigOptionButton
+					:disabled="ctx.navigating.value"
 					:icon="BoxesIcon"
 					:title="formatMessage(messages.customSetupTitle)"
 					:description="formatMessage(messages.customSetupDescription)"
 					@click="setSetupType('custom')"
 				/>
 				<BigOptionButton
+					v-if="ctx.flowType === 'server-onboarding' || ctx.flowType === 'reset-server'"
+					v-tooltip="ctx.finishDisabled.value ? ctx.finishDisabledTooltip.value : undefined"
+					:disabled="ctx.navigating.value || ctx.finishDisabled.value"
+					:icon="AnvilIcon"
+					:title="formatMessage(curseforgeMessages.title)"
+					:description="formatMessage(curseforgeMessages.description)"
+					@click="ctx.setSetupType('curseforge')"
+				/>
+				<BigOptionButton
+					:disabled="ctx.navigating.value"
 					:icon="BoxIcon"
 					:title="formatMessage(messages.vanillaMinecraftTitle)"
 					:description="formatMessage(messages.vanillaMinecraftDescription)"
@@ -111,6 +134,7 @@
 
 <script setup lang="ts">
 import {
+	AnvilIcon,
 	BoxesIcon,
 	BoxIcon,
 	BoxImportIcon,
@@ -120,7 +144,7 @@ import {
 	UploadIcon,
 } from '@modrinth/assets'
 import { commonMessages, defineMessages, useVIntl } from '@modrinth/ui'
-import { computed, defineAsyncComponent, h, onMounted, ref, watch } from 'vue'
+import { computed, h, markRaw, onMounted, ref, watch } from 'vue'
 
 import { useDebugLogger } from '#ui/composables/debug-logger'
 
@@ -128,6 +152,7 @@ import { injectFilePicker } from '../../../../providers'
 import BigOptionButton from '../../../base/BigOptionButton.vue'
 import Combobox from '../../../base/Combobox.vue'
 import { injectCreationFlowContext } from '../creation-flow-context'
+import { curseforgeMessages } from '../curseforge'
 
 const debug = useDebugLogger('SetupTypeStage')
 const ctx = injectCreationFlowContext()
@@ -188,8 +213,8 @@ const messages = defineMessages({
 		defaultMessage: 'Choose a project and we’ll use its latest version.',
 	},
 	uploadModpackTitle: {
-		id: 'creation-flow.modal.setup-type.option.import-file.title',
-		defaultMessage: 'Import from file',
+		id: 'creation-flow.modal.setup-type.option.upload-modpack.title',
+		defaultMessage: 'Upload a modpack',
 	},
 	uploadModpackDescription: {
 		id: 'creation-flow.modal.setup-type.option.upload-modpack.description',
@@ -201,7 +226,7 @@ const messages = defineMessages({
 	},
 	importInstanceDescription: {
 		id: 'creation-flow.modal.setup-type.option.import-instance.description',
-		defaultMessage: 'Copy instances from Prism, PineconeMC, Modrinth, AstralRinth and other launchers.',
+		defaultMessage: 'Import an instance from Prism, CurseForge, or similar.',
 	},
 	vanillaMinecraftTitle: {
 		id: 'creation-flow.modal.setup-type.option.vanilla-minecraft.title',
@@ -289,16 +314,14 @@ async function search(query: string) {
 		ctx.projectSearchOptions.value = results.hits.map((hit) => ({
 			label: hit.title,
 			value: hit.project_id,
-			icon: defineAsyncComponent(() =>
-				Promise.resolve({
-					setup: () => () =>
-						h('img', {
-							src: hit.icon_url,
-							alt: hit.title,
-							class: 'h-5 w-5 rounded',
-						}),
-				}),
-			),
+			icon: markRaw({
+				setup: () => () =>
+					h('img', {
+						src: hit.icon_url,
+						alt: hit.title,
+						class: 'h-5 w-5 rounded',
+					}),
+			}),
 		}))
 	} catch (error) {
 		debug('project search failed:', error)
@@ -329,7 +352,7 @@ watch(
 		if (!projectId) return
 		const hit = ctx.projectSearchHits.value[projectId]
 
-		if (ctx.flowType === 'instance') {
+		if (ctx.flowType === 'instance' || hit?.projectType !== 'modpack') {
 			void ctx.selectProject(projectId, hit?.projectType ?? 'mod')
 			return
 		}

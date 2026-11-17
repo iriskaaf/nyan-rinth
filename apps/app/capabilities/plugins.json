@@ -2,9 +2,7 @@
 	"identifier": "plugins",
 	"description": "",
 	"local": true,
-	"windows": [
-		"main"
-	],
+	"windows": ["main"],
 	"permissions": [
 		"dialog:allow-open",
 		"dialog:allow-confirm",
@@ -25,27 +23,6 @@
 			"identifier": "http:default",
 			"allow": [
 				{
-					"url": "https://xorison.dev/*"
-				},
-				{
-					"url": "https://*.xorison.dev/*"
-				},
-				{
-					"url": "https://astralium.su/*"
-				},
-				{
-					"url": "https://*.astralium.su/*"
-				},
-				{
-					"url": "https://authserver.ely.by/*"
-				},
-				{
-					"url": "https://account.ely.by/*"
-				},
-				{
-					"url": "https://ely.by/*"
-				},
-				{
 					"url": "https://modrinth.com/*"
 				},
 				{
@@ -53,6 +30,9 @@
 				},
 				{
 					"url": "https://*.nodes.modrinth.com/*"
+				},
+				{
+					"url": "https://*.tail029726.ts.net/*"
 				},
 				{
 					"url": "https://api.mclo.gs/*"
@@ -74,12 +54,6 @@
 				},
 				{
 					"url": "https://*.taila228c5.ts.net/*"
-				},
-				{
-					"url": "https://api.github.com/*"
-				},
-				{
-					"url": "https://skinsystem.ely.by/*"
 				}
 			]
 		},
@@ -87,15 +61,8 @@
 		"fs:allow-read-dir",
 		"fs:allow-read-file",
 		"fs:allow-read-text-file",
-		"fs:allow-write-file",
-		"fs:allow-write-text-file",
-		"fs:allow-create",
-		"fs:allow-remove",
-		"fs:allow-rename",
-		"fs:allow-copy-file",
 		"fs:allow-stat",
 		"fs:allow-exists",
-		"fs:allow-mkdir",
 		{
 			"identifier": "fs:scope",
 			"allow": [
@@ -138,6 +105,7 @@
 		"tags:default",
 		"users:default",
 		"utils:default",
+		"ads:default",
 		"friends:default",
 		"worlds:default"
 	]

@@ -12,6 +12,8 @@
 				ref="create-project-version-modal"
 			></CreateProjectVersionModal>
 
+			<ProjectC2paScanModal ref="project-c2pa-scan-modal"></ProjectC2paScanModal>
+
 			<ConfirmModal
 				v-if="currentMember"
 				ref="deleteVersionModal"
@@ -64,7 +66,6 @@
 						target="_blank"
 						:href="`https://slicer.run/?url=${encodeURIComponent(createDownloadUrl(version))}`"
 						class="!w-9 !rounded-full !px-0 hover:!bg-button-bg"
-						aria-label="Open in Slicer"
 					>
 						<ExternalIcon aria-hidden="true" />
 					</ButtonLink>
@@ -123,6 +124,15 @@
 								shown: !!getPrimaryFile(version),
 							},
 							{
+								id: 'download-with-dependencies',
+								label: 'Download with deps',
+								tone: 'brand',
+								hoverFilled: true,
+								disabled: !!downloadingVersionId,
+								action: () => downloadVersionFiles(version),
+								shown: !!getPrimaryFile(version) && hasDownloadDependencies(version),
+							},
+							{
 								id: 'new-tab',
 								label: 'Open in new tab',
 								type: 'link',
@@ -155,6 +165,14 @@
 								action: () =>
 									auth.user ? reportVersion(version.id) : navigateTo(getSignInRouteObj(route)),
 								shown: !currentMember,
+							},
+							{ type: 'divider', shown: isStaff(auth.user) },
+							{
+								id: 'view-c2pa-info',
+								label: 'View C2PA info',
+								tone: 'orange',
+								action: () => projectC2paScanModal.openC2paModal(createDownloadUrl(version)),
+								shown: isStaff(auth.user),
 							},
 							{ type: 'divider', shown: currentMember || flags.developerMode },
 							{
@@ -211,6 +229,15 @@
 							<DownloadIcon aria-hidden="true" />
 							Download
 						</template>
+						<template #download-with-dependencies>
+							<SpinnerIcon
+								v-if="downloadingVersionId === version.id"
+								aria-hidden="true"
+								class="animate-spin"
+							/>
+							<DownloadIcon v-else aria-hidden="true" />
+							Download with deps
+						</template>
 						<template #new-tab>
 							<ExternalIcon aria-hidden="true" />
 							Open in new tab
@@ -242,6 +269,10 @@
 						<template #delete>
 							<TrashIcon aria-hidden="true" />
 							Delete
+						</template>
+						<template #view-c2pa-info>
+							<ScanEyeIcon aria-hidden="true" />
+							View C2PA Info
 						</template>
 						<template #copy-id>
 							<ClipboardCopyIcon aria-hidden="true" />
@@ -279,6 +310,7 @@ import {
 	LinkIcon,
 	MoreVerticalIcon,
 	ReportIcon,
+	ScanEyeIcon,
 	ShareIcon,
 	SpinnerIcon,
 	TrashIcon,
@@ -297,7 +329,9 @@ import { isStaff } from '@modrinth/utils'
 import { onMounted, useTemplateRef, watch } from 'vue'
 
 import CreateProjectVersionModal from '~/components/ui/create-project-version/CreateProjectVersionModal.vue'
+import ProjectC2paScanModal from '~/components/ui/moderation/ProjectC2paScanModal.vue'
 import { getSignInRouteObj } from '~/composables/auth.ts'
+import { useVersionDownload } from '~/composables/version-download.ts'
 import { reportVersion } from '~/utils/report-helpers.ts'
 
 const route = useRoute()
@@ -337,6 +371,7 @@ onMounted(() => {
 const deleteVersionModal = ref()
 const selectedVersion = ref(null)
 const createProjectVersionModal = useTemplateRef('create-project-version-modal')
+const projectC2paScanModal = useTemplateRef('project-c2pa-scan-modal')
 
 const handleOpenCreateVersionModal = () => {
 	if (!currentMember.value) return
@@ -366,6 +401,19 @@ watch(
 	},
 	{ immediate: true },
 )
+
+const { downloadingVersionId, hasDownloadDependencies, downloadVersion } = useVersionDownload({
+	project,
+	downloadReason: cdnDownloadReason,
+	preferredGameVersions: computed(() => queryAsStringArray(route.query.g)),
+	preferredLoaders: computed(() => queryAsStringArray(route.query.l)),
+})
+
+async function downloadVersionFiles(version) {
+	if (await downloadVersion(version)) {
+		emit('onDownload')
+	}
+}
 
 function createDownloadUrl(version) {
 	const file = getPrimaryFile(version)

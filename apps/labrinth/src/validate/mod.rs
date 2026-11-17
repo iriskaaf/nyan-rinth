@@ -1,9 +1,12 @@
 use crate::database::PgTransaction;
-use crate::database::models::DatabaseError;
-use crate::database::models::legacy_loader_fields::MinecraftGameVersion;
-use crate::database::models::loader_fields::VersionField;
+use crate::database::models::loader_item::Loader as DBLoader;
+use crate::database::models::version_item::DependencyBuilder;
+use crate::models::ids::ProjectId;
+use crate::models::minecraft::minecraft_version_date;
 use crate::models::pack::PackFormat;
-use crate::models::projects::{FileType, Loader};
+use crate::models::projects::{DependencyType, FileType, Loader};
+use crate::util::MinecraftMeta;
+use crate::util::minecraft_meta::MinecraftVersionEntry;
 use crate::validate::datapack::DataPackValidator;
 use crate::validate::fabric::FabricValidator;
 use crate::validate::forge::{ForgeValidator, LegacyForgeValidator};
@@ -14,14 +17,18 @@ use crate::validate::plugin::*;
 use crate::validate::quilt::QuiltValidator;
 use crate::validate::resourcepack::{PackValidator, TexturePackValidator};
 use crate::validate::rift::RiftValidator;
+use crate::validate::risugami::RisugamiValidator;
 use crate::validate::shader::{
     CanvasShaderValidator, CoreShaderValidator, ShaderValidator,
 };
+use actix_web::web;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+
+use minecraft_meta_model::model::MinecraftVersionName;
 use std::io::{self, Cursor};
 use std::mem;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 use thiserror::Error;
 use xredis::RedisPool;
 use zip::ZipArchive;
@@ -34,10 +41,15 @@ mod liteloader;
 mod modpack;
 mod neoforge;
 pub mod plugin;
+pub mod project;
 mod quilt;
 mod resourcepack;
 mod rift;
+mod risugami;
 mod shader;
+
+// BTA loader must exist if HalpLibe project is selected as a dependency
+const HALPLIBE_PROJECT_ID: &str = "IIu8YulV";
 
 #[derive(Error, Debug)]
 pub enum ValidationError {
@@ -51,8 +63,8 @@ pub enum ValidationError {
     InvalidInput(std::borrow::Cow<'static, str>),
     #[error("Error while managing threads")]
     Blocking(#[from] actix_web::error::BlockingError),
-    #[error("Error while querying database")]
-    Database(#[from] DatabaseError),
+    #[error("internal error while validating uploaded file")]
+    Internal(#[from] eyre::Report),
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -82,7 +94,7 @@ pub enum SupportedGameVersions {
     All,
     PastDate(DateTime<Utc>),
     Range(DateTime<Utc>, DateTime<Utc>),
-    Custom(Vec<MinecraftGameVersion>),
+    Custom(Vec<MinecraftVersionEntry>),
 }
 
 pub enum MaybeProtectedZipFile {
@@ -94,6 +106,14 @@ pub trait Validator: Sync {
     fn get_file_extensions(&self) -> &[&str];
     fn get_supported_loaders(&self) -> &[&str];
     fn get_supported_game_versions(&self) -> SupportedGameVersions;
+
+    fn ensure_required_loaders(
+        &self,
+        _archive: &mut ZipArchive<Cursor<Bytes>>,
+        _loaders: &[Loader],
+    ) -> Result<(), ValidationError> {
+        Ok(())
+    }
 
     fn validate(
         &self,
@@ -139,11 +159,13 @@ static VALIDATORS: &[&dyn Validator] = &[
     &BungeeCordValidator,
     &VelocityValidator,
     &SpongeValidator,
+    &GeyserValidator,
     &CanvasShaderValidator,
     &ShaderValidator,
     &CoreShaderValidator,
     &DataPackValidator,
     &RiftValidator,
+    &RisugamiValidator,
     &NeoForgeValidator,
 ];
 
@@ -173,39 +195,134 @@ static PLAUSIBLE_PACK_REGEX: LazyLock<regex::bytes::Regex> =
 /// The return value is whether this file should be marked as primary or not, based on the analysis of the file
 #[allow(clippy::too_many_arguments)]
 pub async fn validate_file(
+    minecraft_meta: web::Data<MinecraftMeta>,
     data: bytes::Bytes,
     file_extension: String,
     loaders: Vec<Loader>,
     file_type: Option<FileType>,
-    version_fields: Vec<VersionField>,
+    game_versions: Vec<MinecraftVersionName>,
+    dependencies: &[DependencyBuilder],
     transaction: &mut PgTransaction<'_>,
     redis: &RedisPool,
 ) -> Result<ValidationResult, ValidationError> {
-    let game_versions = version_fields
-        .into_iter()
-        .find_map(|v| MinecraftGameVersion::try_from_version_field(&v).ok())
-        .unwrap_or_default();
-    let all_game_versions =
-        MinecraftGameVersion::list(None, None, &mut *transaction, redis)
-            .await?;
+    let all_game_versions = minecraft_meta.minecraft_versions().await;
+    let game_versions = game_versions.iter().map(|name| {
+        let name = crate::models::minecraft::legacy_game_version_name(&name.0);
+        all_game_versions.iter().find(|version| version.name.0 == name)
+            .cloned()
+            .ok_or_else(|| eyre::eyre!("missing minecraft game version `{name}` required for validation"))
+    }).collect::<Result<Vec<_>, _>>()?;
+
+    let available_loaders = DBLoader::list(&mut *transaction, redis).await?;
+
+    validate_file_type_for_loaders(file_type, &loaders, &available_loaders)?;
+
+    validate_dependencies(&loaders, dependencies)?;
+
+    fabric::validate_game_versions(
+        &loaders,
+        &game_versions,
+        &all_game_versions,
+    )?;
 
     validate_minecraft_file(
+        all_game_versions,
         data,
         file_extension,
         loaders,
         game_versions,
-        all_game_versions,
         file_type,
     )
     .await
 }
 
+fn validate_file_type_for_loaders(
+    file_type: Option<FileType>,
+    loaders: &[Loader],
+    available_loaders: &[DBLoader],
+) -> Result<(), ValidationError> {
+    if matches!(
+        file_type,
+        Some(FileType::SourcesJar | FileType::DevJar | FileType::JavadocJar)
+    ) {
+        let supports_jar_files = available_loaders
+            .iter()
+            .filter(|loader| {
+                loaders.iter().any(|selected| selected.0 == loader.loader)
+            })
+            .flat_map(|loader| &loader.supported_project_types)
+            .any(|project_type| {
+                matches!(project_type.as_str(), "mod" | "plugin")
+            });
+        if !supports_jar_files {
+            return Err(ValidationError::InvalidInput(
+				"sources, dev, and javadoc jars are only supported for mods and plugins".into(),
+			));
+        }
+    }
+    Ok(())
+}
+
+fn validate_dependencies(
+    loaders: &[Loader],
+    dependencies: &[DependencyBuilder],
+) -> Result<(), ValidationError> {
+    if loaders
+        .iter()
+        .any(|loader| matches!(loader.0.as_str(), "bta-babric" | "mrpack"))
+    {
+        return Ok(());
+    }
+    if dependencies.iter().any(|dependency| {
+        dependency.dependency_type != DependencyType::Incompatible.as_str()
+            && dependency.project_id.is_some_and(|id| {
+                ProjectId::from(id).to_string() == HALPLIBE_PROJECT_ID
+            })
+    }) {
+        return Err(ValidationError::InvalidInput(
+			"versions that depend on `halplibe` must include the `bta-babric` loader".into(),
+		));
+    }
+    Ok(())
+}
+
+fn validate_additional_jar(
+    file: &MaybeProtectedZipFile,
+    file_extension: &str,
+    file_type: FileType,
+) -> Result<ValidationResult, ValidationError> {
+    if file_extension != "jar" {
+        return Err(ValidationError::InvalidInput(
+            "sources, dev, and javadoc jars must use the `.jar` extension"
+                .into(),
+        ));
+    }
+
+    let MaybeProtectedZipFile::Unprotected(archive) = file else {
+        return Err(ValidationError::InvalidInput(
+            "additional jars must be readable jar archives".into(),
+        ));
+    };
+
+    if file_type == FileType::SourcesJar
+        && !validated_file_names(archive)?
+            .into_iter()
+            .any(|name| name.ends_with(".java") || name.ends_with(".kt"))
+    {
+        return Err(ValidationError::InvalidInput(
+            "sources jars must contain at least one `.java` or `.kt` file"
+                .into(),
+        ));
+    }
+    Ok(ValidationResult::Pass)
+}
+
 async fn validate_minecraft_file(
+    all_game_versions: Arc<[MinecraftVersionEntry]>,
     data: Bytes,
     file_extension: String,
     loaders: Vec<Loader>,
-    game_versions: Vec<MinecraftGameVersion>,
-    all_game_versions: Vec<MinecraftGameVersion>,
+    game_versions: Vec<MinecraftVersionEntry>,
     file_type: Option<FileType>,
 ) -> Result<ValidationResult, ValidationError> {
     actix_web::web::block(move || {
@@ -216,6 +333,13 @@ async fn validate_minecraft_file(
                 data,
             },
         };
+
+        if let MaybeProtectedZipFile::Unprotected(archive) = &mut zip {
+			validated_file_names(archive)?;
+            for validator in VALIDATORS {
+                validator.ensure_required_loaders(archive, &loaders)?;
+            }
+        }
 
         if let Some(file_type) = file_type {
             match file_type {
@@ -233,7 +357,9 @@ async fn validate_minecraft_file(
                         ))
                     };
                 }
-                FileType::DevJar | FileType::SourcesJar | FileType::JavadocJar => {},
+                FileType::DevJar | FileType::SourcesJar | FileType::JavadocJar => {
+                  return validate_additional_jar(&zip, &file_extension, file_type);
+                },
                 FileType::Unknown => {}
             }
         }
@@ -294,8 +420,8 @@ async fn validate_minecraft_file(
 
 // Write tests for this
 fn game_version_supported(
-    game_versions: &[MinecraftGameVersion],
-    all_game_versions: &[MinecraftGameVersion],
+    game_versions: &[MinecraftVersionEntry],
+    all_game_versions: &[MinecraftVersionEntry],
     supported_game_versions: SupportedGameVersions,
 ) -> bool {
     match supported_game_versions {
@@ -304,45 +430,53 @@ fn game_version_supported(
             game_versions.iter().any(|x| {
                 all_game_versions
                     .iter()
-                    .find(|y| y.version == x.version)
-                    .is_some_and(|x| x.created > date)
+                    .find(|y| y.name == x.name)
+                    .is_some_and(|x| minecraft_version_date(x) > date)
             })
         }
         SupportedGameVersions::Range(before, after) => {
             game_versions.iter().any(|x| {
                 all_game_versions
                     .iter()
-                    .find(|y| y.version == x.version)
-                    .is_some_and(|x| x.created > before && x.created < after)
+                    .find(|y| y.name == x.name)
+                    .is_some_and(|x| {
+                        minecraft_version_date(x) > before
+                            && minecraft_version_date(x) < after
+                    })
             })
         }
         SupportedGameVersions::Custom(versions) => {
-            let version_ids =
-                versions.iter().map(|gv| gv.id).collect::<Vec<_>>();
-            let game_version_ids: Vec<_> =
-                game_versions.iter().map(|gv| gv.id).collect::<Vec<_>>();
-            version_ids.iter().any(|x| game_version_ids.contains(x))
+            versions.iter().any(|version| {
+                game_versions
+                    .iter()
+                    .any(|selected| selected.name == version.name)
+            })
         }
     }
 }
 
-#[must_use]
 pub fn validate_pack_formats(
     archive: &mut ZipArchive<Cursor<Bytes>>,
-) -> ValidationResult {
+) -> Result<ValidationResult, ValidationError> {
+    let has_bundled_mods = validated_file_names(archive)?.iter().any(|name| {
+        (name.starts_with("mods/") || name.starts_with("override/mods/"))
+            && name.ends_with(".jar")
+    });
     if (archive.by_name("modlist.html").is_ok()
         && archive.by_name("manifest.json").is_ok())
-        || archive
-            .file_names()
-            .any(|x| x.starts_with("mods/") && x.ends_with(".jar"))
-        || archive
-            .file_names()
-            .any(|x| x.starts_with("override/mods/") && x.ends_with(".jar"))
+        || has_bundled_mods
     {
-        return ValidationResult::Warning(
+        return Ok(ValidationResult::Warning(
             "Invalid modpack file. Modpacks must be uploaded in the .mrpack format, not as a ZIP file.",
-        );
+        ));
     }
 
-    ValidationResult::Pass
+    Ok(ValidationResult::Pass)
+}
+
+/// Decodes every filename before callers can short-circuit on a matching entry.
+fn validated_file_names(
+    archive: &ZipArchive<Cursor<Bytes>>,
+) -> Result<Vec<std::borrow::Cow<'_, str>>, ValidationError> {
+    Ok(archive.file_names().collect::<Result<Vec<_>, _>>()?)
 }

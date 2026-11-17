@@ -1,5 +1,6 @@
 use crate::util::error::ApiContext as _;
 use crate::util::error::Context as _;
+use eyre::Result;
 use std::{collections::HashSet, fmt::Display};
 use xredis::RedisPool;
 
@@ -7,11 +8,12 @@ use super::ApiError;
 use crate::database::{PgPool, PgTransaction};
 use crate::file_hosting::FileHostPublicity;
 use crate::models::ids::OAuthClientId;
+use crate::routes::internal::globals::GLOBALS;
 use crate::util::img::{delete_old_images, upload_image_optimized};
 use crate::{
     auth::{checks::ValidateAuthorized, get_user_from_headers},
     database::models::{
-        DBOAuthClientId, DBUser, DatabaseError, generate_oauth_client_id,
+        DBOAuthClientId, DBUser, generate_oauth_client_id,
         generate_oauth_redirect_id,
         oauth_client_authorization_item::DBOAuthClientAuthorization,
         oauth_client_item::{DBOAuthClient, DBOAuthRedirectUri},
@@ -33,7 +35,7 @@ use actix_web::{HttpRequest, HttpResponse, delete, get, patch, post, web};
 use ariadne::ids::base62_impl::parse_base62;
 use chrono::Utc;
 use itertools::Itertools;
-use rand::{Rng, SeedableRng, distributions::Alphanumeric};
+use rand::{RngExt, SeedableRng, distr::Alphanumeric};
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -106,7 +108,7 @@ pub async fn get_user_clients(
     }
 }
 
-/// Get an OAuth client.  
+/// Get an OAuth client.
 #[utoipa::path(
 	context_path = "/oauth",
 	tag = "oauth clients",
@@ -128,7 +130,7 @@ pub async fn get_client(
     }
 }
 
-/// List OAuth clients.  
+/// List OAuth clients.
 #[utoipa::path(
 	context_path = "/oauth",
 	tag = "oauth clients",
@@ -179,7 +181,7 @@ pub struct NewOAuthApp {
     pub description: Option<String>,
 }
 
-/// Create an OAuth client.  
+/// Create an OAuth client.
 #[utoipa::path(
 	context_path = "/oauth",
 	tag = "oauth clients",
@@ -246,7 +248,7 @@ pub async fn oauth_client_create(
     }))
 }
 
-/// Delete an OAuth client.  
+/// Delete an OAuth client.
 #[utoipa::path(
 	context_path = "/oauth",
 	tag = "oauth clients",
@@ -315,7 +317,7 @@ pub struct OAuthClientEdit {
     pub description: Option<Option<String>>,
 }
 
-/// Update an OAuth client.  
+/// Update an OAuth client.
 #[utoipa::path(
 	context_path = "/oauth",
 	tag = "oauth clients",
@@ -413,7 +415,7 @@ pub struct Extension {
     pub ext: String,
 }
 
-/// Update an OAuth client icon.  
+/// Update an OAuth client icon.
 #[utoipa::path(
 	context_path = "/oauth",
 	tag = "oauth clients",
@@ -469,11 +471,16 @@ pub async fn oauth_client_icon_edit(
 
     let bytes = read_limited_from_payload(
         &mut payload,
-        262144,
-        "Icons must be smaller than 256KiB",
+        GLOBALS.max_oauth_client_icon_size,
+        format!(
+            "icons must be smaller than {}",
+            humansize::format_size(
+                GLOBALS.max_oauth_client_icon_size,
+                humansize::BINARY
+            )
+        ),
     )
-    .await
-    .wrap_api_err("executing `read_limited_from_payload`")?;
+    .await?;
     let upload_result = upload_image_optimized(
         &format!("data/{client_id}"),
         FileHostPublicity::Public,
@@ -510,7 +517,7 @@ pub async fn oauth_client_icon_edit(
     Ok(HttpResponse::NoContent().body(""))
 }
 
-/// Delete an OAuth client icon.  
+/// Delete an OAuth client icon.
 #[utoipa::path(
 	context_path = "/oauth",
 	tag = "oauth clients",
@@ -579,7 +586,7 @@ pub async fn oauth_client_icon_delete(
     Ok(HttpResponse::NoContent().body(""))
 }
 
-/// List OAuth authorizations.  
+/// List OAuth authorizations.
 #[utoipa::path(
 	context_path = "/oauth",
 	tag = "oauth clients",
@@ -616,7 +623,7 @@ pub async fn get_user_oauth_authorizations(
     Ok(HttpResponse::Ok().json(mapped))
 }
 
-/// Revoke OAuth authorization.  
+/// Revoke OAuth authorization.
 #[utoipa::path(
 	context_path = "/oauth",
 	tag = "oauth clients",
@@ -654,7 +661,7 @@ pub async fn revoke_oauth_authorization(
 }
 
 fn generate_oauth_client_secret() -> String {
-    ChaCha20Rng::from_entropy()
+    ChaCha20Rng::from_rng(&mut rand::rng())
         .sample_iter(&Alphanumeric)
         .take(32)
         .map(char::from)
@@ -665,10 +672,12 @@ async fn create_redirect_uris(
     uri_strings: impl IntoIterator<Item = impl Display>,
     client_id: DBOAuthClientId,
     transaction: &mut PgTransaction<'_>,
-) -> Result<Vec<DBOAuthRedirectUri>, DatabaseError> {
+) -> Result<Vec<DBOAuthRedirectUri>> {
     let mut redirect_uris = vec![];
     for uri in uri_strings.into_iter() {
-        let id = generate_oauth_redirect_id(transaction).await?;
+        let id = generate_oauth_redirect_id(transaction)
+            .await
+            .wrap_err("generating OAuth redirect URI ID")?;
         redirect_uris.push(DBOAuthRedirectUri {
             id,
             client_id,
@@ -683,7 +692,7 @@ async fn edit_redirects(
     redirects: Vec<String>,
     existing_client: &DBOAuthClient,
     transaction: &mut PgTransaction<'_>,
-) -> Result<(), DatabaseError> {
+) -> Result<()> {
     let updated_redirects: HashSet<String> = redirects.into_iter().collect();
     let original_redirects: HashSet<String> = existing_client
         .redirect_uris
@@ -696,9 +705,11 @@ async fn edit_redirects(
         existing_client.id,
         &mut *transaction,
     )
-    .await?;
+    .await
+    .wrap_err("creating OAuth redirect URIs")?;
     DBOAuthClient::insert_redirect_uris(&redirects_to_add, &mut *transaction)
-        .await?;
+        .await
+        .wrap_err("inserting OAuth redirect URIs")?;
 
     let mut redirects_to_remove = existing_client.redirect_uris.clone();
     redirects_to_remove.retain(|r| !updated_redirects.contains(&r.uri));
@@ -706,7 +717,8 @@ async fn edit_redirects(
         redirects_to_remove.iter().map(|r| r.id),
         &mut *transaction,
     )
-    .await?;
+    .await
+    .wrap_err("removing OAuth redirect URIs")?;
 
     Ok(())
 }

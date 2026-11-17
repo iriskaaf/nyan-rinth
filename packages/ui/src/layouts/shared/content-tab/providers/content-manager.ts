@@ -1,13 +1,14 @@
 import type { ComputedRef, Ref } from 'vue'
 
-import type { OverflowMenuOption } from '#ui/components/base/buttons'
+import type { ButtonMenuOption } from '#ui/components/base/buttons'
+import type { UpdateAllSelection } from '#ui/components/modal/update-all-modal/update-all-modal-types'
 import { createContext } from '#ui/providers/create-context'
 
 import type {
-	BulkOperationStatus,
 	ContentActionWarning,
 	ContentCardTableItem,
 	ContentItem,
+	ContentSide,
 	ManagedContentCardData,
 } from '../types'
 
@@ -38,15 +39,19 @@ export interface ContentManagerContext {
 	// Guards
 	isBusy: Ref<boolean> | ComputedRef<boolean>
 	busyMessage?: Ref<string | null> | ComputedRef<string | null>
+	disableWhileMutating?: boolean
 	skipNonEssentialWarnings?: Ref<boolean> | ComputedRef<boolean>
 	disableAddContent?: Ref<boolean> | ComputedRef<boolean>
 	disableAddContentTooltip?: string
 
 	// Labelling
 	contentTypeLabel: Ref<string> | ComputedRef<string>
+	currentGameVersion?: Ref<string> | ComputedRef<string>
+	currentLoader?: Ref<string> | ComputedRef<string>
 
 	// Core actions
-	toggleEnabled: (item: ContentItem) => Promise<void>
+	toggleEnabled?: (item: ContentItem) => Promise<void>
+	setEnabledFor?: (item: ContentItem, side: ContentSide, enabled: boolean) => Promise<void>
 	deleteItem: (item: ContentItem) => Promise<void>
 	refresh: () => Promise<void>
 	browse: () => void
@@ -60,16 +65,20 @@ export interface ContentManagerContext {
 	canToggleItem?: (item: ContentItem) => boolean
 	getDeleteWarning?: (items: ContentItem[]) => ContentActionWarning | null
 	getDisableWarning?: (items: ContentItem[]) => ContentActionWarning | null
+	confirmAction?: (action: 'enable' | 'disable', items: ContentItem[]) => Promise<boolean>
+	confirmDeleteItems?: (items: ContentItem[]) => Promise<boolean | undefined>
 	getDeleteDependencyWarning?: (
 		items: ContentItem[],
 	) => ContentDependencyWarning | null | Promise<ContentDependencyWarning | null>
 
 	// Update support (optional per-platform)
 	hasUpdateSupport: boolean
+	bulkUpdatesInBackground?: boolean
 	updateItem?: (id: string) => void
-	bulkUpdateAll?: (onProgress?: (status: BulkOperationStatus) => void) => Promise<void>
-	bulkUpdateItem?: (item: ContentItem) => Promise<void>
-	bulkUpdateItems?: (items: ContentItem[]) => Promise<void>
+	bulkUpdateSelections?: (
+		selections: UpdateAllSelection[],
+		onProgress?: (completed: number) => void,
+	) => Promise<void>
 
 	// Managed-content actions (optional)
 	runManagedContentPrimaryAction?: (event?: MouseEvent) => void
@@ -81,7 +90,7 @@ export interface ContentManagerContext {
 	switchVersion?: (item: ContentItem) => void
 
 	// Per-item overflow menu (optional)
-	getOverflowOptions?: (item: ContentItem) => OverflowMenuOption[]
+	getOverflowOptions?: (item: ContentItem) => ButtonMenuOption[]
 
 	// Share support (optional — when undefined, share button becomes hidden entirely)
 	shareItems?: (items: ContentItem[], format: 'names' | 'file-names' | 'urls' | 'markdown') => void
@@ -101,6 +110,8 @@ export interface ContentManagerContext {
 
 	// Filter persistence key — when set, filter and sort settings are saved/restored via sessionStorage
 	filterPersistKey?: string
+	// Route query param the search box syncs to, so back navigation restores the search
+	searchQueryParam?: string
 	showSharedContentFilter?: Ref<boolean> | ComputedRef<boolean>
 }
 

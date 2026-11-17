@@ -169,7 +169,10 @@ import {
 	users,
 } from '@/helpers/auth'
 import { loadElyHead, skinTextureHead, rememberElyHead } from '@/helpers/ely-heads'
-import { getPlayerHeadUrl } from '@/helpers/rendering/batch-skin-renderer.ts'
+import { get_normalized_skin_texture } from '@/helpers/skins'
+async function getPlayerHeadUrl(skin: Skin) {
+	return await skinTextureHead(await get_normalized_skin_texture(skin))
+}
 import type { Skin } from '@/helpers/skins'
 import { get_available_skins } from '@/helpers/skins'
 import {

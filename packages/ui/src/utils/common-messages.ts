@@ -8,10 +8,6 @@ export const commonMessages = defineMessages({
 		id: 'button.accept',
 		defaultMessage: 'Accept',
 	},
-	affiliateLinksButton: {
-		id: 'button.affiliate-links',
-		defaultMessage: 'Affiliate links',
-	},
 	analyticsButton: {
 		id: 'button.analytics',
 		defaultMessage: 'Analytics',
@@ -72,6 +68,10 @@ export const commonMessages = defineMessages({
 		id: 'label.confirm-password',
 		defaultMessage: 'Confirm password',
 	},
+	confirmButton: {
+		id: 'button.confirm',
+		defaultMessage: 'Confirm',
+	},
 	continueButton: {
 		id: 'button.continue',
 		defaultMessage: 'Continue',
@@ -123,6 +123,10 @@ export const commonMessages = defineMessages({
 	downloadButton: {
 		id: 'button.download',
 		defaultMessage: 'Download',
+	},
+	downloadFilesButton: {
+		id: 'button.download-files',
+		defaultMessage: 'Download files',
 	},
 	downloadingButton: {
 		id: 'button.downloading',
@@ -478,25 +482,26 @@ export const commonMessages = defineMessages({
 	},
 	reinstallModpackButton: {
 		id: 'button.reinstall-modpack',
-		defaultMessage: 'Re-install modpack',
+		defaultMessage: 'Reinstall modpack',
 	},
 	resetServerButton: {
 		id: 'button.reset-server',
 		defaultMessage: 'Reset server',
 	},
 	clientOnlyWarning: {
-		id: 'label.client-only-warning',
-		defaultMessage: 'This is a client-side mod and may cause issues when starting your server',
+		id: 'label.client-only-mod-on-server-warning',
+		defaultMessage:
+			'This client-only mod is installed on the server and may prevent the server from starting.',
 	},
 	clientRetainedWarning: {
-		id: 'label.client-retained-warning',
+		id: 'label.client-only-dependency-on-server-warning',
 		defaultMessage:
-			'This is a client-side mod that was installed as a dependency and may cause issues when starting your server',
+			'This client-only mod was installed on the server as a dependency and may prevent the server from starting.',
 	},
 	clientDependsWarning: {
-		id: 'label.client-depends-warning',
+		id: 'label.requires-client-only-dependency-warning',
 		defaultMessage:
-			'This mod depends on a client-side mod and may cause issues when starting your server',
+			'This mod requires a client-only dependency and may prevent the server from starting.',
 	},
 	selectAllLabel: {
 		id: 'label.select-all',
@@ -1240,10 +1245,6 @@ export const disclosureAiUsageMessages = defineMessages({
 		id: 'project.settings.disclosures.ai.types-text',
 		defaultMessage: 'Text',
 	},
-	functionality: {
-		id: 'project.settings.disclosures.ai.types-functionality',
-		defaultMessage: 'Functionality',
-	},
 })
 
 export const disclosureTelemetryConsentMessages = defineMessages({
@@ -1466,7 +1467,7 @@ export const fileTypeMessages: Record<
 	}),
 	'sources-jar': defineMessage({
 		id: 'version.file-type.sources-jar',
-		defaultMessage: 'Source jar',
+		defaultMessage: 'Sources jar',
 	}),
 	'dev-jar': defineMessage({
 		id: 'version.file-type.dev-jar',
@@ -1474,7 +1475,7 @@ export const fileTypeMessages: Record<
 	}),
 	'javadoc-jar': defineMessage({
 		id: 'version.file-type.javadoc-jar',
-		defaultMessage: 'Javadoc jar',
+		defaultMessage: 'Javadocs jar',
 	}),
 	signature: defineMessage({
 		id: 'version.file-type.signature',

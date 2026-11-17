@@ -1,3 +1,5 @@
+import type { RouteLocationNormalized } from 'vue-router'
+
 import { useGeneratedState } from '~/composables/generated'
 import { projectQueryOptions, warmProjectCheckCaches } from '~/composables/queries/project'
 import { useAppQueryClient } from '~/composables/query-client'
@@ -29,7 +31,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
 	}
 
 	const queryClient = useAppQueryClient()
-	const client = await getProjectMiddlewareClient()
+	const client = await getProjectMiddlewareClient(to)
 	const tags = useGeneratedState()
 
 	if (import.meta.client) startLoading()
@@ -64,18 +66,15 @@ export default defineNuxtRouteMiddleware(async (to) => {
 		// Build the canonical path
 		const canonicalPath = `/${correctType}/${encodeURIComponent(project.slug)}${remainder ? `/${remainder}` : ''}`
 
-		// Only redirect if the path actually changed
-		if (to.path !== canonicalPath) {
+		// h3 decodes the request path during SSR, so compare decoded forms
+		if (decodeURIComponent(to.path) !== decodeURIComponent(canonicalPath)) {
 			return navigateTo(
 				{
 					path: canonicalPath,
 					query: to.query,
 					hash: to.hash,
 				},
-				{
-					redirectCode: 301,
-					replace: true,
-				},
+				{ redirectCode: 301 },
 			)
 		}
 	} catch {
@@ -85,13 +84,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
 	}
 })
 
-async function getProjectMiddlewareClient() {
+export async function getProjectMiddlewareClient(route: RouteLocationNormalized) {
 	if (import.meta.server) {
 		const authToken = useCookie('auth-token')
 		return useServerModrinthClient({ authToken: authToken.value || undefined })
 	}
 
-	const auth = await useAuth()
+	const auth = await useAuth(null, route)
 	const config = useRuntimeConfig()
 
 	return createModrinthClient(auth, {

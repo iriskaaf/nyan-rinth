@@ -1,16 +1,14 @@
+use std::time::Duration;
+
 use hyper_rustls::HttpsConnectorBuilder;
 use hyper_util::rt::TokioExecutor;
 
-mod fetch;
-
-pub use fetch::*;
-
 use crate::env::ENV;
 use crate::queue::server_ping;
-use crate::routes::analytics::MINECRAFT_SERVER_PLAYS;
 
 pub const DOWNLOADS: &str = "downloads";
 pub const PLAYTIME: &str = "playtime";
+pub const MINECRAFT_SERVER_PLAYS: &str = "minecraft_server_plays";
 
 pub async fn init_client() -> clickhouse::error::Result<clickhouse::Client> {
     init_client_with_database(&ENV.CLICKHOUSE_DATABASE).await
@@ -30,6 +28,10 @@ fn connect() -> clickhouse::error::Result<clickhouse::Client> {
         .build();
     let hyper_client =
         hyper_util::client::legacy::Client::builder(TokioExecutor::new())
+            // ClickHouse closes idle keep-alive connections after 3s by default.
+            // Hyper's 90s default reuses dead sockets and fails with
+            // "connection closed before message completed".
+            .pool_idle_timeout(Duration::from_secs(2))
             .build(https_connector);
 
     Ok(clickhouse::Client::with_http_client(hyper_client)
@@ -154,32 +156,6 @@ pub async fn run_migrations_on_database(
             PARTITION BY toYYYYMM(recorded)
             {ttl}
             PRIMARY KEY (project_id, recorded, user_id)
-            SETTINGS index_granularity = 8192
-            "
-        ))
-        .execute()
-        .await?;
-
-    client
-        .query(&format!(
-            "
-            CREATE TABLE IF NOT EXISTS {database}.affiliate_code_clicks {cluster_line}
-            (
-                recorded DateTime64(4),
-                domain String,
-
-                user_id UInt64,
-                affiliate_code_id UInt64,
-
-                ip IPv6,
-                country String,
-                user_agent String,
-                headers Array(Tuple(String, String)) DEFAULT [] TTL toDateTime(recorded) + INTERVAL 60 DAY
-            )
-            ENGINE = {engine}
-            PARTITION BY toYYYYMM(recorded)
-            {ttl}
-            PRIMARY KEY (affiliate_code_id, recorded)
             SETTINGS index_granularity = 8192
             "
         ))

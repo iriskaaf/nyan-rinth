@@ -20,20 +20,27 @@
 		</div>
 
 		<div class="flex flex-col gap-6 px-6 pb-6">
-			<div class="flex justify-end gap-2">
-				<ButtonLink class="min-w-0 flex-1" href="https://support.modrinth.com" @click="modal?.hide()">
+			<div class="grid grid-cols-2 gap-2">
+				<ButtonLink href="https://support.modrinth.com" @click="modal?.hide()">
 					<MessagesSquareIcon />
 					{{ formatMessage(messages.getSupport) }}
 				</ButtonLink>
-				<Button
-					type="colored"
-					color="brand"
-					class="min-w-0 flex-1"
-					:disabled="loadingSignIn"
-					@click="showAccountLoginModal"
-				>
-					<LogInIcon />
-					{{ formatMessage(messages.otherSignInMethods) }}
+				<Button type="colored" color="brand" :disabled="loadingSignIn" @click="signIn">
+					<SpinnerIcon v-if="loadingSignIn" class="animate-spin" />
+					<svg
+						v-else
+						width="20"
+						height="20"
+						viewBox="0 0 20 20"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<rect width="9.25" height="9.25" fill="black" fill-opacity="0.9" />
+						<rect x="10.75" width="9.25" height="9.25" fill="black" fill-opacity="0.9" />
+						<rect y="10.75" width="9.25" height="9.25" fill="black" fill-opacity="0.9" />
+						<rect x="10.75" y="10.75" width="9.25" height="9.25" fill="black" fill-opacity="0.9" />
+					</svg>
+					{{ formatMessage(messages.signIn) }}
 				</Button>
 			</div>
 			<p class="m-0 text-center text-sm text-secondary">
@@ -50,18 +57,18 @@
 </template>
 
 <script setup lang="ts">
-import { LogInIcon, MessagesSquareIcon } from '@modrinth/assets'
+import { MessagesSquareIcon, SpinnerIcon } from '@modrinth/assets'
 import { Button, ButtonLink, defineMessages, NewModal, useVIntl } from '@modrinth/ui'
-import { inject, type Ref, ref } from 'vue'
+import { ref } from 'vue'
 
 import steveImage from '@/assets/steve-look-up-left.webp'
-import type AccountsCard from '@/components/ui/AccountsCard.vue'
 import { handleSevereError } from '@/composables/use-error.js'
+import { injectMinecraftAccounts } from '@/features/minecraft-accounts/context'
 import { trackEvent } from '@/helpers/analytics'
 import { login as loginFlow, set_default_user } from '@/helpers/auth.js'
 
 const { formatMessage } = useVIntl()
-const accountsCard = inject('accountsCard') as Ref<InstanceType<typeof AccountsCard> | null>
+const minecraftAccounts = injectMinecraftAccounts()
 
 const messages = defineMessages({
 	header: {
@@ -81,9 +88,9 @@ const messages = defineMessages({
 		id: 'minecraft-required.get-support',
 		defaultMessage: 'Get support',
 	},
-	otherSignInMethods: {
-		id: 'minecraft-required.other-sign-in-methods',
-		defaultMessage: 'Sign-in methods',
+	signIn: {
+		id: 'minecraft-required.sign-in',
+		defaultMessage: 'Sign in to Microsoft',
 	},
 	dontHaveAccount: {
 		id: 'minecraft-required.dont-have-account',
@@ -102,9 +109,22 @@ function show() {
 	modal.value?.show()
 }
 
-function showAccountLoginModal() {
-	accountsCard.value?.showAccountLoginModal()
-	modal.value?.hide()
+async function signIn() {
+	loadingSignIn.value = true
+
+	try {
+		const loggedIn = await loginFlow()
+		if (!loggedIn) return
+
+		await set_default_user(loggedIn.profile.id)
+		await minecraftAccounts.value?.refreshValues()
+		await trackEvent('AccountLogIn', { source: 'MinecraftRequiredModal' })
+		modal.value?.hide()
+	} catch (error) {
+		handleSevereError(error)
+	} finally {
+		loadingSignIn.value = false
+	}
 }
 
 defineExpose({

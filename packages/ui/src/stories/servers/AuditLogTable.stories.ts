@@ -87,21 +87,25 @@ const serverFullResponse: Archon.Servers.v1.ServerFull = {
 	sftp_username: 'story-server',
 	sftp_password: 'temporary-password',
 	tags: ['medal'],
+	drop_client_mods: true,
 	location: {
 		status: 'assigned',
 		location_metadata: {
 			region: 'us-east',
 			region_should_be_user_displayed: true,
 			hostname: 'ashburn-01',
+			url_host: 'https://ashburn-01.example.com',
 			is_decommissioned_node: false,
 		},
 	},
+	icon: null,
 	worlds: [
 		{
 			id: createWorldId,
 			name: 'Create SMP',
 			created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
 			is_active: false,
+			download_method: { method_type: 'direct_node_download' },
 			backups: [],
 			content: {
 				modloader: 'fabric',
@@ -120,6 +124,7 @@ const serverFullResponse: Archon.Servers.v1.ServerFull = {
 			name: 'SMP Season 4',
 			created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
 			is_active: true,
+			download_method: { method_type: 'direct_node_download' },
 			backups: [
 				{
 					id: backupId,
@@ -234,6 +239,29 @@ const actionLogResponse: Archon.Actions.v1.ActionLogResponse = {
 			worldId: null,
 			minutesAgo: 25,
 		}),
+		rawEntry({
+			action: 'server_suspended',
+			metadata: { reason: 'paymentfailed' },
+			worldId: null,
+			minutesAgo: 26,
+		}),
+		rawEntry({
+			action: 'server_suspension_lifted',
+			metadata: {
+				until: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+				restrict_power: true,
+			},
+			actor: { type: 'support', user_id: userIds.prospector },
+			worldId: null,
+			minutesAgo: 27,
+		}),
+		rawEntry({
+			action: 'server_resuspended',
+			metadata: { expired: true },
+			worldId: null,
+			minutesAgo: 28,
+		}),
+		rawEntry({ action: 'server_unsuspended', worldId: null, minutesAgo: 29 }),
 		rawEntry({
 			action: 'user_invited',
 			metadata: { user_id: userIds.modmuss, permissions: -4611686018427387904 },
@@ -680,6 +708,11 @@ const loaderVersionEntries = toAuditEntries({
 			action: 'loader_version_edited',
 			metadata: { new_loader: null, new_version: null },
 			minutesAgo: 3,
+		}),
+		rawEntry({
+			action: 'loader_version_edited',
+			metadata: { new_loader: 'neo_forge', new_version: '21.1.65' },
+			minutesAgo: 4,
 		}),
 	],
 })
