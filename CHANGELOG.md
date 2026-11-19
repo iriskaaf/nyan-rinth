@@ -2,6 +2,10 @@
 
 Selected releases are listed here. Dates for archived versions refer to the preserved source archives, not their later publication on GitHub. See [UPSTREAM.md](UPSTREAM.md) for the import details.
 
+## 0.2.0-beta.3 - 2026-11-19
+
+- Shows the NyanRinth logo on the welcome screen for an empty library.
+
 ## 0.2.0-beta.2 - 2026-11-17
 
 - Uses the GitHub asset download Accept header when checking the update manifest.

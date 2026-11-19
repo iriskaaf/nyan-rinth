@@ -3,7 +3,7 @@ import { CircleSlashIcon, ImportIcon, PlusIcon } from '@modrinth/assets'
 import { Button, defineMessages, IntlFormatted, SplitButton, useVIntl } from '@modrinth/ui'
 import { computed, inject, onMounted, onUnmounted, ref } from 'vue'
 
-import modrinthSocialIcon from '../../assets/welcome/modrinth-social-icon.png'
+import NyanRinthIcon from '@/shared/components/nyanrinth-icon.vue'
 
 const showCreationModal = inject<() => void>('showCreationModal')
 const showImportModal = inject<() => void>('showImportModal')
@@ -110,7 +110,7 @@ onUnmounted(() => {
 					aria-hidden="true"
 				/>
 				<div class="size-[6.25rem]">
-					<img :src="modrinthSocialIcon" alt="" class="pointer-events-none size-full" />
+					<NyanRinthIcon aria-hidden="true" class="pointer-events-none size-full" />
 				</div>
 				<div class="flex flex-col items-center gap-2">
 					<h1 class="m-0 flex items-center gap-2 text-2xl font-semibold leading-8 text-contrast">
