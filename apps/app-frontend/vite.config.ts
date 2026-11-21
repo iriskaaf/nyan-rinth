@@ -37,6 +37,7 @@ export default defineConfig({
 		},
 	},
 	resolve: {
+		dedupe: ['three'],
 		alias: [
 			{
 				find: '@modrinth/api-client',

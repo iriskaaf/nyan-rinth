@@ -2,6 +2,10 @@
 
 Selected releases are listed here. Dates for archived versions refer to the preserved source archives, not their later publication on GitHub. See [UPSTREAM.md](UPSTREAM.md) for the import details.
 
+## 1.2.2-beta - 2026-11-21
+
+- Uses one Three.js instance for the skin renderer and GLTF loader so the active skin appears in the 3D preview.
+
 ## 1.2.1-beta - 2026-11-21
 
 - Brands the Windows installer and offers English or Russian based on the Windows display language.
