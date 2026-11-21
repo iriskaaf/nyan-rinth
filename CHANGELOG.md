@@ -7,7 +7,7 @@ Selected releases are listed here. Dates for archived versions refer to the pres
 - Uses the new version format with a single channel suffix.
 - Continues the Beta channel with a version above the historical Alpha releases and the previous OTA Beta builds.
 
-Historical GitHub release titles use the same chronological numbering. The titles `1.1.1-alpha`, `1.1.2-beta`, and `1.1.3-beta` refer to the original tags `v0.2.0-alpha.8`, `v0.2.0-beta.2`, and `v0.2.0-beta.3`, respectively. Archived binaries retain their original versions.
+Historical GitHub releases use the tags `v1.1.0-alpha`, `v1.1.1-alpha`, `v1.1.2-beta`, and `v1.1.3-beta`. Their original source tags and binary versions are `v1.1.0`, `v0.2.0-alpha.8`, `v0.2.0-beta.2`, and `v0.2.0-beta.3`, respectively.
 
 ## 0.2.0-beta.3 - 2026-11-19
 
@@ -43,7 +43,7 @@ Known limitations remain in real-account Ely.by PNG upload behavior and the comp
 - Adds a source-history guide and descriptions of the intermediate changes.
 - Keeps machine-specific tool exclusions in local Git configuration.
 
-This update maintains the source repository. The current downloadable Windows preview is [0.2.0-alpha.8](https://github.com/iriskaaf/nyan-rinth/releases/tag/v0.2.0-alpha.8).
+This update maintains the source repository. The current downloadable Windows preview is [1.1.1-alpha](https://github.com/iriskaaf/nyan-rinth/releases/tag/v1.1.1-alpha).
 
 ## 0.2.0-alpha.8 — 2026-11-17
 
