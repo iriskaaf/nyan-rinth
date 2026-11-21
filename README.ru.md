@@ -16,7 +16,7 @@
 
 NyanRinth основан на лаунчере Modrinth. В нём доступны вход Ely.by, каталог и коллекции скинов, локальная синхронизация игровых параметров и собственные акцентные цвета. Ранние выпуски использовали AstralRinth; текущая серия Beta перенесена непосредственно на официальную основу Modrinth.
 
-**Текущая Beta: [1.2.0-beta](https://github.com/iriskaaf/nyan-rinth/releases/latest)** · [Все выпуски и архивы](https://github.com/iriskaaf/nyan-rinth/releases)
+**Текущая Beta: [1.2.1-beta](https://github.com/iriskaaf/nyan-rinth/releases/latest)** · [Все выпуски и архивы](https://github.com/iriskaaf/nyan-rinth/releases)
 
 ## Возможности
 

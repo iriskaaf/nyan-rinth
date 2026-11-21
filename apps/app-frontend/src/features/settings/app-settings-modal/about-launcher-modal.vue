@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CodeIcon, DownloadIcon, LayersIcon, UserIcon } from '@modrinth/assets'
+import { CodeIcon, DownloadIcon, LayersIcon, RefreshCwIcon, UserIcon } from '@modrinth/assets'
 import { Button, defineMessages, injectNotificationManager, NewModal, useVIntl } from '@modrinth/ui'
 import { defineAsyncComponent, ref } from 'vue'
 
@@ -8,6 +8,7 @@ import {
 	exportingDebugInfo,
 } from '@/components/ui/download-manager/debug-info-export'
 
+import { appUpdateState, checkForAppUpdate, type AppUpdateCheckResult } from '@/providers/app-update'
 import NyanRinthIcon from '@/shared/components/nyanrinth-icon.vue'
 
 defineProps<{ version?: string }>()
@@ -17,7 +18,30 @@ const visible = ref(false)
 const modal = ref<InstanceType<typeof NewModal> | null>(null)
 const { formatMessage } = useVIntl()
 const { handleError } = injectNotificationManager()
+const { updatesEnabled, availableUpdate } = appUpdateState
+const checkingUpdate = ref(false)
+const updateResult = ref<AppUpdateCheckResult | 'error' | null>(null)
 const messages = defineMessages({
+	checkUpdate: {
+		id: 'nyanrinth.about.check-update',
+		defaultMessage: 'Check for updates',
+	},
+	checkingUpdate: {
+		id: 'nyanrinth.about.checking-update',
+		defaultMessage: 'Checking for updates…',
+	},
+	current: {
+		id: 'nyanrinth.about.update-current',
+		defaultMessage: 'NyanRinth is up to date.',
+	},
+	updateAvailable: {
+		id: 'nyanrinth.about.update-available',
+		defaultMessage: 'Version {version} is available.',
+	},
+	updateError: {
+		id: 'nyanrinth.about.update-error',
+		defaultMessage: 'Could not check for updates. Try again.',
+	},
 	downloadLog: { id: 'nyanrinth.about.download-log', defaultMessage: 'Download log' },
 	title: { id: 'nyanrinth.about.title', defaultMessage: 'About launcher' },
 	description: { id: 'nyanrinth.about.description', defaultMessage: 'Your Minecraft launcher' },
@@ -25,6 +49,20 @@ const messages = defineMessages({
 	base: { id: 'nyanrinth.about.base', defaultMessage: 'Base' },
 	commit: { id: 'nyanrinth.about.commit', defaultMessage: 'Base commit' },
 })
+
+async function checkUpdate() {
+	if (checkingUpdate.value) return
+	checkingUpdate.value = true
+	updateResult.value = null
+	try {
+		updateResult.value = await checkForAppUpdate()
+	} catch (error) {
+		console.warn('Manual launcher update check failed:', error)
+		updateResult.value = 'error'
+	} finally {
+		checkingUpdate.value = false
+	}
+}
 
 async function downloadLog() {
 	await exportDebugInfo(formatMessage(messages.downloadLog)).catch(handleError)
@@ -89,6 +127,23 @@ defineExpose({ show: () => modal.value?.show() })
 						</dd>
 					</div>
 				</dl>
+				<div v-if="updatesEnabled" class="flex flex-col gap-2">
+					<Button class="w-full" :disabled="checkingUpdate" @click="checkUpdate">
+						<RefreshCwIcon aria-hidden="true" :class="{ 'animate-spin': checkingUpdate }" />
+						{{ formatMessage(checkingUpdate ? messages.checkingUpdate : messages.checkUpdate) }}
+					</Button>
+					<p v-if="updateResult && updateResult !== 'disabled'" class="m-0 text-sm text-secondary" role="status">
+						<template v-if="updateResult === 'available'">
+							{{ formatMessage(messages.updateAvailable, { version: availableUpdate?.version }) }}
+						</template>
+						<template v-else-if="updateResult === 'current'">
+							{{ formatMessage(messages.current) }}
+						</template>
+						<template v-else>
+							{{ formatMessage(messages.updateError) }}
+						</template>
+					</p>
+				</div>
 				<Button class="w-full" :disabled="exportingDebugInfo" @click="downloadLog">
 					<DownloadIcon aria-hidden="true" />
 					{{ formatMessage(messages.downloadLog) }}

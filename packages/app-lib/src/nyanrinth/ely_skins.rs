@@ -168,13 +168,17 @@ async fn verified_session(user: Uuid) -> Result<Option<SiteSession>> {
     let Some(session) = load_session(user).await? else {
         return Ok(None);
     };
-    let response = session.client.get(format!("{SITE}/skins")).send().await?;
-    if !response.status().is_success()
-        || !matches_user(&current_user(&response.text().await?)?, &username)
-    {
-        disconnect(user).await?;
-        return Ok(None);
-    }
+	let response = session
+		.client
+		.get(format!("{SITE}/skins"))
+		.send()
+		.await?
+		.error_for_status()?;
+	if !matches_user(&current_user(&response.text().await?)?, &username) {
+		tracing::debug!("Ely.by skin session is no longer authenticated");
+		disconnect(user).await?;
+		return Ok(None);
+	}
     save_session(user, &session).await?;
     Ok(Some(session))
 }
@@ -405,11 +409,12 @@ pub async fn personal(
     model: &str,
     tags: &str,
     uploaded: bool,
-) -> Result<CatalogPage> {
+) -> Result<Option<CatalogPage>> {
     let username = expected_username(user).await?;
-    let session = verified_session(user).await?.ok_or_else(|| {
-        error("Подключите скины, чтобы открыть личную коллекцию Ely.by.")
-    })?;
+	let Some(session) = verified_session(user).await? else {
+		tracing::debug!("Ely.by personal collection requested without an active skin session");
+		return Ok(None);
+	};
     let (model, tags) = if uploaded { ("", "") } else { (model, tags) };
     let mut result =
         personal_remote(&session, &username, page, model, tags, uploaded)
@@ -449,7 +454,7 @@ pub async fn personal(
             result = uploaded_page(remote, pending, page, result.equipped_id);
         }
     }
-    Ok(result)
+    Ok(Some(result))
 }
 
 async fn personal_remote(

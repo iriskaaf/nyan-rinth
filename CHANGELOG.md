@@ -2,6 +2,13 @@
 
 Selected releases are listed here. Dates for archived versions refer to the preserved source archives, not their later publication on GitHub. See [UPSTREAM.md](UPSTREAM.md) for the import details.
 
+## 1.2.1-beta - 2026-11-21
+
+- Brands the Windows installer and offers English or Russian based on the Windows display language.
+- Recommends updating an existing installation and offers a clean install. Start menu and desktop shortcuts are opt-in.
+- Adds a manual update check to About and moves the update action above Settings.
+- Shows the skin reconnection state when an Ely.by collection session is no longer active.
+
 ## 1.2.0-beta - 2026-11-21
 
 - Uses the new version format with a single channel suffix.

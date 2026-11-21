@@ -72,6 +72,7 @@ import { RouterView, useRoute, useRouter } from 'vue-router'
 
 import { useRouteLoading } from '@/app/runtime/use-route-loading'
 import { useUpdateChecks } from '@/app/runtime/use-update-checks'
+import AppUpdateButton from '@/components/ui/app-update-button/index.vue'
 import AppSidebar from '@/app/shell/sidebar/index.vue'
 import AppTitleBar from '@/app/shell/title-bar/index.vue'
 import { trackExternalFileDownload } from '@/components/ui/download-manager/external-file-downloads'
@@ -212,7 +213,7 @@ const appTheme = useTheme()
 const quickInstances = useQuickInstanceLimit()
 const router = useRouter()
 const route = useRoute()
-const startUpdateChecks = useUpdateChecks(checkUpdates)
+const { start: startUpdateChecks, checkNow } = useUpdateChecks(checkUpdates)
 const { channel: appEventChannel, events: appEvents } = setupAppEventsProvider()
 useInstanceMetadataRefresh(appEvents)
 const breadcrumbManager = createBreadcrumbManager()
@@ -1759,7 +1760,7 @@ async function checkUpdates() {
 		console.log('Skipping update check as updates are disabled in this build or environment')
 		updatesEnabled.value = false
 
-		return
+		return 'disabled'
 	}
 
 	async function performCheck() {
@@ -1769,7 +1770,7 @@ async function checkUpdates() {
 		})
 		if (!update) {
 			console.log('No update available')
-			return
+			return availableUpdate.value ? 'available' : 'current'
 		}
 
 		const isExistingUpdate = update.version === availableUpdate.value?.version
@@ -1777,7 +1778,10 @@ async function checkUpdates() {
 		if (isExistingUpdate) {
 			console.log('Update is already known')
 			scheduleDelayedUpdatePopup()
-			return
+			if (!metered.value && !finishedDownloading.value && !downloading.value) {
+				void downloadUpdate(availableUpdate.value)
+			}
+			return 'available'
 		}
 
 		appUpdateDownload.progress.value = 0
@@ -1801,9 +1805,10 @@ async function checkUpdates() {
 		getUpdateSize(update.rid)
 			.then((size) => (updateSize.value = size))
 			.catch((error) => console.warn('Failed to read update size:', error))
+		return 'available'
 	}
 
-	await performCheck()
+	return performCheck()
 }
 
 async function downloadAvailableUpdate() {
@@ -1868,6 +1873,7 @@ async function installUpdate() {
 }
 
 setAppUpdateActions({
+	check: checkNow,
 	download: downloadAvailableUpdate,
 	install: installUpdate,
 	changelog: () => openUrl('https://github.com/iriskaaf/nyan-rinth/releases/latest'),
@@ -2071,6 +2077,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 					</NavButton>
 				</QuickInstanceSwitcher>
 			</suspense>
+			<AppUpdateButton />
 			<NavButton
 				v-tooltip.right="formatMessage(commonMessages.settingsLabel)"
 				:to="settingsActions.openSettings"

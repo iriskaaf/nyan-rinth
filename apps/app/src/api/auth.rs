@@ -161,7 +161,7 @@ pub async fn ely_skins_personal(
     model: &str,
     tags: &str,
     uploaded: bool,
-) -> Result<theseus::nyanrinth::ely_skins::CatalogPage> {
+) -> Result<Option<theseus::nyanrinth::ely_skins::CatalogPage>> {
     Ok(theseus::nyanrinth::ely_skins::personal(
         user, page, model, tags, uploaded,
     )

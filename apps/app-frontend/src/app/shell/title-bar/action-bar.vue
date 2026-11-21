@@ -16,7 +16,6 @@
 			<UnplugIcon class="text-secondary" />
 			<span class="text-sm text-contrast"> {{ formatMessage(messages.offline) }} </span>
 		</div>
-		<AppUpdateButton />
 		<div
 			class="flex border-solid border-surface-5 text-sm font-medium items-center gap-2 py-1.5 px-3 rounded-xl border"
 		>
@@ -145,7 +144,6 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import AppUpdateButton from '@/components/ui/app-update-button/index.vue'
 import DownloadManager from '@/components/ui/download-manager/index.vue'
 import { useAppEvent } from '@/composables/use-app-event'
 import { trackEvent } from '@/helpers/analytics'

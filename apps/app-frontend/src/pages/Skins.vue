@@ -112,13 +112,19 @@ async function loadCatalog() {
 		}
 		const result =
 			tab.value === 'Мои скины'
-				? await invoke<Catalog>('plugin:auth|ely_skins_personal', {
+				? await invoke<Catalog | null>('plugin:auth|ely_skins_personal', {
 						...args,
 						user: selected.value,
 						uploaded: collection.value === 'Мои загрузки',
 					})
 				: await invoke<Catalog>('plugin:auth|ely_skins_catalog', args)
-		if (request === catalogRequest) catalog.value = result
+		if (request !== catalogRequest) return
+		if (result === null) {
+			connected.value = false
+			catalog.value = { items: [], current: 1, last: 1 }
+			return
+		}
+		catalog.value = result
 	} catch (e) {
 		if (request === catalogRequest) {
 			catalogFailed.value = true

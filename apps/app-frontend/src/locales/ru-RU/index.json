@@ -4232,6 +4232,21 @@
 	"settings.sidebar.label.display": {
 		"message": "Отображение"
 	},
+	"nyanrinth.about.check-update": {
+		"message": "Проверить на обновления"
+	},
+	"nyanrinth.about.checking-update": {
+		"message": "Проверяем обновления…"
+	},
+	"nyanrinth.about.update-available": {
+		"message": "Доступна версия {version}."
+	},
+	"nyanrinth.about.update-current": {
+		"message": "Установлена последняя версия NyanRinth."
+	},
+	"nyanrinth.about.update-error": {
+		"message": "Не удалось проверить обновления. Попробуйте ещё раз."
+	},
 	"nyanrinth.about.title": {
 		"message": "О лаунчере"
 	},

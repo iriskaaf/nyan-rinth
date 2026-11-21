@@ -21,7 +21,15 @@
 		"windows": {
 			"nsis": {
 				"installMode": "currentUser",
-				"installerHooks": "./nsis/hooks.nsi"
+				"installerHooks": "./nsis/hooks.nsi",
+				"template": "./nsis/installer.nsi",
+				"installerIcon": "./icons/icon.ico",
+				"uninstallerIcon": "./icons/icon.ico",
+				"headerImage": "./nsis/header.bmp",
+				"uninstallerHeaderImage": "./nsis/header.bmp",
+				"sidebarImage": "./nsis/sidebar.bmp",
+				"languages": ["English", "Russian"],
+				"displayLanguageSelector": true
 			}
 		},
 		"longDescription": "",

@@ -4442,6 +4442,12 @@
   "nyanrinth.about.base": {
     "message": "Base"
   },
+  "nyanrinth.about.check-update": {
+    "message": "Check for updates"
+  },
+  "nyanrinth.about.checking-update": {
+    "message": "Checking for updates…"
+  },
   "nyanrinth.about.commit": {
     "message": "Base commit"
   },
@@ -4456,6 +4462,15 @@
   },
   "nyanrinth.about.title": {
     "message": "About launcher"
+  },
+  "nyanrinth.about.update-available": {
+    "message": "Version {version} is available."
+  },
+  "nyanrinth.about.update-current": {
+    "message": "NyanRinth is up to date."
+  },
+  "nyanrinth.about.update-error": {
+    "message": "Could not check for updates. Try again."
   },
   "nyanrinth.settings.app-version": {
     "message": "NyanRinth {version}"

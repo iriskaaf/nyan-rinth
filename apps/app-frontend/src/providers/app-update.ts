@@ -20,7 +20,10 @@ interface UpdatePromptState {
 
 export type AppUpdatePromptStage = 'available' | 'downloaded'
 
+export type AppUpdateCheckResult = 'available' | 'current' | 'disabled'
+
 interface AppUpdateActions {
+	check?: () => Promise<AppUpdateCheckResult>
 	download?: () => Promise<void> | void
 	install?: () => Promise<void> | void
 	changelog?: () => Promise<void> | void
@@ -153,6 +156,10 @@ export function getNextAppUpdatePopupTime(
 
 export function setAppUpdateActions(nextActions: AppUpdateActions): void {
 	actions = nextActions
+}
+
+export async function checkForAppUpdate(): Promise<AppUpdateCheckResult> {
+	return (await actions.check?.()) ?? 'disabled'
 }
 
 export async function downloadAvailableAppUpdate(): Promise<void> {
