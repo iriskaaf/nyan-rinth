@@ -2,6 +2,13 @@
 
 Selected releases are listed here. Dates for archived versions refer to the preserved source archives, not their later publication on GitHub. See [UPSTREAM.md](UPSTREAM.md) for the import details.
 
+## 1.2.0-beta - 2026-11-21
+
+- Uses the new version format with a single channel suffix.
+- Continues the Beta channel with a version above the historical Alpha releases and the previous OTA Beta builds.
+
+Historical GitHub release titles use the same chronological numbering. The titles `1.1.1-alpha`, `1.1.2-beta`, and `1.1.3-beta` refer to the original tags `v0.2.0-alpha.8`, `v0.2.0-beta.2`, and `v0.2.0-beta.3`, respectively. Archived binaries retain their original versions.
+
 ## 0.2.0-beta.3 - 2026-11-19
 
 - Shows the NyanRinth logo on the welcome screen for an empty library.

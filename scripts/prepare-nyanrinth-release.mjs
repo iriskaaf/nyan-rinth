@@ -22,7 +22,7 @@ function git(...args) {
 	return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
 }
 
-if (!/^\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?$/.test(version)) {
+if (!/^\d+\.\d+\.\d+(?:-(?:alpha|beta))?$/.test(version)) {
 	throw new Error(`Unsupported release version ${version}`)
 }
 for (const file of [installer, signatureFile, executable]) {
@@ -109,7 +109,7 @@ if (process.argv.includes('--publish')) {
 		throw new Error('The release tag must point to the current commit')
 	}
 	const gh = process.env.GH_PATH ?? 'gh'
-	const prerelease = version.includes('-alpha.')
+	const prerelease = version.endsWith('-alpha')
 	const files = [...artifacts, 'SHA256SUMS.txt'].map((name) => join(output, name))
 	execFileSync(
 		gh,
@@ -123,7 +123,7 @@ if (process.argv.includes('--publish')) {
 			'--verify-tag',
 			'--draft',
 			'--title',
-			`NyanRinth ${version}`,
+			version,
 			'--notes-file',
 			join(output, 'release-notes.md'),
 		],

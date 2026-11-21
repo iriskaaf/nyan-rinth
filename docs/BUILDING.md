@@ -58,7 +58,7 @@ Run `gitleaks git --redact` before pushing. Create the version tag and publish m
 
 ## Signed Windows releases
 
-Releases are published to `iriskaaf/nyan-rinth`. The NyanRinth version and the Modrinth base version are tracked separately. The current NyanRinth series is `0.2.0-beta.*` on Modrinth v0.23.1.
+Releases are published to `iriskaaf/nyan-rinth`. The NyanRinth version and the Modrinth base version are tracked separately. Use `X.X.X-alpha` or `X.X.X-beta` for prerelease versions and increase the numeric version for each new release on the same channel. Modrinth v0.23.1 is the current base.
 
 The Tauri updater feature is enabled by default. `tauri.conf.json` contains the public signing key and the GitHub latest-release manifest URL. Keep the matching private signing key outside the source tree. The local release key is encrypted and its password is protected with Windows DPAPI in `%LOCALAPPDATA%/NyanRinth/ReleaseSigning`. Preserve this directory and its Windows user credentials when backing up the release machine.
 
@@ -68,8 +68,8 @@ After building from the committed version, run the release command to verify the
 
 ```powershell
 node scripts/prepare-nyanrinth-release.mjs
-git tag v0.2.0-beta.2
-git push origin main v0.2.0-beta.2
+git tag v1.2.0-beta
+git push origin main v1.2.0-beta
 node scripts/prepare-nyanrinth-release.mjs --publish
 ```
 

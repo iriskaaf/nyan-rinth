@@ -23,7 +23,7 @@
 
 NyanRinth builds on the Modrinth launcher and adds Ely.by authentication, skin collections, local game-settings synchronization and configurable accent colors. Earlier releases used AstralRinth; the current Beta series uses the official Modrinth codebase directly.
 
-**Current Beta: [0.2.0-beta.3](https://github.com/iriskaaf/nyan-rinth/releases/latest)** · [All releases and archives](https://github.com/iriskaaf/nyan-rinth/releases)
+**Current Beta: [1.2.0-beta](https://github.com/iriskaaf/nyan-rinth/releases/latest)** · [All releases and archives](https://github.com/iriskaaf/nyan-rinth/releases)
 
 ## Features
 
@@ -39,7 +39,7 @@ NyanRinth builds on the Modrinth launcher and adds Ely.by authentication, skin c
 
 ## Download and install
 
-Open **[Releases](https://github.com/iriskaaf/nyan-rinth/releases)** and choose a release. The current `0.2.0-beta.*` series is Beta; `1.1.0` is the last archived release on the older AstralRinth platform and is also marked Alpha.
+Open **[Releases](https://github.com/iriskaaf/nyan-rinth/releases)** and choose a release. Current Beta releases use the `X.X.X-beta` format; `1.1.0` is the last archived release on the older AstralRinth platform and is also marked Alpha.
 
 | File | Purpose |
 | --- | --- |
@@ -48,7 +48,7 @@ Open **[Releases](https://github.com/iriskaaf/nyan-rinth/releases)** and choose 
 | `SHA256SUMS.txt` | SHA-256 checksums for the downloadable binaries |
 | `Source code` | Source files matching the release tag |
 
-Windows x64 and Microsoft Edge WebView2 Runtime are required. Release binaries are not commercially code-signed. From 0.2.0-beta.3, signed Windows updates download from GitHub Releases automatically. Earlier Alpha builds require one manual upgrade to Beta.
+Windows x64 and Microsoft Edge WebView2 Runtime are required. Release binaries are not commercially code-signed. From 0.2.0-beta.2, signed Windows updates download from GitHub Releases automatically. Earlier Alpha builds require one manual upgrade to Beta.
 
 1. Install NyanRinth and add an Ely.by or offline account.
 2. Create an installation, import an existing one or download a modpack.
